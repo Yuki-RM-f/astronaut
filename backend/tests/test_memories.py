@@ -1,3 +1,9 @@
+from sqlalchemy import select
+
+from app.models.memory_card import MemoryCard
+from app.services import memory_markdown
+
+
 def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -18,6 +24,7 @@ def persona_payload() -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -237,3 +244,54 @@ def test_manual_memory_enforces_prd_enums_and_source_ownership(client):
         json={**valid_payload, "source_material_id": other_material["id"]},
     )
     assert wrong_source.status_code == 404
+
+
+def test_manual_memory_create_confirm_and_content_update_refresh_long_term_markdown(
+    client,
+    db_session,
+):
+    token = register_user(client, "memory-markdown-refresh@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    payload = {
+        "title": "manual markdown memory",
+        "content": "original memory content",
+        "category": "preference",
+        "confidence_level": "high",
+        "confidence_score": 90,
+        "source_material_id": material["id"],
+        "source_quote": "original memory content",
+        "source_location": "manual:body#markdown",
+    }
+
+    created = client.post(
+        f"/api/personas/{persona['id']}/memories",
+        headers=auth(token),
+        json=payload,
+    )
+
+    assert created.status_code == 201
+    memory_id = created.json()["id"]
+    memory = db_session.scalar(select(MemoryCard).where(MemoryCard.id == memory_id))
+    long_term_path = memory_markdown.memory_context_dir(persona["id"]) / "long_term_memory.md"
+    assert memory is not None
+    assert not long_term_path.exists() or memory_id not in long_term_path.read_text(encoding="utf-8")
+
+    confirmed = client.post(f"/api/memories/{memory_id}/confirm", headers=auth(token))
+    assert confirmed.status_code == 200
+    body = long_term_path.read_text(encoding="utf-8")
+    assert memory_id in body
+    assert "original memory content" in body
+
+    corrected = client.patch(
+        f"/api/memories/{memory_id}",
+        headers=auth(token),
+        json={"content": "corrected memory content"},
+    )
+
+    assert corrected.status_code == 200
+    db_session.refresh(memory)
+    body = long_term_path.read_text(encoding="utf-8")
+    assert memory_id in body
+    assert "corrected memory content" in body
+    assert "- content: original memory content" not in body

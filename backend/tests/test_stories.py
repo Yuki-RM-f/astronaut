@@ -18,6 +18,7 @@ def persona_payload(name: str = "外婆") -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -206,6 +207,120 @@ def test_favorite_story_and_story_routes_are_user_scoped(client):
             f"/api/stories/{story['id']}/favorite",
             headers=auth(other_token),
             json={"is_favorite": False},
+        ).status_code
+        == 404
+    )
+
+
+def test_export_story_returns_text_and_audio_metadata(client):
+    token = register_user(client, "story-export@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    reviewed = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆在生日那天给小铭煮了一碗热馄饨。",
+        title="生日热馄饨",
+    )
+    confirm_memory(client, token, reviewed["id"])
+    story = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "生日"},
+    ).json()
+
+    response = client.get(
+        f"/api/personas/{persona['id']}/export/story/{story['id']}",
+        headers=auth(token),
+    )
+
+    assert response.status_code == 200
+    exported = response.json()
+    assert exported["story_id"] == story["id"]
+    assert exported["persona_id"] == persona["id"]
+    assert exported["theme"] == "生日"
+    assert exported["text_filename"] == f"story-{story['id']}.txt"
+    assert exported["audio_filename"] == f"story-{story['id']}.wav"
+    assert exported["audio_url"] == story["audio_url"]
+    assert "mock TTS" in exported["audio_export_notice"]
+    assert story["title"] in exported["export_text"]
+    assert story["content"] in exported["export_text"]
+    assert "来源记忆" in exported["export_text"]
+    assert "生日热馄饨" in exported["export_text"]
+    assert exported["source_memory_ids"] == [reviewed["id"]]
+    assert exported["source_memories"][0]["memory_card_id"] == reviewed["id"]
+
+
+def test_export_story_audio_returns_watermarked_wav_file(client):
+    token = register_user(client, "story-audio-export@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    reviewed = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆在旅行前总会提醒小铭带好水杯。",
+        title="旅行水杯",
+    )
+    confirm_memory(client, token, reviewed["id"])
+    story = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "旅行"},
+    ).json()
+
+    response = client.get(
+        f"/api/personas/{persona['id']}/export/story/{story['id']}/audio",
+        headers=auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("audio/wav")
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="story-{story["id"]}.wav"'
+    )
+    assert "AI simulation mock TTS audio" in response.headers["x-ai-simulation-notice"]
+    assert response.content.startswith(b"RIFF")
+    assert b"WAVE" in response.content[:16]
+    assert b"AI simulation mock TTS audio" in response.content
+    assert b"not TA real voice" in response.content
+
+
+def test_export_story_is_scoped_to_owner_and_persona(client):
+    owner_token = register_user(client, "story-export-owner@example.com")
+    other_token = register_user(client, "story-export-other@example.com")
+    persona = create_persona(client, owner_token)
+    other_persona = create_persona(client, owner_token, "爷爷")
+    material = create_manual_material(client, owner_token, persona["id"])
+    reviewed = create_memory(
+        client,
+        owner_token,
+        persona["id"],
+        material["id"],
+        "外婆常在旅行前帮小铭收拾水杯。",
+        title="旅行水杯",
+    )
+    confirm_memory(client, owner_token, reviewed["id"])
+    story = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(owner_token),
+        json={"theme": "旅行"},
+    ).json()
+
+    assert (
+        client.get(
+            f"/api/personas/{persona['id']}/export/story/{story['id']}",
+            headers=auth(other_token),
+        ).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"/api/personas/{other_persona['id']}/export/story/{story['id']}",
+            headers=auth(owner_token),
         ).status_code
         == 404
     )

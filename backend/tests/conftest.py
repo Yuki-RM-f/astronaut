@@ -14,6 +14,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 
 os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "sqlite+pysqlite://"
+os.environ["DEFAULT_LLM_PROVIDER"] = "mock"
 os.environ["JWT_SECRET"] = "test-secret"
 
 from app.db.base import Base  # noqa: E402

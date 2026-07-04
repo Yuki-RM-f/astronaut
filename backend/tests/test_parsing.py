@@ -2,6 +2,9 @@ from sqlalchemy import select
 
 from app.models.memory_card import MemoryCard
 from app.models.parsed_chunk import ParsedChunk
+from app.models.ai_job import AIJob
+from app.services import memory_markdown
+from app.services import parsing
 
 
 def auth(token: str) -> dict[str, str]:
@@ -24,6 +27,7 @@ def persona_payload() -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -99,3 +103,89 @@ def test_upload_demo_files_generate_type_specific_chunks_and_jobs(client, db_ses
     assert all(memory.source_type in {"text", "image", "audio", "video"} for memory in memories)
     assert all(memory.source_quote for memory in memories)
     assert all(memory.source_location for memory in memories)
+
+
+def test_parse_job_records_third_party_provider_from_gateway(
+    client,
+    db_session,
+    monkeypatch,
+):
+    def fake_run_gateway(capability: str, payload: dict):
+        if capability == "text_parser":
+            return {
+                "provider_type": "third_party",
+                "provider_name": "dashscope",
+                "output": {
+                    "chunks": [
+                        {
+                            "content": payload["text"],
+                            "summary": "真实文本解析",
+                            "source_location": "text:body",
+                        }
+                    ]
+                },
+            }
+        if capability == "memory_extraction":
+            return {
+                "provider_type": "third_party",
+                "provider_name": "dashscope",
+                "output": {
+                    "memories": [
+                        {
+                            "title": "真实抽取记忆",
+                            "content": "外婆喜欢包馄饨。",
+                            "category": "preference",
+                            "confidence_level": "high",
+                            "confidence_score": 90,
+                            "source_quote": "外婆喜欢包馄饨",
+                            "source_location": payload["source_location"],
+                        }
+                    ]
+                },
+            }
+        raise AssertionError(f"unexpected capability {capability}")
+
+    monkeypatch.setattr(parsing, "_run_gateway", fake_run_gateway)
+    token = register_user(client, "m3-third-party@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/materials/manual",
+        headers=auth(token),
+        json={"manual_text": "外婆喜欢包馄饨。", "importance": "important"},
+    )
+
+    assert response.status_code == 201
+    material = response.json()
+    job = db_session.scalar(select(AIJob).where(AIJob.id == material["jobs"][0]["id"]))
+    memory = db_session.scalar(select(MemoryCard))
+    assert job.provider_type == "third_party"
+    assert job.provider_name == "dashscope"
+    assert memory.evidence_json["provider_name"] == "dashscope"
+
+
+def test_parse_job_does_not_put_pending_memories_in_long_term_markdown_until_confirmed(
+    client,
+    db_session,
+):
+    token = register_user(client, "m3-markdown-parse@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/materials/manual",
+        headers=auth(token),
+        json={"manual_text": "外婆喜欢包馄饨。", "importance": "important"},
+    )
+
+    assert response.status_code == 201
+    memories = db_session.scalars(select(MemoryCard)).all()
+    assert memories
+    long_term_path = memory_markdown.memory_context_dir(persona["id"]) / "long_term_memory.md"
+    assert not long_term_path.exists()
+
+    confirmed = client.post(f"/api/memories/{memories[0].id}/confirm", headers=auth(token))
+    assert confirmed.status_code == 200
+
+    body = long_term_path.read_text(encoding="utf-8")
+    assert memories[0].id in body
+    assert memories[0].content in body

@@ -9,25 +9,19 @@ import {
   Mic2,
   ScrollText,
   Sparkles,
+  Star,
   UploadCloud,
-  UserRound
+  UserRound,
+  type LucideIcon
 } from "lucide-react";
-import { DemoEntry } from "@/src/components/DemoEntry";
 import {
-  AiReminder,
-  GlassPanel,
-  MemoryActionCard,
-  MemoryContainer,
-  MemoryShell,
-  MemoryTitle,
-  PaperNote,
-  PhotoStack,
-  StatPill,
-  TrustBadge,
-  VoiceWave
-} from "@/src/components/MemorySpace";
-import { MEMORY_SPACE_ACTIONS } from "@/src/lib/memory-space";
-import { getAuthToken } from "@/src/lib/auth";
+  PageTitle,
+  PlanetStar,
+  StarNav,
+  StarPanel,
+  StarShell
+} from "@/src/components/StarSite";
+import { ensureDemoSession } from "@/src/lib/auth";
 import { getPersona, personaTypeLabel, PersonaRead } from "@/src/lib/persona";
 import {
   getPersonaProfile,
@@ -38,7 +32,7 @@ import {
 } from "@/src/lib/profile";
 import { ROUTES } from "@/src/lib/routes";
 
-type DetailState = "checking" | "signedOut" | "loading" | "ready" | "error";
+type DetailState = "loading" | "ready" | "error";
 
 export default function PersonaDetailPage() {
   const params = useParams();
@@ -46,17 +40,12 @@ export default function PersonaDetailPage() {
     const rawId = params.id;
     return Array.isArray(rawId) ? rawId[0] : rawId;
   }, [params.id]);
-  const [state, setState] = useState<DetailState>("checking");
+  const [state, setState] = useState<DetailState>("loading");
   const [persona, setPersona] = useState<PersonaRead | null>(null);
   const [profile, setProfile] = useState<PersonaProfileRead | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      setState("signedOut");
-      return;
-    }
-
     if (!personaId) {
       setError("缺少人物 ID。");
       setState("error");
@@ -67,7 +56,8 @@ export default function PersonaDetailPage() {
     setState("loading");
     setError(null);
 
-    Promise.all([getPersona(personaId), getPersonaProfile(personaId)])
+    ensureDemoSession()
+      .then(() => Promise.all([getPersona(personaId), getPersonaProfile(personaId)]))
       .then(([loadedPersona, loadedProfile]) => {
         if (!isCurrent) {
           return;
@@ -90,56 +80,24 @@ export default function PersonaDetailPage() {
   }, [personaId]);
 
   return (
-    <MemoryShell background="grandmotherTea">
-      <MemoryContainer>
-        <Link href={ROUTES.dashboard} className="text-sm font-semibold text-memoryAccent">
-          返回记忆空间列表
+    <StarShell>
+      <StarNav />
+      <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10">
+        <Link href={ROUTES.dashboard} className="text-sm font-bold text-starGold">
+          返回我的星空
         </Link>
 
-        {state === "signedOut" ? <SignedOutState /> : null}
-        {state === "loading" || state === "checking" ? (
-          <Notice text="正在打开记忆空间..." />
-        ) : null}
+        {state === "loading" ? <Notice text="正在打开这颗星星..." /> : null}
         {state === "error" ? <Notice text={error ?? "无法加载人物。"} /> : null}
         {state === "ready" && persona ? (
-          <MemorySpace persona={persona} profile={profile} />
+          <PersonaSpace persona={persona} profile={profile} />
         ) : null}
-      </MemoryContainer>
-    </MemoryShell>
+      </main>
+    </StarShell>
   );
 }
 
-function SignedOutState() {
-  return (
-    <GlassPanel className="mt-8 max-w-3xl">
-      <h1 className="font-serif text-3xl font-semibold text-memoryText">
-        需要一个可访问的记忆空间
-      </h1>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-memoryText/70">
-        你可以免注册打开外婆示例，或登录已有账号查看私有人物。
-      </p>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
-      </div>
-    </GlassPanel>
-  );
-}
-
-function Notice({ text }: { text: string }) {
-  return (
-    <GlassPanel className="mt-8 text-sm leading-7 text-memoryText/72">
-      {text}
-    </GlassPanel>
-  );
-}
-
-function MemorySpace({
+function PersonaSpace({
   persona,
   profile
 }: {
@@ -151,31 +109,25 @@ function MemorySpace({
   const uploadSuggestion = profile ? primaryUploadSuggestion(profile.suggestions) : null;
 
   return (
-    <div className="mt-8 grid gap-7">
-      <section className="grid gap-7 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+    <div className="mt-7 grid gap-6">
+      <section className="relative grid gap-7 lg:grid-cols-[minmax(0,0.9fr)_minmax(18rem,0.5fr)] lg:items-center">
         <div>
-          <MemoryTitle
-            title={`${persona.name}的记忆空间`}
+          <PageTitle
+            className="text-left"
+            title={`${persona.name}的星星`}
             subtitle={`${personaTypeLabel(persona.persona_type)} · ${statusLabel(persona.status)}。这里收纳 TA 的资料、可信记忆、人格档案和可对话的陪伴。`}
-          >
-            <div className="mt-6">
-              <AiReminder />
-            </div>
-          </MemoryTitle>
-          <p className="mt-6 max-w-2xl text-sm leading-7 text-memoryText/74">
+          />
+          <p className="mt-6 max-w-2xl text-sm font-semibold leading-7 text-starMist/74">
             {persona.short_bio}
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
-            <Link
-              href={ROUTES.personaChat(persona.id)}
-              className="memory-button inline-flex items-center justify-center gap-2 rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm transition hover:bg-memoryAccentDark focus:outline-none focus:ring-4 focus:ring-memoryAccent/25"
-            >
+            <Link href={ROUTES.personaChat(persona.id)} className="star-button gap-2">
               <MessageCircle className="h-4 w-4" aria-hidden="true" />
               开始对话
             </Link>
             <Link
               href={ROUTES.personaUploads(persona.id)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft backdrop-blur transition hover:border-memoryAccent/45 hover:text-memoryAccent"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-starGold/24 bg-starGold/12 px-6 text-sm font-bold text-starCream transition hover:bg-starGold/18"
             >
               <UploadCloud className="h-4 w-4" aria-hidden="true" />
               补充资料
@@ -183,119 +135,156 @@ function MemorySpace({
           </div>
         </div>
 
-        <div className="relative min-h-[30rem]">
-          <PhotoStack
-            primary="grandmotherTea"
-            secondary="familyAlbum"
-            className="mx-auto max-w-xl"
-          />
-          <div className="absolute right-2 top-0">
-            <TrustBadge score={trustScore} label={trustLevelLabel(trustLevel)} />
+        <StarPanel className="relative min-h-[20rem] overflow-hidden p-6">
+          <div className="pointer-events-none absolute -right-16 -top-16 opacity-80">
+            <PlanetStar />
           </div>
-          <div className="absolute bottom-4 left-0">
-            <VoiceWave label={`${persona.name}的声音`} />
+          <div className="relative z-10">
+            <p className="text-sm font-bold text-starGold">可信度</p>
+            <div className="mt-3 flex items-end gap-2 text-starGold">
+              <span className="font-serif text-7xl font-bold leading-none">{trustScore}</span>
+              <span className="pb-2 text-3xl font-bold">%</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-starMist/70">
+              {trustLevelLabel(trustLevel)}
+            </p>
+            <dl className="mt-6 grid grid-cols-3 gap-3">
+              <Stat label="资料" value={persona.stats.materials_count} />
+              <Stat label="记忆" value={persona.stats.memories_count} />
+              <Stat label="对话" value={persona.stats.conversations_count} />
+            </dl>
           </div>
-        </div>
+        </StarPanel>
       </section>
 
-      <GlassPanel className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <MemoryActionCard
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <ActionCard
           href={ROUTES.personaChat(persona.id)}
-          title={MEMORY_SPACE_ACTIONS.chat.title}
-          text="从一句想念开始，查看回复依据。"
+          title="星星对话"
+          text="文字对话、视频手势互动、语音对话和三个体验入口。"
           icon={MessageCircle}
-          primary
         />
-        <MemoryActionCard
-          href={ROUTES.personaUploads(persona.id)}
-          title={MEMORY_SPACE_ACTIONS.upload.title}
-          text="把新的故事、照片或声音放进资料盒。"
-          icon={UploadCloud}
-        />
-        <MemoryActionCard
+        <ActionCard
           href={ROUTES.personaMemories(persona.id)}
-          title={MEMORY_SPACE_ACTIONS.memories.title}
-          text="确认、修正或停用资料整理出的记忆。"
+          title="记忆审核"
+          text="确认、修正、停用资料整理出的记忆，点亮星星。"
           icon={ScrollText}
         />
-        <MemoryActionCard
+        <ActionCard
+          href={ROUTES.personaUploads(persona.id)}
+          title="资料上传"
+          text="上传照片、视频、声音、文字，或手动补充回忆。"
+          icon={UploadCloud}
+        />
+        <ActionCard
           href={ROUTES.personaProfile(persona.id)}
-          title={MEMORY_SPACE_ACTIONS.profile.title}
-          text="查看习惯、关系、表达方式和可信度。"
+          title="人格档案"
+          text="查看关系、习惯、表达方式和可信度组成。"
           icon={UserRound}
         />
-        <MemoryActionCard
+        <ActionCard
+          href={ROUTES.personaVoice(persona.id)}
+          title="声音"
+          text="选择默认 TTS、创建音色样本并试听回复。"
+          icon={Mic2}
+        />
+        <ActionCard
           href={ROUTES.personaAvatar(persona.id)}
-          title={MEMORY_SPACE_ACTIONS.avatar.title}
+          title="3D 形象"
           text="选择纪念形象，查看 mock 头像/半身预览。"
           icon={Sparkles}
         />
-      </GlassPanel>
+        <ActionCard
+          href={ROUTES.personaJobs(persona.id)}
+          title="资料任务"
+          text="查看资料解析、记忆抽取和语音合成任务。"
+          icon={BookOpenText}
+        />
+      </section>
 
-      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <GlassPanel>
-          <h2 className="font-serif text-2xl font-semibold text-memoryText">人格设定</h2>
-          <dl className="mt-5 grid gap-4">
+      <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+        <StarPanel className="p-6">
+          <h2 className="font-serif text-2xl font-bold text-starGold">人格设定</h2>
+          <dl className="mt-5 grid gap-4 md:grid-cols-2">
+            <DetailRow label="年龄" value={formatAge(persona.age)} />
             <DetailRow label="你们的关系" value={persona.relationship_to_user} />
             <DetailRow label="TA 对你的称呼" value={persona.user_nickname_by_persona} />
             <DetailRow label="说话风格" value={persona.speaking_style} />
             <DetailRow label="情绪方式" value={persona.emotional_style} />
             <DetailRow label="禁止表达" value={persona.forbidden_expressions} />
           </dl>
-        </GlassPanel>
+        </StarPanel>
 
-        <aside className="grid gap-5">
-          <GlassPanel>
-            <h2 className="font-serif text-2xl font-semibold text-memoryText">当前状态</h2>
-            <dl className="mt-5 grid grid-cols-3 gap-3">
-              <StatPill label="资料" value={persona.stats.materials_count} />
-              <StatPill label="记忆" value={persona.stats.memories_count} />
-              <StatPill label="对话" value={persona.stats.conversations_count} />
-            </dl>
-            <Link
-              href={ROUTES.personaJobs(persona.id)}
-              className="mt-5 inline-flex items-center gap-2 rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText"
-            >
-              <BookOpenText className="h-4 w-4" aria-hidden="true" />
-              查看资料整理任务
-            </Link>
-          </GlassPanel>
-          <PaperNote>
-            <h2 className="text-lg font-semibold text-memoryText">资料建议</h2>
-            <p className="mt-3 text-sm leading-7 text-memoryText/72">
-              {uploadSuggestion ??
-                "继续补充有来源的共同经历、口头禅和生活习惯，可以让后续对话更稳定。"}
-            </p>
-          </PaperNote>
-          <GlassPanel>
-            <div className="flex items-start gap-3">
-              <Sparkles className="mt-1 h-5 w-5 shrink-0 text-memoryAccent" />
-              <p className="text-sm leading-7 text-memoryText/70">
-                当前体验仍使用 deterministic mock provider。浏览器录音、mock 语音播放和 mock 3D 头像/半身预览已接入；真实 OCR/ASR/LLM、真实音色质量、真实 3D provider、对话页数字人联动和导出尚未实现。
-              </p>
-            </div>
-          </GlassPanel>
-          <MemoryActionCard
-            href={ROUTES.personaVoice(persona.id)}
-            title={MEMORY_SPACE_ACTIONS.voice.title}
-            text="选择默认 TTS、创建音色样本并试听回复。"
-            icon={Mic2}
-          />
-        </aside>
+        <StarPanel className="p-6">
+          <p className="inline-flex items-center gap-2 text-sm font-bold text-starGold">
+            <Star className="h-4 w-4 fill-current" aria-hidden="true" />
+            资料建议
+          </p>
+          <p className="mt-4 text-sm font-semibold leading-7 text-starMist/72">
+            {uploadSuggestion ??
+              "继续补充有来源的共同经历、口头禅和生活习惯，可以让后续对话更稳定。"}
+          </p>
+        </StarPanel>
       </div>
     </div>
   );
 }
 
+function ActionCard({
+  href,
+  title,
+  text,
+  icon: Icon
+}: {
+  href: string;
+  title: string;
+  text: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-[1.5rem] border border-starGold/14 bg-indigo-950/36 p-5 shadow-[0_16px_44px_rgba(0,0,0,0.24)] backdrop-blur transition hover:-translate-y-1 hover:border-starGold/32"
+    >
+      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-starGold/14 text-starGold">
+        <Icon className="h-6 w-6" aria-hidden="true" />
+      </span>
+      <h2 className="mt-4 font-serif text-xl font-bold text-starGold">{title}</h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-starMist/66">{text}</p>
+    </Link>
+  );
+}
+
 function DetailRow({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="rounded-2xl border border-memoryLine/60 bg-white/55 p-4">
-      <dt className="text-sm font-semibold text-memoryText/58">{label}</dt>
-      <dd className="mt-2 whitespace-pre-wrap text-sm leading-7 text-memoryText">
+    <div className="rounded-2xl border border-white/8 bg-white/6 p-4">
+      <dt className="text-sm font-bold text-starMist/54">{label}</dt>
+      <dd className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-7 text-starCream">
         {value || "未设置"}
       </dd>
     </div>
   );
+}
+
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
+      <dt className="text-xs font-bold text-starMist/52">{label}</dt>
+      <dd className="mt-1 text-2xl font-bold text-starCream">{value}</dd>
+    </div>
+  );
+}
+
+function Notice({ text }: { text: string }) {
+  return (
+    <StarPanel className="mt-8 p-5 text-sm font-semibold leading-7 text-starMist/72">
+      {text}
+    </StarPanel>
+  );
+}
+
+function formatAge(age: number | null): string {
+  return age === null ? "未设置" : `${age} 岁`;
 }
 
 function statusLabel(status: string): string {

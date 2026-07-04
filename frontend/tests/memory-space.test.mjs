@@ -10,12 +10,16 @@ async function loadMemorySpaceModule() {
   }
 }
 
-test("memory space navigation replaces workspace wording", async () => {
+test("homepage navigation exposes the requested tabs and anchor targets", async () => {
   const { MEMORY_SPACE_NAV_ITEMS, MEMORY_SPACE_COPY } = await loadMemorySpaceModule();
 
-  assert.ok(
-    MEMORY_SPACE_NAV_ITEMS.some((item) => item.label === "记忆空间"),
-    "navigation should expose 记忆空间"
+  assert.deepEqual(
+    MEMORY_SPACE_NAV_ITEMS.map((item) => item.label),
+    ["首页", "产品介绍", "创建档案", "记忆审核", "星光故事"]
+  );
+  assert.deepEqual(
+    MEMORY_SPACE_NAV_ITEMS.map((item) => item.href),
+    ["/", "/#product-intro", "/personas/new", "/#memory-review", "/#star-stories"]
   );
   assert.equal(
     MEMORY_SPACE_NAV_ITEMS.some((item) => item.label.includes("工作台")),

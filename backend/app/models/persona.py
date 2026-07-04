@@ -19,6 +19,7 @@ class Persona(Base):
     status: Mapped[str | None] = mapped_column(String(50))
     relationship_to_user: Mapped[str] = mapped_column(String(100))
     user_nickname_by_persona: Mapped[str] = mapped_column(String(100))
+    age: Mapped[int | None] = mapped_column(Integer)
     gender: Mapped[str | None] = mapped_column(String(50))
     language: Mapped[str] = mapped_column(String(50), default="zh-CN")
     birth_date: Mapped[date | None] = mapped_column(Date)

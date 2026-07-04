@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import re
 import threading
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -28,45 +27,24 @@ from app.schemas.chat import (
 )
 from app.schemas.memory import MemoryRead
 from app.schemas.voice import SpeechSynthesisCreate
+from app.services.memory_markdown import (
+    MemoryMarkdownContext,
+    build_chat_memory_context,
+    refresh_long_term_memory_md,
+    refresh_short_term_memory_md,
+)
 from app.services.profile import get_or_create_profile, refresh_profile_and_trust
+from app.services.audit import snapshot_entity, write_audit_event
+from app.services.conflict_detector import detect_conflicts_for_memory
 from app.services.voice import synthesize_speech
 
 
-INACTIVE_MEMORY_STATUSES = {"rejected", "disabled"}
 FACT_STATUSES = {"corrected", "confirmed"}
-WEAK_REFERENCE_STATUSES = {"pending_review", "auto_generated"}
-STATUS_PRIORITY = {
-    "corrected": 500,
-    "confirmed": 400,
-    "pending_review": 100,
-    "auto_generated": 80,
-}
-KEY_TERMS = (
-    "馄饨",
-    "饺子",
-    "红烧鱼",
-    "糖醋鱼",
-    "清蒸鱼",
-    "做饭",
-    "做什么",
-    "喜欢",
-    "常说",
-    "慢慢来",
-    "想你",
-    "难过",
-    "撑不住",
-    "吃",
-    "鱼",
-)
 EMOTIONAL_TERMS = ("想你", "难过", "撑不住", "遗憾", "害怕", "孤单", "想念")
 BANNED_REPLY_TERMS = ("AI 助手", "AI助手", "语言模型", "我是系统", "我真的回来了")
-
-
-@dataclass(frozen=True)
-class RetrievedMemory:
-    memory: MemoryCard
-    score: int
-    overlap: int
+THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
+THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*", re.IGNORECASE | re.DOTALL)
+THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
 
 
 def _utcnow() -> datetime:
@@ -108,7 +86,10 @@ def get_message_or_404(db: Session, user: User, message_id: str) -> Message:
 def list_message_citations(db: Session, message_id: str) -> list[MessageCitation]:
     return db.scalars(
         select(MessageCitation)
-        .where(MessageCitation.message_id == message_id)
+        .where(
+            MessageCitation.message_id == message_id,
+            MessageCitation.deleted_at.is_(None),
+        )
         .order_by(MessageCitation.created_at.asc(), MessageCitation.id.asc())
     ).all()
 
@@ -118,53 +99,10 @@ def message_response(db: Session, message: Message) -> MessageRead:
         MessageCitationRead.model_validate(citation)
         for citation in list_message_citations(db, message.id)
     ]
+    content = _message_output_content(message)
     return MessageRead.model_validate(message).model_copy(
-        update={"citations": citations}
+        update={"content": content, "citations": citations}
     )
-
-
-def retrieve_memories(
-    db: Session,
-    persona: Persona,
-    user_message: str,
-    limit: int = 4,
-) -> list[RetrievedMemory]:
-    query_terms = _terms(user_message)
-    memories = db.scalars(
-        select(MemoryCard).where(
-            MemoryCard.persona_id == persona.id,
-            MemoryCard.deleted_at.is_(None),
-            MemoryCard.status.not_in(INACTIVE_MEMORY_STATUSES),
-        )
-    ).all()
-
-    scored: list[RetrievedMemory] = []
-    for memory in memories:
-        if not _memory_is_retrievable(memory):
-            continue
-        overlap = len(query_terms & _memory_terms(memory))
-        if overlap == 0:
-            continue
-        score = STATUS_PRIORITY.get(memory.status, 0)
-        score += overlap * 30
-        score += min(memory.confidence_score or 0, 100)
-        score += _category_boost(memory, user_message)
-        scored.append(RetrievedMemory(memory=memory, score=score, overlap=overlap))
-
-    fact_scored = [item for item in scored if item.memory.status in FACT_STATUSES]
-    if fact_scored:
-        scored = fact_scored
-
-    return sorted(
-        scored,
-        key=lambda item: (
-            item.score,
-            STATUS_PRIORITY.get(item.memory.status, 0),
-            item.memory.updated_at,
-            item.memory.id,
-        ),
-        reverse=True,
-    )[:limit]
 
 
 def build_conversation_history(
@@ -188,9 +126,13 @@ def send_text_message(
     content: str,
 ) -> Message:
     profile = get_or_create_profile(db, persona)
-    retrieved = retrieve_memories(db, persona, content)
+    memory_context = build_chat_memory_context(db, persona, content)
     history = build_conversation_history(db, conversation)
-    used_memories = _used_memories(retrieved)
+    selected_memories = _selected_memory_cards(
+        db,
+        persona,
+        memory_context.selected_memory_ids,
+    )
     user_message_time = _utcnow()
     persona_message_time = user_message_time + timedelta(microseconds=1)
 
@@ -204,22 +146,24 @@ def send_text_message(
     db.add(user_message)
     db.flush()
 
-    reply_content = generate_persona_reply(
+    draft_reply_content = generate_persona_reply(
         persona=persona,
         profile=profile,
-        retrieved_memories=used_memories,
+        selected_memories=selected_memories,
         history=history,
         user_message=content,
     )
     chat_result = run_chat_gateway(
         persona=persona,
         profile=profile,
-        retrieved_memories=used_memories,
+        memory_context=memory_context,
         history=history,
         user_message=content,
-        draft_reply=reply_content,
+        draft_reply=draft_reply_content,
     )
-    reply_content = chat_result["output"]["reply_text"]
+    reply_content = _sanitize_reply(chat_result["output"]["reply_text"], persona)
+    if not reply_content:
+        reply_content = draft_reply_content
     persona_message = Message(
         conversation_id=conversation.id,
         role="persona",
@@ -227,14 +171,22 @@ def send_text_message(
         metadata_json={
             "provider": chat_result["provider_name"],
             "capability": chat_result["capability"],
+            "memory_context": {
+                "source": "memory_markdown",
+                "long_term_path": memory_context.long_term_path,
+                "short_term_path": memory_context.short_term_path,
+                "selected_memory_ids": [memory.id for memory in selected_memories],
+                "long_term_compressed": memory_context.long_term_compressed,
+                "short_term_compressed": memory_context.short_term_compressed,
+                "compression_failed": memory_context.compression_failed,
+                "compression_provider": memory_context.compression_provider,
+            },
             "retrieval": [
                 {
-                    "memory_card_id": item.memory.id,
-                    "score": item.score,
-                    "overlap": item.overlap,
-                    "status": item.memory.status,
+                    "memory_card_id": memory.id,
+                    "source": "memory_markdown",
                 }
-                for item in used_memories
+                for memory in selected_memories
             ],
         },
         created_at=persona_message_time,
@@ -242,8 +194,7 @@ def send_text_message(
     db.add(persona_message)
     db.flush()
 
-    for item in used_memories:
-        memory = item.memory
+    for index, memory in enumerate(selected_memories, start=1):
         db.add(
             MessageCitation(
                 message_id=persona_message.id,
@@ -252,10 +203,27 @@ def send_text_message(
                 parsed_chunk_id=memory.parsed_chunk_id,
                 quote=memory.user_correction or memory.source_quote or memory.content,
                 source_location=memory.source_location,
+                created_at=persona_message_time + timedelta(microseconds=index),
             )
+        )
+        write_audit_event(
+            db,
+            user_id=conversation.user_id,
+            persona_id=persona.id,
+            target_type="memory",
+            target_id=memory.id,
+            event_type="memory.retrieved",
+            severity="debug",
+            action="对话检索引用记忆",
+            metadata_json={
+                "conversation_id": conversation.id,
+                "user_message_id": user_message.id,
+                "persona_message_id": persona_message.id,
+            },
         )
     conversation.updated_at = _utcnow()
     db.add(conversation)
+    refresh_short_term_memory_md(db, persona)
     db.commit()
     db.refresh(persona_message)
     return persona_message
@@ -278,6 +246,7 @@ def send_voice_message(
         "conversation_id": conversation.id,
         "source_material_id": source_material.id,
         "file_name": source_material.file_name,
+        "storage_url": source_material.storage_url,
         "user_description": source_material.user_description,
     }
     asr_job = AIJob(
@@ -325,10 +294,41 @@ def send_voice_message(
     return reply
 
 
+def soft_delete_conversation(db: Session, conversation: Conversation) -> None:
+    deleted_at = _utcnow()
+    conversation.deleted_at = deleted_at
+    db.add(conversation)
+
+    messages = db.scalars(
+        select(Message).where(
+            Message.conversation_id == conversation.id,
+            Message.deleted_at.is_(None),
+        )
+    ).all()
+    message_ids: list[str] = []
+    for message in messages:
+        message_ids.append(message.id)
+        message.deleted_at = deleted_at
+        db.add(message)
+
+    if message_ids:
+        citations = db.scalars(
+            select(MessageCitation).where(
+                MessageCitation.message_id.in_(message_ids),
+                MessageCitation.deleted_at.is_(None),
+            )
+        ).all()
+        for citation in citations:
+            citation.deleted_at = deleted_at
+            db.add(citation)
+
+    db.commit()
+
+
 def run_chat_gateway(
     persona: Persona,
     profile: PersonaProfile,
-    retrieved_memories: list[RetrievedMemory],
+    memory_context: MemoryMarkdownContext,
     history: list[Message],
     user_message: str,
     draft_reply: str,
@@ -342,24 +342,18 @@ def run_chat_gateway(
         "emotional_style": persona.emotional_style,
         "forbidden_expressions": persona.forbidden_expressions,
         "profile_summary": profile.profile_summary,
-        "retrieved_memories": [
-            {
-                "memory_card_id": item.memory.id,
-                "status": item.memory.status,
-                "content": item.memory.user_correction or item.memory.content,
-                "source_quote": item.memory.source_quote,
-                "source_location": item.memory.source_location,
-            }
-            for item in retrieved_memories
-        ],
+        "long_term_memory_md": memory_context.long_term_memory_md,
+        "short_term_memory_md": memory_context.short_term_memory_md,
+        "selected_memory_ids": memory_context.selected_memory_ids,
         "conversation_history": [
-            {"role": message.role, "content": message.content} for message in history
+            {"role": message.role, "content": _history_message_content(message, persona)}
+            for message in history
         ],
         "user_message": user_message,
         "confidence_score": persona.trust_score,
         "voice_mode": "not_implemented_milestone_5",
         "avatar_mode": "not_implemented_milestone_5",
-        "used_memory_ids": [item.memory.id for item in retrieved_memories],
+        "used_memory_ids": memory_context.selected_memory_ids,
         "draft_reply": draft_reply,
     }
     return _run_gateway("chat_llm", payload)
@@ -368,7 +362,7 @@ def run_chat_gateway(
 def generate_persona_reply(
     persona: Persona,
     profile: PersonaProfile,
-    retrieved_memories: list[RetrievedMemory],
+    selected_memories: list[MemoryCard],
     history: list[Message],
     user_message: str,
 ) -> str:
@@ -381,7 +375,7 @@ def generate_persona_reply(
         else ""
     )
 
-    if not retrieved_memories:
+    if not selected_memories:
         reply = (
             f"{nickname}，这件事我记不太清，不能硬说成真的。"
             "你可以再给我一点资料，或者把你记得的细节慢慢告诉我。"
@@ -390,7 +384,7 @@ def generate_persona_reply(
             reply = f"{emotional_prefix}{reply}"
         return _sanitize_reply(reply, persona)
 
-    memory = retrieved_memories[0].memory
+    memory = selected_memories[0]
     memory_text = memory.user_correction or memory.content
     reply = f"{nickname}，我记得，{memory_text}"
     if _is_emotional_message(user_message):
@@ -437,6 +431,7 @@ def correct_cited_memory(
     if memory is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
+    before = snapshot_entity(memory)
     memory.content = payload.content
     if payload.title is not None:
         memory.title = payload.title
@@ -447,6 +442,23 @@ def correct_cited_memory(
     persona = db.get(Persona, memory.persona_id)
     if persona is not None:
         refresh_profile_and_trust(db, persona)
+        refresh_long_term_memory_md(db, persona)
+
+    db.flush()
+    if persona is not None:
+        write_audit_event(
+            db,
+            user_id=user.id,
+            persona_id=persona.id,
+            target_type="memory",
+            target_id=memory.id,
+            event_type="memory.corrected_in_chat",
+            action="对话中纠正被引用的记忆",
+            before_snapshot=before,
+            after_snapshot=snapshot_entity(memory),
+            metadata_json={"message_id": message.id},
+        )
+        detect_conflicts_for_memory(db, memory)
 
     db.commit()
     db.refresh(memory)
@@ -456,13 +468,23 @@ def correct_cited_memory(
     )
 
 
-def _used_memories(retrieved: list[RetrievedMemory]) -> list[RetrievedMemory]:
-    if not retrieved:
+def _selected_memory_cards(
+    db: Session,
+    persona: Persona,
+    memory_ids: list[str],
+) -> list[MemoryCard]:
+    if not memory_ids:
         return []
-    top = retrieved[0]
-    if top.memory.status not in FACT_STATUSES and top.overlap < 2:
-        return []
-    return [top]
+    rows = db.scalars(
+        select(MemoryCard).where(
+            MemoryCard.persona_id == persona.id,
+            MemoryCard.id.in_(memory_ids),
+            MemoryCard.status.in_(FACT_STATUSES),
+            MemoryCard.deleted_at.is_(None),
+        )
+    ).all()
+    by_id = {memory.id: memory for memory in rows}
+    return [by_id[memory_id] for memory_id in memory_ids if memory_id in by_id]
 
 
 def _get_audio_source_or_404(
@@ -489,50 +511,6 @@ def _get_audio_source_or_404(
     return source_material
 
 
-def _memory_is_retrievable(memory: MemoryCard) -> bool:
-    if memory.status in FACT_STATUSES:
-        return True
-    return (
-        memory.status in WEAK_REFERENCE_STATUSES
-        and memory.confidence_level in {"high", "medium"}
-    )
-
-
-def _memory_terms(memory: MemoryCard) -> set[str]:
-    return _terms(" ".join([memory.title or "", memory.content or ""]))
-
-
-def _terms(text: str) -> set[str]:
-    normalized = re.sub(r"\s+", "", text.lower())
-    terms = set(re.findall(r"[a-z0-9]+", text.lower()))
-    for chunk in re.findall(r"[\u4e00-\u9fff]+", normalized):
-        if len(chunk) <= 2:
-            terms.add(chunk)
-        else:
-            terms.update(chunk[index : index + 2] for index in range(len(chunk) - 1))
-            terms.add(chunk)
-    for term in KEY_TERMS:
-        if term in text:
-            terms.add(term)
-    return {term for term in terms if term}
-
-
-def _category_boost(memory: MemoryCard, user_message: str) -> int:
-    if memory.category == "expression_style" and any(
-        term in user_message for term in ("说", "口头禅", "怎么讲")
-    ):
-        return 30
-    if memory.category in {"shared_event", "story_material"} and any(
-        term in user_message for term in ("记得", "以前", "那次")
-    ):
-        return 20
-    if memory.category == "preference" and any(
-        term in user_message for term in ("喜欢", "吃", "做什么")
-    ):
-        return 20
-    return 0
-
-
 def _profile_hint(profile: PersonaProfile) -> str:
     summary = (profile.profile_summary or "").strip()
     if not summary:
@@ -545,13 +523,33 @@ def _is_emotional_message(text: str) -> bool:
 
 
 def _sanitize_reply(reply: str, persona: Persona) -> str:
-    sanitized = reply
+    sanitized = _strip_model_thinking(reply)
     forbidden_text = persona.forbidden_expressions or ""
     for term in BANNED_REPLY_TERMS:
         sanitized = sanitized.replace(term, "")
     for term in _forbidden_terms(forbidden_text):
         sanitized = sanitized.replace(term, "")
     return re.sub(r"\s+", " ", sanitized).strip()
+
+
+def _message_output_content(message: Message) -> str:
+    if message.role != "persona":
+        return message.content
+    return _strip_model_thinking(message.content)
+
+
+def _history_message_content(message: Message, persona: Persona) -> str:
+    if message.role != "persona":
+        return message.content
+    return _sanitize_reply(message.content, persona)
+
+
+def _strip_model_thinking(text: str) -> str:
+    stripped = THINK_BLOCK_RE.sub("", text)
+    stripped = THINK_CLOSE_RE.sub("", stripped)
+    if re.search(r"<think\b", stripped, re.IGNORECASE):
+        stripped = THINK_OPEN_RE.sub("", stripped)
+    return stripped.strip()
 
 
 def _forbidden_terms(text: str) -> list[str]:

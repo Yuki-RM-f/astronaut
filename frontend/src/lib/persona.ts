@@ -25,22 +25,34 @@ export type PersonaType = (typeof PERSONA_TYPE_OPTIONS)[number]["value"];
 export type PersonaStatus = (typeof PERSONA_STATUS_OPTIONS)[number]["value"];
 export type PersonaGender = (typeof PERSONA_GENDER_OPTIONS)[number]["value"];
 
+export const DEFAULT_PERSONA_LANGUAGE = "zh-CN" as const;
+export const DEFAULT_PERSONA_SPEAKING_STYLE = "温和、自然，优先使用用户定义的称呼。";
+export const DEFAULT_PERSONA_EMOTIONAL_STYLE = "安慰、鼓励、陪伴，但不替用户做重大决定。";
+export const DEFAULT_PERSONA_FORBIDDEN_EXPRESSIONS =
+  "不要说「我真的回来了」；不要暗示自己是本人复生。";
+
 export type PersonaDraft = {
   name: string;
   persona_type: PersonaType;
   status: PersonaStatus;
   relationship_to_user: string;
   user_nickname_by_persona: string;
+  age: string | number;
   gender: PersonaGender;
-  language: string;
   short_bio: string;
+};
+
+export type PersonaCreatePayload = Omit<PersonaDraft, "age"> & {
+  age: number;
+  language: typeof DEFAULT_PERSONA_LANGUAGE;
   speaking_style: string;
   emotional_style: string;
   forbidden_expressions: string;
 };
 
-export type PersonaRead = PersonaDraft & {
+export type PersonaRead = Omit<PersonaCreatePayload, "age"> & {
   id: string;
+  age: number | null;
   birth_date: string | null;
   death_date: string | null;
   avatar_image_url: string | null;
@@ -63,12 +75,9 @@ const REQUIRED_PERSONA_FIELDS: Array<keyof PersonaDraft> = [
   "status",
   "relationship_to_user",
   "user_nickname_by_persona",
+  "age",
   "gender",
-  "language",
-  "short_bio",
-  "speaking_style",
-  "emotional_style",
-  "forbidden_expressions"
+  "short_bio"
 ];
 
 export function validatePersonaDraft(draft: Partial<PersonaDraft>): {
@@ -77,6 +86,9 @@ export function validatePersonaDraft(draft: Partial<PersonaDraft>): {
 } {
   const missingFields = REQUIRED_PERSONA_FIELDS.filter((field) => {
     const value = draft[field];
+    if (field === "age") {
+      return !isValidAge(value);
+    }
     return typeof value !== "string" || value.trim().length === 0;
   });
 
@@ -126,23 +138,29 @@ export async function createPersona(draft: PersonaDraft): Promise<PersonaRead> {
       "Content-Type": "application/json",
       ...authHeaders()
     },
-    body: JSON.stringify(trimPersonaDraft(draft))
+    body: JSON.stringify(buildPersonaCreatePayload(draft))
   });
   return readApiJson<PersonaRead>(response, "无法创建人物。");
 }
 
-function trimPersonaDraft(draft: PersonaDraft): PersonaDraft {
+export function buildPersonaCreatePayload(draft: PersonaDraft): PersonaCreatePayload {
   return {
     name: draft.name.trim(),
     persona_type: draft.persona_type,
     status: draft.status,
     relationship_to_user: draft.relationship_to_user.trim(),
     user_nickname_by_persona: draft.user_nickname_by_persona.trim(),
+    age: Number(draft.age),
     gender: draft.gender,
-    language: draft.language.trim(),
     short_bio: draft.short_bio.trim(),
-    speaking_style: draft.speaking_style.trim(),
-    emotional_style: draft.emotional_style.trim(),
-    forbidden_expressions: draft.forbidden_expressions.trim()
+    language: DEFAULT_PERSONA_LANGUAGE,
+    speaking_style: DEFAULT_PERSONA_SPEAKING_STYLE,
+    emotional_style: DEFAULT_PERSONA_EMOTIONAL_STYLE,
+    forbidden_expressions: DEFAULT_PERSONA_FORBIDDEN_EXPRESSIONS
   };
+}
+
+function isValidAge(value: PersonaDraft["age"] | undefined): boolean {
+  const age = Number(value);
+  return Number.isInteger(age) && age >= 1 && age <= 150;
 }

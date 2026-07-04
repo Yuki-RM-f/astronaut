@@ -26,7 +26,10 @@ class PersonaProfile(Base):
     emotional_patterns: Mapped[dict | list | None] = mapped_column(JSON)
     profile_summary: Mapped[str | None] = mapped_column(Text)
     source_memory_ids: Mapped[dict | list | None] = mapped_column(JSON)
+    persona_engine_json: Mapped[dict | list | None] = mapped_column(JSON)
+    persona_engine_generated_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)

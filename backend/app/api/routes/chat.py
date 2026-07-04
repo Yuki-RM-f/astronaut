@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,7 @@ from app.services.chat import (
     message_response,
     send_text_message,
     send_voice_message,
+    soft_delete_conversation,
 )
 from app.services.materials import get_persona_or_404
 
@@ -97,10 +98,24 @@ def list_messages(
     conversation = get_conversation_or_404(db, current_user, conversation_id)
     messages = db.scalars(
         select(Message)
-        .where(Message.conversation_id == conversation.id)
+        .where(
+            Message.conversation_id == conversation.id,
+            Message.deleted_at.is_(None),
+        )
         .order_by(Message.created_at.asc(), Message.id.asc())
     ).all()
     return MessageListResponse(items=[message_response(db, message) for message in messages])
+
+
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conversation = get_conversation_or_404(db, current_user, conversation_id)
+    soft_delete_conversation(db, conversation)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

@@ -1,5 +1,3 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -19,6 +17,9 @@ from app.schemas.persona import (
     PersonaStats,
     PersonaUpdate,
 )
+from app.services.data_management import soft_delete_persona_tree, utcnow_naive
+from app.services.material_storage import remove_local_material_files
+from app.services.memory_markdown import remove_memory_context_files
 from app.services.persona_prompt import build_persona_prompt_context
 
 
@@ -83,6 +84,7 @@ def _persona_response(persona: Persona, user: User, db: Session) -> PersonaRead:
         status=persona.status,
         relationship_to_user=persona.relationship_to_user,
         user_nickname_by_persona=persona.user_nickname_by_persona,
+        age=persona.age,
         gender=persona.gender,
         language=persona.language,
         birth_date=persona.birth_date,
@@ -159,7 +161,8 @@ def delete_persona(
     db: Session = Depends(get_db),
 ):
     persona = _get_persona_or_404(persona_id, current_user, db)
-    persona.deleted_at = datetime.now(UTC).replace(tzinfo=None)
-    db.add(persona)
+    storage_urls = soft_delete_persona_tree(db, persona, utcnow_naive())
     db.commit()
+    remove_local_material_files(storage_urls)
+    remove_memory_context_files(persona.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

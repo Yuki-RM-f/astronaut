@@ -129,7 +129,7 @@ export function AvatarPreview({
   return (
     <div
       className={joinClassNames(
-        "min-h-[28rem] overflow-hidden rounded-[2rem] border border-white/60 bg-[radial-gradient(circle_at_top,_#fff6eb,_#f5c9a6_45%,_#6b3f2a)] shadow-memory",
+        "min-h-[28rem] overflow-hidden rounded-[2rem] border border-starGold/14 bg-[radial-gradient(circle_at_top,_rgba(255,210,138,0.18),_rgba(68,52,122,0.5)_45%,_rgba(9,12,42,0.85))] shadow-[0_22px_70px_rgba(0,0,0,0.28)]",
         className
       )}
     >

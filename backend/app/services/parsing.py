@@ -13,6 +13,8 @@ from app.models.memory_card import MemoryCard
 from app.models.parsed_chunk import ParsedChunk
 from app.models.source_material import SourceMaterial
 from app.providers.gateway import ProviderGateway
+from app.services.audit import snapshot_entity, write_audit_event
+from app.services.material_extractors import ExtractedText, extract_text_from_material_path
 
 
 def run_parse_job(db: Session, material: SourceMaterial, job: AIJob) -> list[MemoryCard]:
@@ -29,11 +31,12 @@ def run_parse_job(db: Session, material: SourceMaterial, job: AIJob) -> list[Mem
         memories = create_memory_cards(db, material, chunk, parsed_payload)
         material.parse_status = "succeeded"
         job.status = "succeeded"
-        job.provider_type = "mock"
+        job.provider_type = parsed_payload.get("provider_type", "local")
         job.provider_name = parsed_payload["provider_name"]
         job.output_json = {
             "parsed_chunk_id": chunk.id,
             "memory_card_ids": [memory.id for memory in memories],
+            "provider_names": parsed_payload.get("provider_names"),
         }
         job.finished_at = _utcnow()
         db.add_all([material, job])
@@ -52,16 +55,23 @@ def run_parse_job(db: Session, material: SourceMaterial, job: AIJob) -> list[Mem
 def run_gateway_for_material(material: SourceMaterial) -> dict[str, Any]:
     payload = _base_payload(material)
     if material.file_type in {"manual", "text"}:
-        payload["text"] = _material_text(material)
+        extracted = _material_text(material)
+        payload["text"] = extracted.text
+        payload["text_extraction"] = extracted.metadata
         result = _run_gateway("text_parser", payload)
         chunk = result["output"]["chunks"][0]
         return {
             "provider_name": result["provider_name"],
+            "provider_type": result.get("provider_type", "local"),
             "chunk_type": material.file_type,
             "content": chunk["content"],
             "summary": chunk["summary"],
-            "source_location": _source_location(material),
-            "metadata": {"text_parser": result["output"]},
+            "source_location": chunk.get("source_location") or _source_location(material),
+            "metadata": {
+                "text_extraction": extracted.metadata,
+                "text_parser": result["output"],
+                "provider_type": result.get("provider_type", "local"),
+            },
         }
 
     if material.file_type == "image":
@@ -80,6 +90,11 @@ def run_gateway_for_material(material: SourceMaterial) -> dict[str, Any]:
         )
         return {
             "provider_name": image_result["provider_name"],
+            "provider_type": image_result.get("provider_type", "local"),
+            "provider_names": {
+                "ocr": ocr_result["provider_name"],
+                "image_understanding": image_result["provider_name"],
+            },
             "chunk_type": "image",
             "content": content,
             "summary": output["caption"],
@@ -87,6 +102,7 @@ def run_gateway_for_material(material: SourceMaterial) -> dict[str, Any]:
             "metadata": {
                 "ocr": ocr_result["output"],
                 "image_understanding": image_result["output"],
+                "provider_type": image_result.get("provider_type", "local"),
             },
         }
 
@@ -95,11 +111,12 @@ def run_gateway_for_material(material: SourceMaterial) -> dict[str, Any]:
         output = result["output"]
         return {
             "provider_name": result["provider_name"],
+            "provider_type": result.get("provider_type", "local"),
             "chunk_type": "audio",
             "content": output["transcript"],
             "summary": output["transcript"][:80],
             "source_location": output["source_location"],
-            "metadata": {"asr": output},
+            "metadata": {"asr": output, "provider_type": result.get("provider_type", "local")},
             "start_time_seconds": 0.0,
             "end_time_seconds": 5.0,
         }
@@ -112,11 +129,15 @@ def run_gateway_for_material(material: SourceMaterial) -> dict[str, Any]:
         )
         return {
             "provider_name": result["provider_name"],
+            "provider_type": result.get("provider_type", "local"),
             "chunk_type": "video",
             "content": content,
             "summary": output["scene_summary"],
             "source_location": output["source_location"],
-            "metadata": {"video_understanding": output},
+            "metadata": {
+                "video_understanding": output,
+                "provider_type": result.get("provider_type", "local"),
+            },
             "start_time_seconds": 0.0,
             "end_time_seconds": 10.0,
         }
@@ -176,7 +197,9 @@ def create_memory_cards(
             source_location=candidate["source_location"] or chunk.source_location,
             evidence_json={
                 "provider_name": result["provider_name"],
+                "provider_type": result.get("provider_type", "local"),
                 "parsed_summary": parsed_payload.get("summary"),
+                "parsed_provider_name": parsed_payload.get("provider_name"),
             },
             status="pending_review",
             created_by="system",
@@ -184,6 +207,21 @@ def create_memory_cards(
         db.add(card)
         cards.append(card)
     db.flush()
+    for card in cards:
+        write_audit_event(
+            db,
+            user_id=material.user_id,
+            persona_id=material.persona_id,
+            target_type="memory",
+            target_id=card.id,
+            event_type="memory.created",
+            action="资料解析生成记忆卡片",
+            after_snapshot=snapshot_entity(card),
+            metadata_json={
+                "source_material_id": material.id,
+                "parsed_chunk_id": chunk.id,
+            },
+        )
     return cards
 
 
@@ -216,6 +254,8 @@ def _base_payload(material: SourceMaterial) -> dict[str, Any]:
         "persona_id": material.persona_id,
         "file_type": material.file_type,
         "file_name": material.file_name,
+        "mime_type": material.mime_type,
+        "storage_url": material.storage_url,
         "manual_text": material.manual_text,
         "user_description": material.user_description,
         "location_hint": material.location_hint,
@@ -224,15 +264,34 @@ def _base_payload(material: SourceMaterial) -> dict[str, Any]:
     }
 
 
-def _material_text(material: SourceMaterial) -> str:
+def _material_text(material: SourceMaterial) -> ExtractedText:
     if material.manual_text:
-        return material.manual_text
+        return ExtractedText(
+            text=material.manual_text,
+            metadata={
+                "extractor": "manual",
+                "source_location": "manual:body",
+                "has_text": bool(material.manual_text.strip()),
+            },
+        )
     if material.storage_url:
         path = Path(material.storage_url)
         if path.exists():
-            return path.read_text(encoding="utf-8", errors="ignore")
+            return extract_text_from_material_path(
+                path,
+                file_name=material.file_name,
+                mime_type=material.mime_type,
+            )
     parts = [material.file_name or "资料", material.user_description or ""]
-    return "。".join(part for part in parts if part)
+    text = "。".join(part for part in parts if part)
+    return ExtractedText(
+        text=text,
+        metadata={
+            "extractor": "fallback_description",
+            "source_location": _source_location(material),
+            "has_text": bool(text),
+        },
+    )
 
 
 def _source_location(material: SourceMaterial) -> str:

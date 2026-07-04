@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
-echo "=== 可信人格记忆Agent Milestone 8 Task 1 harness ==="
+echo "=== 可信人格记忆Agent Real Multimodal Provider harness ==="
 
 if command -v python >/dev/null 2>&1; then
   PYTHON_BIN="python"
@@ -83,4 +83,7 @@ else
   echo "SKIP: docker compose is not available. Install Docker Compose before validating compose configuration."
 fi
 
-echo "=== Milestone 8 Task 1 harness complete ==="
+echo "=== Optional real multimodal smoke ==="
+echo "Manual only: python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000"
+
+echo "=== Real Multimodal Provider harness complete ==="

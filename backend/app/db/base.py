@@ -10,6 +10,8 @@ from app.models import (  # noqa: E402,F401
     audit_log,
     conversation,
     memory_card,
+    memory_conflict,
+    memory_story,
     parsed_chunk,
     persona,
     persona_profile,

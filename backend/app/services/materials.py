@@ -14,6 +14,7 @@ from app.models.source_material import SourceMaterial
 from app.models.user import User, uuid_str
 from app.schemas.job import AIJobRead
 from app.schemas.material import MaterialRead
+from app.services.material_storage import remove_local_material_file
 from app.services.parsing import run_parse_job
 
 
@@ -178,9 +179,11 @@ def queue_material_parse(
 
 
 def soft_delete_material(db: Session, material: SourceMaterial) -> None:
+    storage_url = material.storage_url
     material.deleted_at = datetime.now(UTC).replace(tzinfo=None)
     db.add(material)
     db.commit()
+    remove_local_material_file(storage_url)
 
 
 def material_response(material: SourceMaterial, jobs: list[AIJob]) -> MaterialRead:
@@ -211,6 +214,7 @@ def material_with_jobs(db: Session, material: SourceMaterial) -> MaterialRead:
         .where(
             AIJob.user_id == material.user_id,
             AIJob.source_material_id == material.id,
+            AIJob.deleted_at.is_(None),
         )
         .order_by(AIJob.created_at.desc(), AIJob.id.desc())
     ).all()

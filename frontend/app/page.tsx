@@ -1,124 +1,139 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenText, Heart, MessageCircle, ShieldCheck, UploadCloud } from "lucide-react";
-import { DemoEntry } from "@/src/components/DemoEntry";
 import {
-  AiReminder,
-  GlassPanel,
-  MemoryActionCard,
-  MemoryContainer,
-  MemoryShell,
-  MemoryTitle,
-  PhotoStack,
-  SecondaryMemoryLink,
-  StatPill,
-  StepRibbon,
-  VoiceWave
-} from "@/src/components/MemorySpace";
-import { MEMORY_SPACE_ACTIONS } from "@/src/lib/memory-space";
+  Archive,
+  MessageCircle,
+  ScrollText,
+  Sparkles,
+  UploadCloud,
+  UserRound
+} from "lucide-react";
+import { FeatureTile, StarNav, StarPanel, StarShell } from "@/src/components/StarSite";
+import { StarPlanetScene } from "@/src/components/StarPlanetScene";
 import { ROUTES } from "@/src/lib/routes";
 
 export default function HomePage() {
   return (
-    <MemoryShell background="grandmotherTea">
-      <MemoryContainer className="grid min-h-[calc(100vh-4.75rem)] content-between gap-8 py-8 lg:py-10">
-        <section className="grid gap-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
-          <div className="max-w-2xl">
-            <MemoryTitle
-              title="把珍贵回忆，变成可对话的陪伴"
-              subtitle="那些没来得及说的话，现在可以继续说给 TA 听。上传文字、照片、声音和视频，基于珍贵回忆与真实情感，为你创建一个值得信赖、独一无二的数字陪伴者。"
-            >
-              <div className="mt-6">
-                <AiReminder />
-              </div>
-            </MemoryTitle>
+    <StarShell hero className="star-home-shell">
+      <StarPlanetScene />
+      <StarNav floating />
+      <main className="relative z-10">
+        <section className="flex min-h-screen w-full items-end justify-center px-6 pb-14 pt-40 sm:px-10 md:pb-16 md:pt-28">
+          <div className="star-hero-copy mx-auto flex w-full max-w-md flex-col items-center text-center">
+            <h1 className="font-serif text-[clamp(1.5rem,3.6vw,2.65rem)] font-bold leading-[1.24] text-starCream drop-shadow-[0_4px_22px_rgba(0,0,0,0.42)]">
+              每一颗星，
+              <br />
+              都是爱与记忆的光。
+            </h1>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <DemoEntry label="立即体验示例" />
-              <SecondaryMemoryLink href={ROUTES.login}>登录已有账号</SecondaryMemoryLink>
-            </div>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-memoryText/64">
-              演示会自动创建本地临时用户和虚构人物「外婆」，不需要邮箱或密码。
+            <Link
+              href={ROUTES.personasNew}
+              className="star-button star-cta mt-5 w-full max-w-[15.5rem] text-sm sm:text-base"
+            >
+              创建属于TA的星星
+              <Sparkles className="ml-3 h-5 w-5" />
+            </Link>
+          </div>
+        </section>
+
+        <section
+          id="product-intro"
+          className="mx-auto grid w-full max-w-7xl scroll-mt-28 gap-6 px-6 py-16 sm:px-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center"
+        >
+          <div>
+            <p className="text-sm font-bold text-starGold">产品介绍</p>
+            <h2 className="mt-3 font-serif text-4xl font-bold leading-tight text-starCream sm:text-5xl">
+              把重要的人，整理成可信的星光档案。
+            </h2>
+            <p className="mt-5 max-w-xl text-sm font-semibold leading-7 text-starMist/72">
+              星记围绕人物档案、资料上传、记忆审核和第一人称互动建立闭环。每一段对话和故事都尽量回到已确认的资料来源。
             </p>
           </div>
 
-          <div className="relative min-h-[28rem]">
-            <div className="absolute left-3 top-3 z-10 rotate-[-6deg]">
-              <VoiceWave label="外婆的声音" />
-            </div>
-            <PhotoStack
-              primary="grandmotherTea"
-              secondary="familyLivingRoom"
-              className="mx-auto max-w-xl"
+          <div className="grid gap-4">
+            <FeatureTile
+              icon={UserRound}
+              title="创建档案"
+              text="写下 TA 的身份、关系、称呼和基础资料，形成后续对话的人格边界。"
+              accent="bg-starGold/16 text-starGold"
             />
-            <GlassPanel className="absolute bottom-4 right-0 max-w-xs p-4">
-              <p className="text-sm leading-6 text-memoryText/78">
-                宝贝，今天过得好吗？记得按时吃饭，照顾好自己哦。
-              </p>
-              <div className="mt-3 flex gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-white" />
-                <span className="h-2 w-2 rounded-full bg-memoryAccent" />
-                <span className="h-2 w-2 rounded-full bg-white" />
-              </div>
-            </GlassPanel>
+            <FeatureTile
+              icon={UploadCloud}
+              title="补充资料"
+              text="上传文字、照片、声音和视频，让分散的记忆进入同一片星空。"
+            />
+            <FeatureTile
+              icon={MessageCircle}
+              title="开启陪伴"
+              text="在审核后的记忆和人格档案基础上，进行文字、语音和 3D 数字人互动。"
+              accent="bg-indigo-300/16 text-indigo-100"
+            />
           </div>
         </section>
 
-        <StepRibbon activeIndex={0} />
+        <section
+          id="memory-review"
+          className="mx-auto grid w-full max-w-7xl scroll-mt-28 gap-5 px-6 py-12 sm:px-10 lg:grid-cols-[1fr_0.85fr] lg:items-stretch"
+        >
+          <StarPanel className="p-6 sm:p-8">
+            <p className="text-sm font-bold text-starGold">记忆审核</p>
+            <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-starCream sm:text-4xl">
+              先确认，再让 TA 记住。
+            </h2>
+            <p className="mt-5 text-sm font-semibold leading-7 text-starMist/72">
+              记忆档案馆用于确认、修正、停用或删除资料解析出的记忆，并查看来源、冲突和历史。真实审核页需要先选择一个人物档案。
+            </p>
+            <Link href={ROUTES.dashboard} className="star-button mt-6 gap-2">
+              进入我的星空
+              <ScrollText className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </StarPanel>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <StatPill label="资料来源" value="可追溯" />
-          <StatPill label="记忆状态" value="可审核" />
-          <StatPill label="当前能力" value="Mock" />
+          <div className="grid gap-4">
+            <FeatureTile
+              icon={ScrollText}
+              title="来源可追溯"
+              text="每条记忆保留资料来源、摘录和置信度，方便用户判断是否可信。"
+            />
+            <FeatureTile
+              icon={Archive}
+              title="档案会更新"
+              text="审核结果会影响人格档案、可信度和后续对话使用的长期记忆。"
+              accent="bg-starGold/16 text-starGold"
+            />
+          </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-3">
-          <MemoryActionCard
-            href={ROUTES.personasNew}
-            title="创建人物"
-            text="先写下关系、称呼、说话风格和边界。"
-            icon={Heart}
-          />
-          <MemoryActionCard
-            href={ROUTES.dashboard}
-            title={MEMORY_SPACE_ACTIONS.upload.title}
-            text="把故事、照片和声音放进一个可整理的空间。"
-            icon={UploadCloud}
-          />
-          <MemoryActionCard
-            href={ROUTES.login}
-            title="可信记忆"
-            text="确认来源后，才让记忆进入后续对话。"
-            icon={ShieldCheck}
-          />
-        </section>
-
-        <section className="grid gap-4 pb-3 md:grid-cols-2">
-          <GlassPanel>
-            <div className="flex items-start gap-4">
-              <BookOpenText className="mt-1 h-6 w-6 shrink-0 text-memoryAccent" />
-              <div>
-                <h2 className="text-lg font-semibold text-memoryText">来源可见</h2>
-                <p className="mt-2 text-sm leading-7 text-memoryText/68">
-                  每条回复都尽量回到资料、记忆和人格档案，避免无依据地自由发挥。
-                </p>
-              </div>
+        <section
+          id="star-stories"
+          className="mx-auto w-full max-w-7xl scroll-mt-28 px-6 pb-20 pt-12 sm:px-10"
+        >
+          <div className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <div>
+              <p className="text-sm font-bold text-starGold">星光故事</p>
+              <h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-starCream sm:text-4xl">
+                从已审核记忆里，讲一段有来源的回忆。
+              </h2>
             </div>
-          </GlassPanel>
-          <GlassPanel>
-            <div className="flex items-start gap-4">
-              <MessageCircle className="mt-1 h-6 w-6 shrink-0 text-memoryAccent" />
-              <div>
-                <h2 className="text-lg font-semibold text-memoryText">边界清楚</h2>
-                <p className="mt-2 text-sm leading-7 text-memoryText/68">
-                  当前仍是 deterministic mock provider，不伪装真实 OCR、ASR、LLM、音色或 3D 能力。
-                </p>
-              </div>
-            </div>
-          </GlassPanel>
+            <p className="text-sm font-semibold leading-7 text-starMist/72">
+              当前星光故事承接在对话页的“记忆档案馆”体验中：选择人物后，可以让 TA 基于已确认记忆生成第一人称回忆讲述，并继续追问。
+            </p>
+          </div>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href={ROUTES.personasNew} className="star-button gap-2">
+              创建档案
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href={ROUTES.dashboard}
+              className="inline-flex min-h-12 items-center justify-center rounded-full border border-starGold/24 bg-starGold/12 px-6 text-sm font-bold text-starCream transition hover:bg-starGold/18"
+            >
+              查看已有星星
+            </Link>
+          </div>
         </section>
-      </MemoryContainer>
-    </MemoryShell>
+      </main>
+    </StarShell>
   );
 }

@@ -15,7 +15,7 @@
 
 - 将 `feature-list.json` 视为功能范围账本。新增、完成、阻塞或重开功能切片时，同步更新状态、依赖和证据。
 - 将 `progress.md` 视为交接账本。每次会话收尾前更新当前状态、活跃风险、验证证据、改动文件和下一步。
-- 将 `docs/init.sh` 视为统一验证入口。当前它会校验 JSON，并在依赖已安装时运行后端测试、前端 test/lint/build 和 `docker compose config`。
+- 将 `docs/init.sh` 视为用户明确要求时才运行的完整基线验证入口。当前它会校验 JSON，并在依赖已安装时运行后端测试、前端 test/lint/build 和 `docker compose config`；任何情况下 agent 都不要主动运行它。
 - 如果任务改变产品范围、验收标准、运行命令或 agent 规则，同步检查 `docs/README.md`、PRD、`feature-list.json`、`progress.md`、`prd-checklist.md` 和本文件是否需要更新。
 - 不要新建平行的范围说明或交接文档，除非用户明确要求。优先维护现有 harness。
 
@@ -37,7 +37,7 @@
 - [docs/progress.md](docs/progress.md)：会话进度和 handoff。
 - [docs/prd-checklist.md](docs/prd-checklist.md)：PRD 与代码事实对照清单。
 - [docs/平台说明.md](docs/平台说明.md)：Milestone 0 使用与验证说明。
-- [docs/init.sh](docs/init.sh)：Milestone 0 统一验证脚本。
+- [docs/init.sh](docs/init.sh)：完整基线验证脚本。
 - [backend/](backend/)：FastAPI 后端、SQLAlchemy/Alembic 模型迁移、认证 API、Provider Gateway 骨架和测试。
 - [backend/docker-entrypoint.sh](backend/docker-entrypoint.sh)：Compose 后端容器启动前执行 Alembic 迁移，再启动 Uvicorn。
 - [frontend/](frontend/)：Next.js 前端页面骨架、API 路径配置和前端测试/lint/build 脚本。
@@ -48,8 +48,8 @@
 
 ## Commands Agents Should Prefer
 
-- Windows Git Bash 自检入口：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh`
-- Bash 自检入口：`bash ./docs/init.sh`
+- Windows Git Bash 完整自检入口（仅用户明确要求时）：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh`
+- Bash 完整自检入口（仅用户明确要求时）：`bash ./docs/init.sh`
 - JSON 校验：`python -m json.tool docs/feature-list.json`
 - 后端测试：`python -m pytest backend/tests -q`
 - 前端依赖安装：`npm.cmd --prefix frontend install`
@@ -69,18 +69,20 @@ PowerShell 中运行 npm 命令时使用 `npm.cmd`，不要使用 PowerShell 解
 - 修改文档时优先链接已有文档，不重复大段复制。
 - 修改 `feature-list.json` 后必须运行 JSON 校验。
 - 修改启动、验证或交接规则后必须检查 `docs/README.md`、`docs/progress.md` 和 `docs/prd-checklist.md` 是否一致。
-- 修改 Compose、Dockerfile 或 harness 后至少运行 `docker compose config` 和 `docs/init.sh`；如果依赖已安装，还要运行后端与前端单项验证。
+- 修改 Compose、Dockerfile、验证脚本或启动规则后，优先运行与改动直接相关的最小验证；只有用户明确要求完整自检时，才运行 `docs/init.sh`。
 - 发现无关问题时记录在交接或回复中，不要顺手重构或删除。
 
 ## Validation Expectations
 
-- 文档或 harness 变化至少运行：
-  - `python -m json.tool docs/feature-list.json`
-  - `bash ./docs/init.sh` 或 Windows Git Bash 等价命令
+- 文档或 harness 变化至少运行与改动直接相关的轻量验证：
+  - 修改 `feature-list.json` 时运行 `python -m json.tool docs/feature-list.json`
+  - 修改 `docs/init.sh` 时使用静态检查或文本审阅确认改动；除非用户明确要求完整自检，否则不要执行 `docs/init.sh`
+  - 修改 agent 规则、README、progress 或 checklist 时，用 `rg` 等方式检查相关旧规则是否仍残留
 - 后端、前端或 Compose 变化还要运行对应单项命令：
   - `python -m pytest backend/tests -q`
   - `npm.cmd --prefix frontend run test`
   - `npm.cmd --prefix frontend run lint`
   - `npm.cmd --prefix frontend run build`
   - `docker compose config`
+- `docs/init.sh` 仅在用户明确要求时运行；不要因为收尾、发布/合并前、改动较大或需要完整基线证据而主动运行它。
 - 任何新增命令都要同步写入 `docs/README.md`、`docs/init.sh` 和必要的 `progress.md` 记录。

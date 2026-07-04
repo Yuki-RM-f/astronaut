@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, func
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,7 +19,15 @@ class AuditLog(Base):
     )
     target_type: Mapped[str | None] = mapped_column(String(50))
     target_id: Mapped[str | None] = mapped_column(String(36))
-    action: Mapped[str | None] = mapped_column(String(50))
+    action: Mapped[str | None] = mapped_column(Text)
+    event_type: Mapped[str] = mapped_column(String(50), default="memory.updated")
+    severity: Mapped[str] = mapped_column(String(20), default="info")
+    changed_fields: Mapped[list | None] = mapped_column(JSON)
     before_json: Mapped[dict | list | None] = mapped_column(JSON)
     after_json: Mapped[dict | list | None] = mapped_column(JSON)
+    correlation_id: Mapped[str | None] = mapped_column(String(36), index=True)
+    parent_event_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("audit_logs.id")
+    )
+    metadata_json: Mapped[dict | list | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

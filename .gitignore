@@ -10,3 +10,4 @@ frontend/next-env.d.ts
 
 storage/
 .superpowers/
+.smoke/

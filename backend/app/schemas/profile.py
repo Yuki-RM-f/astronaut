@@ -58,6 +58,8 @@ class PersonaProfileRead(BaseModel):
     emotional_patterns: ProfileValue
     profile_summary: str | None
     source_memory_ids: dict[str, list[str]]
+    persona_engine_json: dict[str, Any] | list[Any] | None = None
+    persona_engine_generated_at: datetime | None = None
     trust_score: int
     trust_level: str
     components: list[TrustComponent]

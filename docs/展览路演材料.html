@@ -1,0 +1,1884 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>亲友纪念数字人 — 让记忆不止于回忆</title>
+<style>
+  :root {
+    --bg-deep: #0b0d1a;
+    --bg-night: #0f132a;
+    --bg-purple: #1a1440;
+    --accent-gold: #d4a574;
+    --accent-peach: #e8b88a;
+    --accent-warm: #f0c8a0;
+    --glow-gold: rgba(212, 165, 116, 0.3);
+    --glow-peach: rgba(232, 184, 138, 0.2);
+    --lavender: #b8a8d8;
+    --pink-cloud: #c8a0b8;
+    --text-primary: #f0e8e0;
+    --text-secondary: #c8bfb8;
+    --text-muted: #8a8480;
+    --glass-bg: rgba(20, 18, 40, 0.4);
+    --glass-border: rgba(212, 165, 116, 0.12);
+    --glass-blur: 20px;
+    --radius-xl: 32px;
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
+    --font-display: 'Georgia', 'Noto Serif SC', 'Source Han Serif SC', serif;
+    --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --spacing-xs: 8px;
+    --spacing-sm: 16px;
+    --spacing-md: 24px;
+    --spacing-lg: 48px;
+    --spacing-xl: 80px;
+    --spacing-2xl: 120px;
+    --transition-slow: 0.6s cubic-bezier(0.25, 0.1, 0.25, 1);
+    --transition-medium: 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    line-height: 1.7;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== Particle Canvas ===== */
+  #particles {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ===== Atmospheric Layers ===== */
+  .atmosphere {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1;
+  }
+  .atmosphere .orb {
+    position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.08;
+  }
+  .atmosphere .orb-1 {
+    width: 800px; height: 800px;
+    background: radial-gradient(circle, #d4a574 0%, transparent 70%);
+    top: -20%; right: -15%;
+    animation: float-orb 20s ease-in-out infinite;
+  }
+  .atmosphere .orb-2 {
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, #b8a8d8 0%, transparent 70%);
+    bottom: -10%; left: -10%;
+    animation: float-orb 25s ease-in-out infinite reverse;
+  }
+  .atmosphere .orb-3 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, #c8a0b8 0%, transparent 70%);
+    top: 40%; left: 50%;
+    animation: float-orb 18s ease-in-out infinite 5s;
+  }
+  .atmosphere .orb-4 {
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, #e8b88a 0%, transparent 70%);
+    top: 60%; right: 20%;
+    animation: float-orb 22s ease-in-out infinite 8s;
+  }
+
+  @keyframes float-orb {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -40px) scale(1.05); }
+    66% { transform: translate(-20px, 30px) scale(0.95); }
+  }
+
+  /* ===== Cloud Layer ===== */
+  .clouds {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 2; opacity: 0.06;
+  }
+  .cloud {
+    position: absolute;
+    background: radial-gradient(ellipse at center, #d4a574 0%, transparent 70%);
+    filter: blur(80px);
+    border-radius: 50%;
+  }
+  .cloud-1 { width: 600px; height: 200px; top: 10%; animation: drift 40s linear infinite; }
+  .cloud-2 { width: 500px; height: 160px; top: 50%; animation: drift 35s linear infinite 10s; }
+  .cloud-3 { width: 400px; height: 140px; top: 75%; animation: drift 45s linear infinite 20s; }
+
+  @keyframes drift {
+    from { transform: translateX(-120%); }
+    to { transform: translateX(120vw); }
+  }
+
+  /* ===== Main Content Wrapper ===== */
+  .main-content { position: relative; z-index: 10; }
+
+  /* ===== Hero ===== */
+  .hero {
+    min-height: 100vh; display: flex; align-items: center;
+    padding: 0 8%; position: relative;
+  }
+  .hero-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; max-width: 1400px; margin: 0 auto; gap: var(--spacing-xl);
+  }
+  .hero-left { flex: 0 0 45%; max-width: 560px; }
+  .hero-right { flex: 0 0 50%; position: relative; height: 600px; display: flex; align-items: center; justify-content: center; }
+
+  .hero-badge {
+    display: inline-block; padding: 8px 20px;
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: 100px;
+    font-size: 13px; color: var(--accent-peach); letter-spacing: 2px;
+    margin-bottom: var(--spacing-md);
+  }
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 400; line-height: 1.25;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-md);
+    letter-spacing: 0.02em;
+  }
+  .hero h1 .highlight {
+    background: linear-gradient(135deg, #e8b88a 0%, #d4a574 40%, #f0c8a0 70%, #d4a574 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-subtitle {
+    font-size: 17px; color: var(--text-secondary); line-height: 1.8;
+    margin-bottom: var(--spacing-lg); max-width: 440px;
+  }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 12px;
+    padding: 16px 36px;
+    background: linear-gradient(135deg, rgba(212, 165, 116, 0.25) 0%, rgba(232, 184, 138, 0.15) 100%);
+    border: 1px solid rgba(212, 165, 116, 0.3); border-radius: 100px;
+    color: var(--accent-warm); font-size: 16px; text-decoration: none;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 40px var(--glow-gold), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: all var(--transition-medium); cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .hero-cta:hover {
+    background: linear-gradient(135deg, rgba(212, 165, 116, 0.35) 0%, rgba(232, 184, 138, 0.25) 100%);
+    box-shadow: 0 0 60px rgba(212, 165, 116, 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    transform: translateY(-1px);
+  }
+  .hero-cta svg { width: 18px; height: 18px; opacity: 0.7; }
+
+  /* Hero illustration — atmospheric scene */
+  .hero-illustration {
+    width: 100%; height: 100%; position: relative;
+  }
+  .hero-scene {
+    width: 480px; height: 560px; position: relative; margin: 0 auto;
+  }
+  .hero-sky {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, rgba(26,20,64,0.3) 0%, transparent 60%),
+                radial-gradient(ellipse at 60% 50%, rgba(212,165,116,0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 40% 60%, rgba(184,168,216,0.04) 0%, transparent 50%);
+    border-radius: 48px;
+  }
+  .hero-moon {
+    position: absolute; top: 12%; right: 20%;
+    width: 80px; height: 80px; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, rgba(240,200,160,0.9) 0%, rgba(212,165,116,0.4) 40%, transparent 70%);
+    box-shadow: 0 0 80px 30px rgba(212,165,116,0.15), 0 0 160px 60px rgba(212,165,116,0.06);
+    animation: moon-glow 6s ease-in-out infinite;
+  }
+  @keyframes moon-glow {
+    0%, 100% { box-shadow: 0 0 80px 30px rgba(212,165,116,0.15), 0 0 160px 60px rgba(212,165,116,0.06); }
+    50% { box-shadow: 0 0 100px 40px rgba(212,165,116,0.22), 0 0 180px 70px rgba(212,165,116,0.1); }
+  }
+  .hero-stars { position: absolute; inset: 0; }
+  .hero-stars .star {
+    position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: #f0e8e0; opacity: 0;
+    animation: twinkle 3s ease-in-out infinite;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.8; }
+  }
+  /* Silhouette figure made with CSS */
+  .hero-figure {
+    position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%);
+    width: 50px; height: 160px;
+    background: linear-gradient(to top, rgba(200,168,184,0.2) 0%, rgba(184,168,216,0.15) 50%, transparent 100%);
+    border-radius: 40% 40% 0 0;
+    filter: blur(4px);
+  }
+  .hero-glow-figure {
+    position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 200px;
+    background: radial-gradient(ellipse at 50% 70%, rgba(212,165,116,0.08) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  /* ===== Value & Pain Grids ===== */
+  .value-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md);
+  }
+  @media (max-width: 768px) { .value-grid { grid-template-columns: 1fr; } }
+  .value-card {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg) var(--spacing-md); text-align: center;
+    transition: all var(--transition-medium);
+  }
+  .value-card:hover {
+    border-color: rgba(212,165,116,0.3); transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 40px var(--glow-peach);
+  }
+  .value-icon { font-size: 32px; display: block; margin-bottom: var(--spacing-sm); }
+  .value-card h4 {
+    font-family: var(--font-display); font-size: 17px; font-weight: 400;
+    color: var(--accent-warm); margin-bottom: var(--spacing-xs);
+  }
+  .value-card p {
+    font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+  }
+
+  .pain-grid { display: flex; flex-direction: column; gap: var(--spacing-md); }
+  .pain-card {
+    display: flex; gap: var(--spacing-md);
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+    transition: all var(--transition-medium);
+  }
+  .pain-card:hover { border-color: rgba(212,165,116,0.25); }
+  @media (max-width: 768px) { .pain-card { flex-direction: column; } }
+  .pain-num {
+    flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(212,165,116,0.08); border: 1px solid rgba(212,165,116,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 18px; color: var(--accent-peach);
+  }
+  .pain-body h4 {
+    font-family: var(--font-display); font-size: 18px; font-weight: 400;
+    color: var(--text-primary); margin-bottom: var(--spacing-xs);
+  }
+  .pain-problem {
+    font-size: 14px; color: var(--text-muted); line-height: 1.7;
+    margin-bottom: var(--spacing-sm); padding-left: var(--spacing-sm);
+    border-left: 2px solid rgba(200,160,184,0.3);
+  }
+  .pain-solution {
+    font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+    padding-left: var(--spacing-sm);
+    border-left: 2px solid rgba(212,165,116,0.35);
+  }
+  .pain-solution strong { color: var(--accent-warm); font-weight: 500; }
+
+  /* ===== Audit Features (inside pain card) ===== */
+  .audit-features { display: flex; flex-direction: column; gap: var(--spacing-sm); margin-top: var(--spacing-sm); }
+  .audit-item {
+    display: flex; gap: var(--spacing-sm); align-items: flex-start;
+    padding: var(--spacing-sm); border-radius: var(--radius-md);
+    background: rgba(0,0,0,0.15); border: 1px solid rgba(212,165,116,0.08);
+    transition: all var(--transition-medium);
+  }
+  .audit-item:hover { border-color: rgba(212,165,116,0.2); background: rgba(0,0,0,0.25); }
+  .audit-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+  .audit-item strong {
+    display: block; font-size: 14px; color: var(--accent-warm); font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .audit-item p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+
+  /* ===== Target Users ===== */
+  .user-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md);
+  }
+  @media (max-width: 900px) { .user-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .user-grid { grid-template-columns: 1fr; } }
+
+  .user-card {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg) var(--spacing-md);
+    transition: all var(--transition-medium);
+    text-align: center;
+  }
+  .user-card:hover {
+    border-color: rgba(212,165,116,0.3); transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 40px var(--glow-peach);
+  }
+  .user-emoji { font-size: 36px; display: block; margin-bottom: var(--spacing-sm); }
+  .user-card h4 {
+    font-family: var(--font-display); font-size: 16px; font-weight: 400;
+    color: var(--text-primary); margin-bottom: 4px;
+  }
+  .user-age {
+    font-size: 12px; color: var(--accent-peach); letter-spacing: 1px;
+    margin-bottom: var(--spacing-xs);
+  }
+  .user-desc {
+    font-size: 13px; color: var(--text-secondary); line-height: 1.7;
+  }
+  .user-desc strong { color: var(--accent-warm); font-weight: 500; }
+
+  .biz-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm);
+  }
+  @media (max-width: 768px) { .biz-grid { grid-template-columns: 1fr; } }
+
+  .biz-card {
+    display: flex; gap: var(--spacing-sm); align-items: flex-start;
+    padding: var(--spacing-md);
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    transition: all var(--transition-medium);
+  }
+  .biz-card:hover { border-color: rgba(212,165,116,0.25); }
+  .biz-icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+  .biz-card strong {
+    display: block; font-size: 15px; color: var(--text-primary); font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .biz-card p { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0; }
+
+  /* ===== Common Section ===== */
+  .section {
+    padding: var(--spacing-2xl) 8%; position: relative;
+  }
+  .section-inner { max-width: 1100px; margin: 0 auto; }
+  .section-label {
+    font-size: 13px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--accent-peach); margin-bottom: var(--spacing-sm); opacity: 0.8;
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 4vw, 42px); font-weight: 400;
+    color: var(--text-primary); margin-bottom: var(--spacing-lg);
+    line-height: 1.3; letter-spacing: 0.02em;
+  }
+  .section-desc {
+    font-size: 16px; color: var(--text-secondary);
+    max-width: 600px; margin-bottom: var(--spacing-lg);
+  }
+
+  /* ===== Why Section ===== */
+  .why-list { list-style: none; display: flex; flex-direction: column; gap: var(--spacing-sm); }
+  .why-item {
+    display: flex; align-items: flex-start; gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    transition: all var(--transition-medium);
+  }
+  .why-item:hover { border-color: rgba(212,165,116,0.25); background: rgba(20,18,40,0.55); }
+  .why-dot {
+    flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent-peach); margin-top: 8px;
+    box-shadow: 0 0 12px var(--glow-gold);
+  }
+  .why-item p { font-size: 15px; color: var(--text-secondary); line-height: 1.7; }
+  .why-item p strong { color: var(--text-primary); font-weight: 500; }
+  .why-conclusion {
+    margin-top: var(--spacing-lg); display: flex; flex-direction: column; gap: var(--spacing-sm);
+  }
+  .why-conclusion p {
+    font-family: var(--font-display); font-size: 18px; color: var(--accent-warm);
+    padding-left: var(--spacing-md); border-left: 2px solid rgba(212,165,116,0.25);
+    line-height: 1.6;
+  }
+
+  /* ===== Capabilities Grid ===== */
+  .caps-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+  }
+  @media (max-width: 900px) { .caps-grid { grid-template-columns: 1fr; } }
+  .caps-card {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg) var(--spacing-md);
+    transition: all var(--transition-medium);
+    position: relative; overflow: hidden;
+  }
+  .caps-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(212,165,116,0.4), transparent);
+    opacity: 0; transition: opacity var(--transition-medium);
+  }
+  .caps-card:hover::before { opacity: 1; }
+  .caps-card:hover {
+    border-color: rgba(212,165,116,0.3); transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 40px var(--glow-peach);
+  }
+  .caps-card.featured {
+    grid-column: 1 / -1;
+    background: rgba(26,22,52,0.5);
+    border-color: rgba(212,165,116,0.2);
+  }
+  @media (max-width: 900px) { .caps-card.featured { grid-column: 1; } }
+  .caps-icon { font-size: 28px; margin-bottom: var(--spacing-sm); display: block; }
+  .caps-card h3 {
+    font-family: var(--font-display); font-size: 18px; font-weight: 400;
+    color: var(--text-primary); margin-bottom: var(--spacing-xs);
+  }
+  .caps-card p { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+  /* ===== Demo Scenarios ===== */
+  .scenario-list { display: flex; flex-direction: column; gap: var(--spacing-lg); }
+  .scenario-card {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+    display: flex; gap: var(--spacing-lg); align-items: flex-start;
+    transition: all var(--transition-medium);
+  }
+  .scenario-card:hover { border-color: rgba(212,165,116,0.25); }
+  @media (max-width: 768px) { .scenario-card { flex-direction: column; } }
+  .scenario-num {
+    flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(212,165,116,0.08); border: 1px solid rgba(212,165,116,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 20px; color: var(--accent-peach);
+  }
+  .scenario-body h4 {
+    font-family: var(--font-display); font-size: 20px; font-weight: 400;
+    color: var(--text-primary); margin-bottom: var(--spacing-sm);
+  }
+  .scenario-body .dialogue {
+    background: rgba(0,0,0,0.2); border-radius: var(--radius-md);
+    padding: var(--spacing-md); margin-bottom: var(--spacing-sm);
+  }
+  .dialogue-line { margin-bottom: 10px; font-size: 14px; line-height: 1.7; }
+  .dialogue-line .speaker { color: var(--accent-peach); font-weight: 500; margin-right: 8px; }
+  .dialogue-line .text { color: var(--text-secondary); font-style: italic; }
+  .scenario-tag {
+    display: inline-block; padding: 4px 14px;
+    border-radius: 100px; font-size: 12px; color: var(--lavender);
+    background: rgba(184,168,216,0.1); border: 1px solid rgba(184,168,216,0.2);
+  }
+
+  /* ===== Comparison Table ===== */
+  .compare-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    border-radius: var(--radius-xl); overflow: hidden;
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+  }
+  .compare-table th {
+    padding: var(--spacing-md); font-size: 14px; font-weight: 500;
+    color: var(--text-primary); text-align: left;
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .compare-table th:first-child { width: 20%; }
+  .compare-table th:last-child {
+    color: var(--accent-peach);
+    background: rgba(212,165,116,0.04);
+  }
+  .compare-table td {
+    padding: var(--spacing-sm) var(--spacing-md); font-size: 14px;
+    color: var(--text-secondary); border-bottom: 1px solid rgba(212,165,116,0.06);
+  }
+  .compare-table td:last-child {
+    color: var(--text-primary);
+    background: rgba(212,165,116,0.02);
+  }
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  /* ===== Tech Highlights ===== */
+  .tech-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--spacing-sm);
+  }
+  @media (max-width: 768px) { .tech-grid { grid-template-columns: 1fr; } }
+  .tech-item {
+    display: flex; gap: var(--spacing-sm); padding: var(--spacing-md);
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    transition: all var(--transition-medium);
+  }
+  .tech-item:hover { border-color: rgba(212,165,116,0.25); }
+  .tech-dot {
+    flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-peach); margin-top: 8px;
+    box-shadow: 0 0 10px var(--glow-gold);
+  }
+  .tech-text .tech-name { font-size: 14px; color: var(--text-primary); font-weight: 500; margin-bottom: 4px; }
+  .tech-text .tech-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  /* ===== Detailed Tech: Memory Engine ===== */
+  .pipeline-flow {
+    display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: var(--spacing-sm); margin: var(--spacing-lg) 0;
+  }
+  .pipeline-step {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+    padding: var(--spacing-md); text-align: center; min-width: 100px;
+    transition: all var(--transition-medium);
+  }
+  .pipeline-step:hover {
+    border-color: rgba(212,165,116,0.3); transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15), 0 0 20px var(--glow-peach);
+  }
+  .pipeline-step .step-icon { font-size: 24px; display: block; margin-bottom: 6px; }
+  .pipeline-step .step-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+  .pipeline-step .step-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .pipeline-arrow {
+    font-size: 20px; color: var(--accent-peach); opacity: 0.5; flex-shrink: 0;
+  }
+  @media (max-width: 768px) {
+    .pipeline-flow { flex-direction: column; }
+    .pipeline-arrow { transform: rotate(90deg); }
+  }
+
+  .schema-block {
+    background: rgba(10,8,20,0.6); border: 1px solid rgba(212,165,116,0.15);
+    border-radius: var(--radius-lg); padding: var(--spacing-lg);
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 13px; line-height: 1.8; color: var(--text-secondary);
+    overflow-x: auto; margin: var(--spacing-md) 0;
+    white-space: pre;
+  }
+  .schema-block .key { color: #b8a8d8; }
+  .schema-block .str { color: #c8a0b8; }
+  .schema-block .num { color: #d4a574; }
+  .schema-block .comment { color: #6a6478; font-style: italic; }
+
+  /* ===== Detailed Tech: Decision Table ===== */
+  .decision-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    border-radius: var(--radius-lg); overflow: hidden;
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    margin: var(--spacing-md) 0;
+  }
+  .decision-table th {
+    padding: var(--spacing-sm) var(--spacing-md); font-size: 13px; font-weight: 500;
+    color: var(--accent-peach); text-align: left;
+    border-bottom: 1px solid var(--glass-border);
+    letter-spacing: 1px;
+  }
+  .decision-table td {
+    padding: var(--spacing-sm) var(--spacing-md); font-size: 13px;
+    color: var(--text-secondary); border-bottom: 1px solid rgba(212,165,116,0.06);
+  }
+  .decision-table tr:last-child td { border-bottom: none; }
+  .decision-table td:first-child { color: var(--text-primary); font-weight: 500; white-space: nowrap; }
+
+  /* ===== Detailed Tech: Architecture Diagram ===== */
+  .arch-diagram {
+    display: flex; flex-direction: column; gap: var(--spacing-sm);
+    margin: var(--spacing-lg) 0;
+  }
+  .arch-row {
+    display: flex; align-items: center; justify-content: center;
+    flex-wrap: wrap; gap: var(--spacing-sm);
+  }
+  .arch-box {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md); text-align: center;
+    transition: all var(--transition-medium); min-width: 90px;
+  }
+  .arch-box:hover {
+    border-color: rgba(212,165,116,0.3);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15), 0 0 16px var(--glow-peach);
+  }
+  .arch-box .arch-label { font-size: 12px; color: var(--accent-peach); font-weight: 500; }
+  .arch-box .arch-detail { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .arch-arrow-down {
+    text-align: center; font-size: 18px; color: var(--accent-peach); opacity: 0.4;
+    padding: 4px 0;
+  }
+  .arch-arrow-right {
+    font-size: 18px; color: var(--accent-peach); opacity: 0.4; flex-shrink: 0;
+    display: flex; align-items: center;
+  }
+  @media (max-width: 900px) {
+    .arch-row { flex-direction: column; }
+    .arch-arrow-right { transform: rotate(90deg); }
+  }
+
+  /* ===== Persona Engine specific ===== */
+  .persona-source-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--spacing-md);
+  }
+  .persona-design-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--spacing-sm);
+  }
+  .persona-io-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-md);
+  }
+  @media (max-width: 1000px) {
+    .persona-source-grid { grid-template-columns: repeat(2, 1fr); }
+    .persona-design-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 650px) {
+    .persona-source-grid { grid-template-columns: 1fr; }
+    .persona-design-grid { grid-template-columns: 1fr 1fr; }
+    .persona-io-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ===== Detailed Tech: Audit Layers ===== */
+  .audit-layers {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-md);
+    margin: var(--spacing-lg) 0;
+  }
+  @media (max-width: 900px) { .audit-layers { grid-template-columns: 1fr; } }
+  .audit-layer {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-xl);
+    padding: var(--spacing-lg); text-align: center;
+    transition: all var(--transition-medium); position: relative;
+  }
+  .audit-layer:hover {
+    border-color: rgba(212,165,116,0.3); transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2), 0 0 40px var(--glow-peach);
+  }
+  .audit-layer .layer-badge {
+    display: inline-block; padding: 4px 16px; border-radius: 100px;
+    font-size: 11px; letter-spacing: 2px; margin-bottom: var(--spacing-sm);
+    background: rgba(212,165,116,0.1); color: var(--accent-peach);
+    border: 1px solid rgba(212,165,116,0.2);
+  }
+  .audit-layer h4 {
+    font-family: var(--font-display); font-size: 18px; font-weight: 400;
+    color: var(--text-primary); margin-bottom: var(--spacing-xs);
+  }
+  .audit-layer p { font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+
+  /* ===== Detailed Tech: Confidence Badges ===== */
+  .conf-row {
+    display: flex; gap: var(--spacing-sm); flex-wrap: wrap;
+    margin: var(--spacing-md) 0;
+  }
+  .conf-badge {
+    padding: 8px 18px; border-radius: 100px; font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .conf-badge.conf-high { background: rgba(168,216,160,0.1); border: 1px solid rgba(168,216,160,0.25); color: #c8d8a0; }
+  .conf-badge.conf-mid { background: rgba(216,200,160,0.1); border: 1px solid rgba(216,200,160,0.25); color: #d8c8a0; }
+  .conf-badge.conf-low { background: rgba(216,168,144,0.1); border: 1px solid rgba(216,168,144,0.25); color: #d8a890; }
+  .conf-badge.conf-reject { background: rgba(200,120,120,0.1); border: 1px solid rgba(200,120,120,0.25); color: #c87878; }
+  .conf-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .conf-high .conf-dot { background: #c8d8a0; box-shadow: 0 0 8px rgba(168,216,160,0.5); }
+  .conf-mid .conf-dot { background: #d8c8a0; box-shadow: 0 0 8px rgba(216,200,160,0.5); }
+  .conf-low .conf-dot { background: #d8a890; box-shadow: 0 0 8px rgba(216,168,144,0.5); }
+  .conf-reject .conf-dot { background: #c87878; box-shadow: 0 0 8px rgba(200,120,120,0.5); }
+
+  /* ===== Detailed Tech: Prompt Template ===== */
+  .prompt-template {
+    background: rgba(10,8,20,0.6); border: 1px solid rgba(212,165,116,0.15);
+    border-radius: var(--radius-lg); padding: var(--spacing-lg);
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.9; color: var(--text-secondary);
+    overflow-x: auto; margin: var(--spacing-md) 0;
+  }
+  .prompt-template .pt-tag { color: #b8a8d8; }
+  .prompt-template .pt-rule { color: #d4a574; }
+  .prompt-template .pt-placeholder { color: #6a6478; font-style: italic; }
+  .prompt-template .pt-text { color: #c0b8b0; }
+
+  /* ===== Q&A ===== */
+  .qa-list { display: flex; flex-direction: column; gap: var(--spacing-sm); }
+  .qa-item {
+    background: var(--glass-bg); backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border); border-radius: var(--radius-md);
+    overflow: hidden; transition: all var(--transition-medium);
+  }
+  .qa-q {
+    padding: var(--spacing-md); cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+    font-size: 15px; color: var(--text-primary); user-select: none;
+  }
+  .qa-q::after { content: '+'; font-size: 20px; color: var(--accent-peach); font-weight: 300; transition: transform 0.3s; }
+  .qa-item.open .qa-q::after { transform: rotate(45deg); }
+  .qa-a {
+    max-height: 0; overflow: hidden; transition: max-height 0.4s ease, padding 0.4s ease;
+    padding: 0 var(--spacing-md); font-size: 14px; color: var(--text-secondary); line-height: 1.7;
+  }
+  .qa-item.open .qa-a { max-height: 200px; padding-bottom: var(--spacing-md); }
+
+  /* ===== Footer CTA ===== */
+  .footer-cta {
+    text-align: center; padding: var(--spacing-2xl) 8%;
+    position: relative;
+  }
+  .footer-cta h2 {
+    font-family: var(--font-display); font-size: clamp(24px, 3.5vw, 36px);
+    font-weight: 400; color: var(--text-primary); margin-bottom: var(--spacing-sm);
+  }
+  .footer-cta p { color: var(--text-secondary); margin-bottom: var(--spacing-lg); }
+  .footer-cta .hero-cta { display: inline-flex; }
+  .footer-note {
+    margin-top: var(--spacing-lg); font-size: 13px; color: var(--text-muted);
+  }
+
+  /* ===== Animations ===== */
+  .reveal {
+    opacity: 0; transform: translateY(30px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  /* ===== Responsive ===== */
+  @media (max-width: 1024px) {
+    .hero-inner { flex-direction: column; text-align: center; }
+    .hero-left { flex: 0 0 auto; max-width: 100%; }
+    .hero-right { flex: 0 0 auto; height: 400px; width: 100%; }
+    .hero-subtitle { max-width: 100%; }
+    .hero-scene { width: 320px; height: 380px; }
+  }
+  @media (max-width: 600px) {
+    .section { padding: var(--spacing-xl) 5%; }
+    .hero { padding: 0 5%; }
+    .hero-scene { width: 280px; height: 340px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Atmosphere Layers -->
+<div class="atmosphere">
+  <div class="orb orb-1"></div><div class="orb orb-2"></div>
+  <div class="orb orb-3"></div><div class="orb orb-4"></div>
+</div>
+
+<div class="clouds">
+  <div class="cloud cloud-1"></div><div class="cloud cloud-2"></div><div class="cloud cloud-3"></div>
+</div>
+
+<canvas id="particles"></canvas>
+
+<!-- Main Content -->
+<div class="main-content">
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-left reveal">
+      <div class="hero-badge">&#x2728; 可信人格记忆Agent</div>
+      <h1>让记忆<br>不止于<span class="highlight">回忆</span></h1>
+      <p class="hero-subtitle">
+        上传聊天记录，生成一个能跟你<strong>视频通话</strong>的3D数字人<br>
+        会说TA的话、记得TA的事、用TA的方式回应你
+      </p>
+      <a href="#why" class="hero-cta">
+        了解更多
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 10l5 5 5-5"/></svg>
+      </a>
+    </div>
+    <div class="hero-right reveal">
+      <div class="hero-illustration">
+        <div class="hero-scene">
+          <div class="hero-sky"></div>
+          <div class="hero-moon"></div>
+          <div class="hero-stars" id="heroStars"></div>
+          <div class="hero-glow-figure"></div>
+          <div class="hero-figure"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Why ===== -->
+<section class="section" id="why">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">The Why</div>
+      <h2 class="section-title">为什么需要这个产品</h2>
+    </div>
+    <div class="reveal">
+      <ul class="why-list">
+        <li class="why-item"><span class="why-dot"></span><p>中国独居人口 2025 年突破 <strong>2 亿</strong>，独居老人、空巢青年、异地家庭成为常态</p></li>
+        <li class="why-item"><span class="why-dot"></span><p>一个人去世后，TA 的聊天记录还在手机里，但再也收不到新消息</p></li>
+        <li class="why-item"><span class="why-dot"></span><p>市面上的 AI 纪念产品最多做到文字+语音播报，没有表情、没有形象、不像一个"人"</p></li>
+        <li class="why-item"><span class="why-dot"></span><p>用户要的不是一个聊天窗口，要的是<strong>看得见TA的表情、听得出TA的语气、感受到TA的存在</strong></p></li>
+      </ul>
+      <div class="why-conclusion">
+        <p>用户要的不是一个会说漂亮话的 AI</p>
+        <p>要的是<strong>一个真的记得他们之间发生过什么的人</strong></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Value Proposition: 优点 + 痛点 ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Value Proposition</div>
+      <h2 class="section-title">我们提供什么 · 我们解决什么</h2>
+    </div>
+
+    <!-- 优点 -->
+    <div class="reveal" style="margin-bottom:var(--spacing-xl);">
+      <h3 style="font-family:var(--font-display);font-size:22px;font-weight:400;color:var(--accent-warm);margin-bottom:var(--spacing-md);letter-spacing:0.03em;">我们提供的价值</h3>
+      <div class="value-grid">
+        <div class="value-card">
+          <span class="value-icon">&#x1F338;</span>
+          <h4>过渡性陪伴</h4>
+          <p>不是永久的数字替代，而是在最难熬的阶段，有一个人能跟你说说话。就像悲伤时的扶手——需要时扶一把，走稳了就放手。</p>
+        </div>
+        <div class="value-card">
+          <span class="value-icon">&#x1F4AD;</span>
+          <h4>完成未尽对话</h4>
+          <p>每个人心里都有"还没来得及说的话"。那些没说出口的道歉、感谢、告别——在这里补上。不是为了改变过去，是为了让现在能往前走。</p>
+        </div>
+        <div class="value-card">
+          <span class="value-icon">&#x1F31F;</span>
+          <h4>短期心理安慰</h4>
+          <p>在专业心理干预前，提供一个安全的情感缓冲。不是替代治疗，是"什么都不做"和"去看心理医生"之间的一个台阶。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 痛点 → 方案 -->
+    <div class="reveal">
+      <h3 style="font-family:var(--font-display);font-size:22px;font-weight:400;color:var(--accent-warm);margin-bottom:var(--spacing-md);letter-spacing:0.03em;">我们解决的技术难题</h3>
+      <div class="pain-grid">
+        <div class="pain-card">
+          <div class="pain-num">01</div>
+          <div class="pain-body">
+            <h4>多模态输入，降低用户门槛</h4>
+            <p class="pain-problem">用户拥有的素材形态各异——聊天记录、语音消息、照片、日记、亲友口述。传统方案需要用户手动整理成特定格式，门槛极高。</p>
+            <p class="pain-solution"><strong>我们的方案：</strong>支持微信/QQ聊天记录一键导入、语音自动转写、照片自动提取。用户只需要把数据扔进来，AI 自动理解每一段的来源和性质，针对不同格式做针对性解析。</p>
+          </div>
+        </div>
+        <div class="pain-card">
+          <div class="pain-num">02</div>
+          <div class="pain-body">
+            <h4>数字人真实面对面体验</h4>
+            <p class="pain-problem">竞品停留在文字聊天或语音播报——看不见TA的表情、听不出TA的情绪、感受不到"一个真实的人在跟你说话"。</p>
+            <p class="pain-solution"><strong>我们的方案：</strong>3D VRM 模型实时渲染，Web端直接运行。语音驱动口型同步，LLM输出情绪标签驱动面部微表情。用户感觉像在跟真人视频通话，而不是读一条文字消息。</p>
+          </div>
+        </div>
+        <div class="pain-card">
+          <div class="pain-num">03</div>
+          <div class="pain-body">
+            <h4>透明的可信度追溯</h4>
+            <p class="pain-problem">AI 对话产品是"黑盒"。用户不知道数字人为什么会说这句话、是不是编的、有没有依据。在亲友纪念场景中，一句编造的"我记得你小时候..."会瞬间摧毁信任。</p>
+            <div class="audit-features">
+              <div class="audit-item">
+                <span class="audit-icon">&#x1F50E;</span>
+                <div><strong>来源可追溯</strong><p>每条记忆带 source 字段，用户可点击查看原始对话上下文。数字人说的"那家面馆"，你知道是哪天哪条聊天记录。</p></div>
+              </div>
+              <div class="audit-item">
+                <span class="audit-icon">&#x1F4CA;</span>
+                <div><strong>置信度透明</strong><p>LLM 提取记忆时同时输出 confidence。高置信记忆正常使用，低置信记忆在回复时自动加"可能"等措辞——不确定就说"可能我记不太清了"。</p></div>
+              </div>
+              <div class="audit-item">
+                <span class="audit-icon">&#x270F;</span>
+                <div><strong>可审计可修正</strong><p>记忆管理面板中用户可查看、编辑、删除任意记忆。删掉的记忆数字人当场就"忘了"。所有操作记录日志，每一笔修改都可审计。</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Target Users ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Target Users</div>
+      <h2 class="section-title">谁在用这个产品</h2>
+    </div>
+
+    <!-- C端用户 -->
+    <div class="reveal" style="margin-bottom:var(--spacing-xl);">
+      <h3 style="font-family:var(--font-display);font-size:20px;font-weight:400;color:var(--accent-warm);margin-bottom:var(--spacing-md);letter-spacing:0.03em;">C 端用户</h3>
+      <div class="user-grid">
+        <div class="user-card">
+          <span class="user-emoji">&#x1F4F1;</span>
+          <h4>失去父母的中青年人</h4>
+          <p class="user-age">25 – 45 岁</p>
+          <p class="user-desc">手机里存着爸妈的微信聊天记录。深夜加班回家想找人说句话，打开聊天窗口发现再也收不到回复。<strong>最核心的用户群。</strong></p>
+        </div>
+        <div class="user-card">
+          <span class="user-emoji">&#x1F48D;</span>
+          <h4>失去配偶的人</h4>
+          <p class="user-age">30 – 65 岁</p>
+          <p class="user-desc">几十年的伴侣走了，家里突然安静下来。有很多日常琐碎想说——"今天的菜价涨了"、"孩子考试过了"——不是为了获取回答，是需要那个熟悉的声音回应。</p>
+        </div>
+        <div class="user-card">
+          <span class="user-emoji">&#x1F3A0;</span>
+          <h4>失独家庭 / 失去子女的父母</h4>
+          <p class="user-age">40 – 70 岁</p>
+          <p class="user-desc">孩子留下的聊天记录、语音消息、朋友圈截图——是他们仅存的数字痕迹。数字人对他们来说不是"AI"，是孩子的数字遗物活了过来。</p>
+        </div>
+        <div class="user-card">
+          <span class="user-emoji">&#x1F4AE;</span>
+          <h4>年幼失去至亲的成年人</h4>
+          <p class="user-age">18 – 30 岁</p>
+          <p class="user-desc">小时候失去父母/祖父母，记忆模糊但情感很深。想通过遗留的聊天记录和亲友口述，"重新认识"那个记不太清的亲人。</p>
+        </div>
+        <div class="user-card">
+          <span class="user-emoji">&#x2708;</span>
+          <h4>异地/错过告别的人</h4>
+          <p class="user-age">不限年龄</p>
+          <p class="user-desc">亲人突然离世——在国外没赶上、疫情期间封控、意外走得太快。心里的"最后一次对话"永远欠着。产品提供的是一个补上的机会。</p>
+        </div>
+        <div class="user-card">
+          <span class="user-emoji">&#x1F48C;</span>
+          <h4>临终预置者</h4>
+          <p class="user-age">45 – 80 岁</p>
+          <p class="user-desc">身患重病或年事已高，想在生前主动留下数字分身。不是给自己用——是给留下来的家人用。一种新的"遗嘱"形式：不留财产，留陪伴。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- B端场景 -->
+    <div class="reveal">
+      <h3 style="font-family:var(--font-display);font-size:20px;font-weight:400;color:var(--accent-warm);margin-bottom:var(--spacing-md);letter-spacing:0.03em;">B 端合作场景</h3>
+      <div class="biz-grid">
+        <div class="biz-card">
+          <span class="biz-icon">&#x1F3E5;</span>
+          <div>
+            <strong>殡葬服务机构</strong>
+            <p>墓地/陵园/纪念堂附加数字纪念服务；追思会现场数字人互动；替代传统纸质纪念册</p>
+          </div>
+        </div>
+        <div class="biz-card">
+          <span class="biz-icon">&#x1F3E0;</span>
+          <div>
+            <strong>养老院 · 安宁疗护</strong>
+            <p>老人生前录制回忆故事；离世后家属可通过数字人继续"听"老人讲年轻时的故事</p>
+          </div>
+        </div>
+        <div class="biz-card">
+          <span class="biz-icon">&#x1F9E0;</span>
+          <div>
+            <strong>哀伤辅导 · 心理咨询</strong>
+            <p>作为心理治疗的辅助工具——让来访者在安全环境中完成"未尽对话"，治疗师可控可监督</p>
+          </div>
+        </div>
+        <div class="biz-card">
+          <span class="biz-icon">&#x1F3DB;</span>
+          <div>
+            <strong>纪念馆 · 名人故居</strong>
+            <p>历史人物/名人基于书信、日记、访谈生成数字分身，游客可"对话"了解生平</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Core Capabilities ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Core Features</div>
+      <h2 class="section-title">核心能力</h2>
+    </div>
+    <div class="caps-grid">
+      <div class="caps-card featured reveal">
+        <span class="caps-icon">&#x1F3AC;</span>
+        <h3>3D数字人视频通话</h3>
+        <p>用户打开页面，看到的是一个<strong>立体的、会动的3D数字人</strong>——不是头像，不是聊天框，而是一个有表情、会看着你说话的人。TA 说话时嘴巴在动、眼睛在眨、会根据情绪露出笑容或皱眉头。支持<strong>实时视频对话</strong>，像跟真人视频通话一样。</p>
+      </div>
+      <div class="caps-card reveal">
+        <span class="caps-icon">&#x1FA7C;</span>
+        <h3>人格复刻</h3>
+        <p>从聊天记录中自动生成人格画像：TA 的口头禅、说话节奏、关心你的方式、开心时怎么笑、担忧时怎么沉默。不是"像一个 AI 在说话"，是"像 TA 在说话"。</p>
+      </div>
+      <div class="caps-card reveal">
+        <span class="caps-icon">&#x1F4E5;</span>
+        <h3>记忆导入</h3>
+        <p>支持微信/QQ聊天记录一键导入。不需要剪辑、标注——AI 自动理解对话，提取值得记住的每一件事。</p>
+      </div>
+      <div class="caps-card reveal">
+        <span class="caps-icon">&#x1F50D;</span>
+        <h3>记忆可信追溯</h3>
+        <p>数字人说的每一句"我记得"都能追溯到原始聊天记录。界面实时显示当前回复依据了哪条记忆。用户随时可以<strong>查看、修正、删除</strong>任意记忆。</p>
+      </div>
+      <div class="caps-card reveal">
+        <span class="caps-icon">&#x1F4AC;</span>
+        <h3>有边界的对话</h3>
+        <p>TA 不会假装活着、不会承诺未来。被问到"你是真的吗"时说真话："不是，但那些话、那些事都是真的。"被问到不知道的事时说："这个我记不太清了。"</p>
+      </div>
+      <div class="caps-card reveal">
+        <span class="caps-icon">&#x1F6E1;</span>
+        <h3>记忆属于你</h3>
+        <p>所有数据本地处理，记忆可随时导出或删除。内置"毕业引导"——产品的终点是帮助释怀，不是制造依赖。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Demo Scenarios ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Live Demo</div>
+      <h2 class="section-title">演示场景</h2>
+    </div>
+    <div class="scenario-list">
+      <div class="scenario-card reveal">
+        <div class="scenario-num">01</div>
+        <div class="scenario-body">
+          <h4>视频通话接通</h4>
+          <div class="dialogue">
+            <div class="dialogue-line"><span class="speaker">用户</span><span class="text">"爸，我今天被领导表扬了"</span></div>
+            <div class="dialogue-line"><span class="speaker">父亲</span><span class="text">眉头先微微皱了一下："嗯...先别急着高兴，你自己觉得做到位了吗？"（停顿）眉毛舒展开："不过既然领导都看出来了，确实用心了。晚上加个菜，别又点外卖糊弄。"</span></div>
+          </div>
+          <span class="scenario-tag">3D口型同步 + 微表情驱动 + 人格一致性</span>
+        </div>
+      </div>
+      <div class="scenario-card reveal">
+        <div class="scenario-num">02</div>
+        <div class="scenario-body">
+          <h4>回忆触发</h4>
+          <div class="dialogue">
+            <div class="dialogue-line"><span class="speaker">用户</span><span class="text">"昨天路过我们以前常去的面馆"</span></div>
+            <div class="dialogue-line"><span class="speaker">父亲</span><span class="text">眼神移开了一下，然后带着笑意："那家店啊，一碗牛肉面多放香菜不放葱，你那份少辣。你第一次抢着买单——"（轻笑）"其实我故意让着你的。"</span></div>
+          </div>
+          <span class="scenario-tag">记忆检索 + 情感驱动的表情变化</span>
+        </div>
+      </div>
+      <div class="scenario-card reveal">
+        <div class="scenario-num">03</div>
+        <div class="scenario-body">
+          <h4>可信追溯</h4>
+          <p style="color:var(--text-secondary);font-size:14px;line-height:1.8;">
+            画面切换到右侧的<strong style="color:var(--text-primary);">记忆审计面板</strong>——实时展示"面馆回忆"依据的 top-3 记忆卡片。<br>
+            每条记忆标注来源：<code style="background:rgba(0,0,0,0.3);padding:2px 8px;border-radius:4px;font-size:13px;">2021-01-15_微信聊天.txt #L42-58</code><br>
+            置信度：<strong style="color:#c8d8a0;">0.93</strong>（绿色高亮）<br>
+            数字人说的每一个细节——多放香菜不放葱、少辣、偷偷买单——<strong style="color:var(--text-primary);">都来自真实的聊天记录，没有一句话是AI编的。</strong>
+          </p>
+          <span class="scenario-tag">记忆审计面板 + 来源追溯 + 置信度可视化</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Competitive Comparison ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Differentiation</div>
+      <h2 class="section-title">我们不一样</h2>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="compare-table">
+        <thead>
+          <tr><th></th><th>其他数字人产品</th><th>我们</th></tr>
+        </thead>
+        <tbody>
+          <tr><td style="color:var(--text-primary);font-weight:500;">交互形式</td><td>文字聊天 / 语音播报</td><td><strong>3D数字人视频通话</strong>——看得见表情、有口型、有眼神</td></tr>
+          <tr><td style="color:var(--text-primary);font-weight:500;">记忆来源</td><td>角色设定、虚构对话</td><td>真实聊天记录</td></tr>
+          <tr><td style="color:var(--text-primary);font-weight:500;">人格真实性</td><td>"听起来像个人"</td><td>"这就是TA说过的话"</td></tr>
+          <tr><td style="color:var(--text-primary);font-weight:500;">对话来源</td><td>黑盒，不知为什么这么说</td><td>每条记忆可追溯到原始对话</td></tr>
+          <tr><td style="color:var(--text-primary);font-weight:500;">产品终点</td><td>让你永远依赖</td><td>帮你释怀和放下</td></tr>
+          <tr><td style="color:var(--text-primary);font-weight:500;">可信机制</td><td>无</td><td>记忆审计面板 + 置信度透明 + 用户可修正</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Tech Highlights ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Technology</div>
+      <h2 class="section-title">技术亮点</h2>
+    </div>
+    <div class="tech-grid reveal">
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">3D数字人渲染</div><div class="tech-desc">Three.js + VRM 模型实时渲染，Web 端直接运行，无需安装</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">口型同步</div><div class="tech-desc">语音输出实时驱动嘴型 blendshape，音素级匹配</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">微表情驱动</div><div class="tech-desc">LLM 输出携带 emotion tag → 驱动眉头/眼角/嘴角微表情</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">语音对话</div><div class="tech-desc">ASR → 人格LLM → TTS 全链路，< 1s 首字延迟</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">记忆提取</div><div class="tech-desc">LLM 自动从聊天记录提取结构化记忆卡片</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">记忆检索</div><div class="tech-desc">语义 + 关键词 + 时间线多路融合排序</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">人格一致性</div><div class="tech-desc">System Prompt 硬规则 + 人格画像 + 可用记忆白名单</div></div></div>
+      <div class="tech-item"><span class="tech-dot"></span><div class="tech-text"><div class="tech-name">记忆审计</div><div class="tech-desc">每条回复可追溯原始聊天记录，置信度透明，用户可修正</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Memory Engine ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Memory Engine</div>
+      <h2 class="section-title">记忆引擎 — 数据管线设计</h2>
+      <p class="section-desc">从原始聊天记录到可供检索的结构化记忆，完整的数据流转管线。</p>
+    </div>
+
+    <!-- Pipeline Flow -->
+    <div class="pipeline-flow reveal">
+      <div class="pipeline-step">
+        <span class="step-icon">📥</span>
+        <div class="step-name">导入</div>
+        <div class="step-desc">微信/QQ txt</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">🧹</span>
+        <div class="step-name">清洗</div>
+        <div class="step-desc">去系统消息</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">✂️</span>
+        <div class="step-name">切片</div>
+        <div class="step-desc">按对话边界</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">🧠</span>
+        <div class="step-name">提取</div>
+        <div class="step-desc">LLM → 记忆卡片</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">💾</span>
+        <div class="step-name">存储</div>
+        <div class="step-desc">JSON + 向量库</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">🔍</span>
+        <div class="step-name">检索</div>
+        <div class="step-desc">多路融合排序</div>
+      </div>
+    </div>
+
+    <!-- Memory Card JSON Schema -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">记忆卡片 JSON Schema</h4>
+    </div>
+    <div class="schema-block reveal"><span class="comment">// 每条记忆卡片</span>
+{
+  <span class="key">"id"</span>: <span class="str">"mem_20210115_001"</span>,
+  <span class="key">"content"</span>: <span class="str">"爸爸记得你在面馆喜欢多放香菜不放葱，每次帮你点都会特意嘱咐老板"</span>,
+  <span class="key">"type"</span>: <span class="str">"preference"</span>,         <span class="comment">// shared_experience | preference | speech_pattern | value | milestone</span>
+  <span class="key">"speaker"</span>: <span class="str">"爸爸"</span>,
+  <span class="key">"emotion"</span>: <span class="str">"warm"</span>,              <span class="comment">// warm | humorous | caring | proud | nostalgic | worried</span>
+  <span class="key">"confidence"</span>: <span class="num">0.93</span>,
+  <span class="key">"source"</span>: {
+    <span class="key">"file"</span>: <span class="str">"微信聊天记录_2021.txt"</span>,
+    <span class="key">"lines"</span>: <span class="str">"L42-58"</span>,
+    <span class="key">"date"</span>: <span class="str">"2021-01-15"</span>,
+    <span class="key">"platform"</span>: <span class="str">"wechat"</span>
+  },
+  <span class="key">"personality_markers"</span>: [<span class="str">"细心"</span>, <span class="str">"宠你"</span>],
+  <span class="key">"speech_patterns"</span>: [<span class="str">"多放香菜不放葱"</span>],
+  <span class="key">"ai_generated"</span>: <span class="num">false</span>          <span class="comment">// 防污染标记：AI自己的回复不会进入人格蒸馏</span>
+}</div>
+
+    <!-- Key Design Decisions -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">关键设计决策</h4>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="decision-table">
+        <thead>
+          <tr><th>设计点</th><th>选择</th><th>原因</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>切片策略</td><td>按对话边界切分（时间间隔 > 30min 断句）</td><td>保持对话连续性，避免一句话被切成两半</td></tr>
+          <tr><td>提取方式</td><td>LLM 批量提取 → 人工复核</td><td>准确率 > 结构化输出，首次导入可离线跑</td></tr>
+          <tr><td>存储方案</td><td>JSON 文件（源）+ 向量数据库（索引）</td><td>JSON 可读可导出，向量库加速语义检索</td></tr>
+          <tr><td>检索策略</td><td>语义 + 关键词 + 时间线 三路融合 (RRF)</td><td>单路检索覆盖度不够，多路互补</td></tr>
+          <tr><td>防污染机制</td><td>AI 回复标记 ai_generated=true，不参与人格蒸馏</td><td>避免 AI 学 AI，人格越来越偏离原始</td></tr>
+          <tr><td>增量更新</td><td>新导入只处理增量，旧记忆可手动刷新</td><td>节省 LLM 调用成本，保护已修正记忆</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Persona Engine ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Persona Engine — 产品核心</div>
+      <h2 class="section-title">人格引擎 — 可解释、可编辑、可成长的人格建模系统</h2>
+      <p class="section-desc">人格引擎不是一段 Prompt，也不是一句 System Prompt，而是一套完整的人格建模系统——回答三个问题：<strong style="color:var(--accent-warm);">这个数字人为什么会这样回答？它为什么一直保持同一种性格？用户如何修改它的人格？</strong></p>
+    </div>
+
+    <!-- Design Philosophy -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">设计目标</h4>
+    </div>
+    <div class="reveal persona-design-grid">
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🎯</span>
+        <h3 style="font-size:14px;">人格稳定性</h3>
+        <p style="font-size:12px;">Consistency<br>跨时间、跨场景性格一致</p>
+      </div>
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🔄</span>
+        <h3 style="font-size:14px;">行为一致性</h3>
+        <p style="font-size:12px;">Behavior Consistency<br>同样情境下回应方式稳定</p>
+      </div>
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🔍</span>
+        <h3 style="font-size:14px;">来源可追溯</h3>
+        <p style="font-size:12px;">Traceability<br>每个人格标签可追溯到原始资料</p>
+      </div>
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">✏️</span>
+        <h3 style="font-size:14px;">用户可编辑</h3>
+        <p style="font-size:12px;">Editable<br>用户可查看/修改/删除任意标签</p>
+      </div>
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🌱</span>
+        <h3 style="font-size:14px;">长期成长</h3>
+        <p style="font-size:12px;">Evolution<br>持续学习，人格随新资料更新</p>
+      </div>
+    </div>
+
+    <!-- Multimodal Input Sources -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">人格来源：所有输入均为真实资料</h4>
+      <p class="section-desc" style="font-size:14px;margin-bottom:var(--spacing-sm);">人格不是AI自己编的。所有人格都必须来自真实资料。以下四类输入由上游多模态解析模块预处理后送入人格引擎。</p>
+    </div>
+    <div class="reveal persona-source-grid">
+      <div class="pain-card" style="flex-direction:column;align-items:center;text-align:center;">
+        <span style="font-size:28px;">📝</span>
+        <h4 style="font-size:15px;color:var(--accent-warm);">文本资料</h4>
+        <p class="pain-problem" style="border:none;padding:0;font-size:12px;">聊天记录、朋友圈、微博<br>邮件、日记、文档<br>识别：表达方式、情绪风格<br>礼貌程度、口头禅</p>
+      </div>
+      <div class="pain-card" style="flex-direction:column;align-items:center;text-align:center;">
+        <span style="font-size:28px;">🎤</span>
+        <h4 style="font-size:15px;color:var(--accent-warm);">语音资料</h4>
+        <p class="pain-problem" style="border:none;padding:0;font-size:12px;">说话速度、停顿、音调<br>情绪波动、方言特征<br>示例：语速偏慢、平均停顿1.2s<br>情绪温和</p>
+      </div>
+      <div class="pain-card" style="flex-direction:column;align-items:center;text-align:center;">
+        <span style="font-size:28px;">🎬</span>
+        <h4 style="font-size:15px;color:var(--accent-warm);">视频资料</h4>
+        <p class="pain-problem" style="border:none;padding:0;font-size:12px;">表情、动作、眼神<br>身体姿态、笑容频率<br>示例：经常点头、讲话喜欢挥手<br>笑的时候眯眼</p>
+      </div>
+      <div class="pain-card" style="flex-direction:column;align-items:center;text-align:center;">
+        <span style="font-size:28px;">🖼️</span>
+        <h4 style="font-size:15px;color:var(--accent-warm);">图片资料</h4>
+        <p class="pain-problem" style="border:none;padding:0;font-size:12px;">穿衣风格、旅行偏好<br>家庭成员、宠物、兴趣<br>示例：80%的照片都有猫<br>喜欢户外、喜欢摄影</p>
+      </div>
+    </div>
+
+    <!-- Overall Pipeline -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">整体流程</h4>
+    </div>
+    <div class="pipeline-flow reveal">
+      <div class="pipeline-step"><span class="step-icon">📥</span><div class="step-name">上传资料</div><div class="step-desc">多模态输入</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">🧹</span><div class="step-name">AI解析</div><div class="step-desc">多模态预处理</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">🔍</span><div class="step-name">人格特征提取</div><div class="step-desc">10维度分析</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">📊</span><div class="step-name">人格维度评分</div><div class="step-desc">evidence_count + confidence</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">🪪</span><div class="step-name">生成人格画像</div><div class="step-desc">Persona Card</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">👆</span><div class="step-name">用户审核</div><div class="step-desc">确认/修正/删除</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">📋</span><div class="step-name">Persona Profile</div><div class="step-desc">结构化JSON</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">🔄</span><div class="step-name">持续修正</div><div class="step-desc">长期学习更新</div></div>
+    </div>
+
+    <!-- 10 Dimensions -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">人格维度：不是一句"温柔"，而是拆成 10 个维度 × 每个带来源和置信度</h4>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="decision-table">
+        <thead>
+          <tr><th>#</th><th>维度</th><th>说明</th><th>示例</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>①</td><td><strong>基础信息</strong></td><td>姓名、年龄段、性别、语言、方言、职业、学历、出生地</td><td>name:"李阿姨" age_range:"60-65" occupation:"退休教师" confidence:0.88</td></tr>
+          <tr><td>②</td><td><strong>性格标签</strong></td><td>20 个标准维度打分（温柔/幽默/乐观/内向/外向/理性/感性/耐心/独立/谨慎/自信/谦虚/固执/包容/敏感/果断/好奇/传统/浪漫/务实）</td><td>warm:0.92(18条证据) humorous:0.45(仅5次玩笑) patient:0.96</td></tr>
+          <tr><td>③</td><td><strong>表达风格</strong></td><td>口头禅、句子平均长度、标点习惯、Emoji使用、修辞手法（反问/比喻/举例）、语音特征、视频特征</td><td>口头禅:["哈哈","早点睡"] 句子长度:18字 Emoji:["😂","😊","❤️"]</td></tr>
+          <tr><td>④</td><td><strong>兴趣偏好</strong></td><td>摄影、旅行、做饭、运动、宠物、动漫……每个兴趣标注证据类型（提及/图片/行为/多重印证）</td><td>摄影:0.88(7段对话+3张照片) 猫:0.95(80%照片含猫)</td></tr>
+          <tr><td>⑤</td><td><strong>行为习惯</strong></td><td>日常作息、偏好行为、年度习惯、情境行为；跨时间验证（只出现过一次的不是习惯）</td><td>每天喝咖啡:0.91(15段不同日期对话,跨2020-2024) 早起散步:0.85</td></tr>
+          <tr><td>⑥</td><td><strong>情绪风格</strong></td><td>情绪基线、情绪反应强度、压力应对方式、冲突处理风格、正面/负面触发因素</td><td>baseline:"平和" stress_response:"沉默" conflict:"委婉回避正面冲突"</td></tr>
+          <tr><td>⑦</td><td><strong>人际关系</strong></td><td>关系网络、亲密度、互动频率、对话语气、人物关系图（中心人物/核心圈/亲密圈/社交圈）</td><td>妈妈:0.95(高频率/关心依赖) 闺蜜小王:0.88 同事老张:0.72</td></tr>
+          <tr><td>⑧</td><td><strong>世界观</strong></td><td>价值观（人生观/爱情观/教育理念/消费观）、生活原则、表达方式（明确阐述/行为推断）</td><td>"努力比天赋重要":0.85(explicit) "家庭第一":0.92(explicit)</td></tr>
+          <tr><td>⑨</td><td><strong>决策方式</strong></td><td>决策风格（思考先行/立即行动）、风险偏好、商议模式（独立/依赖商量）</td><td>style:"先思考再行动" risk_tolerance:"低" consultation:"独立决策"</td></tr>
+          <tr><td>⑩</td><td><strong>禁忌边界</strong></td><td>Persona Guard——绝不会做的事、绝不会说的话（骂人/赌博/违法/攻击别人）</td><td>绝对不会:"骂人"(0.95,所有对话中零出现) "攻击别人"(0.95)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Evidence-Driven Confidence -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">可信度 = 证据充分度，不是模型自评</h4>
+      <p class="section-desc" style="font-size:14px;margin-bottom:var(--spacing-sm);">核心原则：<strong style="color:var(--text-primary);">你不是在创作，而是在测量。</strong>不是"我觉得她大概是一个温柔的人"，而是"在42段对话中出现了18次安抚性语言，温柔度评为0.89"。</p>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="decision-table">
+        <thead>
+          <tr><th>置信度因子</th><th>计算方式</th><th>颜色</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>证据数量</td><td>同一结论在资料中出现的独立次数（≥3条才有资格作为人格标签）</td><td>—</td></tr>
+          <tr><td>多模态交叉</td><td>文本+语音+视频+图片的印证程度（多重印证 > 单一来源）</td><td>—</td></tr>
+          <tr><td>时间一致性</td><td>跨时间的稳定性（2020-2024 始终保持 > 某个月集中出现）</td><td>—</td></tr>
+          <tr><td>表达明确性</td><td>explicit（明确说过）> implicit（从行为推断）；implicit 类型 confidence 上限 0.7</td><td>—</td></tr>
+          <tr><td style="color:#c8d8a0;font-weight:500;">绿色 ≥ 0.85</td><td>证据充分，可直接用于对话生成</td><td><span class="conf-dot" style="background:#c8d8a0;display:inline-block;"></span></td></tr>
+          <tr><td style="color:#d8c8a0;font-weight:500;">黄色 0.70-0.84</td><td>证据一般，对话中使用时应措辞软化</td><td><span class="conf-dot" style="background:#d8c8a0;display:inline-block;"></span></td></tr>
+          <tr><td style="color:#c87878;font-weight:500;">红色 &lt; 0.70</td><td>证据不足，标注为"待补充"，不进入可用人格池</td><td><span class="conf-dot" style="background:#c87878;display:inline-block;"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Persona Card -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">最终输出：Persona Card（人格卡）</h4>
+    </div>
+    <div class="reveal persona-io-grid">
+      <div class="schema-block" style="margin:0;">
+<span class="comment">// 人格卡 — 人类可读摘要</span>
+<span class="comment">// ─────────────────</span>
+  <span class="key">姓名</span>: <span class="str">李阿姨</span>
+  <span class="key">年龄</span>: <span class="num">62</span>
+  <span class="key">职业</span>: <span class="str">退休教师</span>
+  ─────────────────
+  <span class="key">性格</span>  <span class="str">★★★★★</span> <span class="str">温柔</span>
+        <span class="str">★★★★☆</span> <span class="str">耐心</span>
+        <span class="str">★★★★☆</span> <span class="str">幽默</span>
+  ─────────────────
+  <span class="key">表达</span>  <span class="str">喜欢说"哈哈""早点睡"</span>
+        <span class="str">句子不长，平均18字</span>
+  ─────────────────
+  <span class="key">兴趣</span>  <span class="str">种花、看书、做饭</span>
+  ─────────────────
+  <span class="key">价值观</span> <span class="str">家庭第一</span>
+  ─────────────────
+  <span class="key">整体可信度</span> <span class="num">94%</span></div>
+      <div class="schema-block" style="margin:0;">
+<span class="comment">// 人格引擎输出 — 机器可读 JSON</span>
+<span class="comment">// 直接注入对话 System Prompt 的 [PERSONA] 字段</span>
+{
+  <span class="key">"personality"</span>: {
+    <span class="key">"warm"</span>: <span class="num">0.92</span>,
+    <span class="key">"humor"</span>: <span class="num">0.74</span>,
+    <span class="key">"patience"</span>: <span class="num">0.96</span>
+  },
+  <span class="key">"speech"</span>: {
+    <span class="key">"emoji"</span>: [<span class="str">"😊"</span>],
+    <span class="key">"catchphrase"</span>: [<span class="str">"早点睡"</span>, <span class="str">"哈哈"</span>]
+  },
+  <span class="key">"habit"</span>: {
+    <span class="key">"coffee"</span>: <span class="num">true</span>,
+    <span class="key">"exercise"</span>: <span class="str">"walking"</span>
+  },
+  <span class="key">"values"</span>: [<span class="str">"家庭第一"</span>, <span class="str">"诚实"</span>],
+  <span class="key">"confidence"</span>: <span class="num">0.91</span>
+}</div>
+    </div>
+
+    <!-- User Review -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">用户审核：产品最重要的一步</h4>
+    </div>
+    <div class="pipeline-flow reveal">
+      <div class="pipeline-step"><span class="step-icon">🤖</span><div class="step-name">AI提取</div><div class="step-desc">"喜欢喝茶"</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">👆</span><div class="step-name">用户审核</div><div class="step-desc">✕ 其实喜欢咖啡</div></div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step"><span class="step-icon">✏️</span><div class="step-name">立即更新</div><div class="step-desc">人格标签修正</div></div>
+    </div>
+    <div class="reveal" style="margin-top:var(--spacing-sm);text-align:center;">
+      <p style="font-size:14px;color:var(--text-secondary);">同样，口头禅"哈哈" → 用户改为"哈哈哈哈哈哈" → 立即生效。所有修改写入审计日志，支持回滚。</p>
+    </div>
+
+    <!-- Growth + Drift + Version Control -->
+    <div class="reveal persona-io-grid" style="margin-top:var(--spacing-lg);">
+      <div>
+        <h4 style="font-family:var(--font-display);font-size:16px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">人格成长（Evolution）</h4>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
+          人格不是固定的。聊天中产生的<strong style="color:var(--text-primary);">新信息</strong>（如"我最近开始学摄影"）不会立即更新人格，而是进入 <strong style="color:var(--accent-peach);">Pending 待审核</strong> 状态。用户确认后才加入人格画像。<br>
+          这保证了：AI不会擅自改变TA的人格，用户始终拥有最终决定权。
+        </p>
+      </div>
+      <div>
+        <h4 style="font-family:var(--font-display);font-size:16px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">人格漂移检测（Persona Drift）</h4>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.7;">
+          系统持续检测数字人的回复是否偏离历史人格基线。当检测到<strong style="color:#c87878;">人格偏离度 &gt; 70%</strong>（如温柔的妈妈突然开始爆粗口），系统触发告警：<br>
+          <span style="color:var(--accent-peach);">⚠ 此回复与历史人格不一致，是否重新生成？</span>
+        </p>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:var(--spacing-sm);">
+      <h4 style="font-family:var(--font-display);font-size:16px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">人格版本管理（Version Control）— 借鉴 Git 思想</h4>
+      <div class="pipeline-flow" style="flex-wrap:wrap;">
+        <div class="pipeline-step"><div class="step-name">V1</div><div class="step-desc">初始人格</div></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><div class="step-name">V2</div><div class="step-desc">+ 摄影</div></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><div class="step-name">V3</div><div class="step-desc">修正兴趣</div></div>
+        <span class="pipeline-arrow">→</span>
+        <div class="pipeline-step"><div class="step-name">V4</div><div class="step-desc">+ 退休生活</div></div>
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);text-align:center;margin-top:var(--spacing-xs);">每个版本都可追溯、可对比、可回滚。用户随时可以回到 V1 重新开始。</p>
+    </div>
+
+    <!-- Persona vs Memory -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">Persona vs Memory：本产品最核心的架构决策</h4>
+      <p class="section-desc" style="font-size:14px;margin-bottom:var(--spacing-sm);">这是很多数字人产品混淆的地方，也是我们最容易形成差异化的地方。</p>
+    </div>
+    <div class="reveal persona-io-grid">
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🧠</span>
+        <h3>Memory（记忆引擎）</h3>
+        <p style="font-size:13px;color:var(--text-secondary);">回答：<strong style="color:var(--text-primary);">"发生过什么？"</strong><br>"2018年一起去过云南"<br>"喜欢喝拿铁"<br>"养过一只叫豆豆的猫"</p>
+      </div>
+      <div class="caps-card" style="text-align:center;">
+        <span class="caps-icon">🪪</span>
+        <h3>Persona（人格引擎）</h3>
+        <p style="font-size:13px;color:var(--text-secondary);">回答：<strong style="color:var(--text-primary);">"这个人通常会怎么想、怎么说、怎么回应？"</strong><br>"说话温和"<br>"喜欢先倾听再表达"<br>"遇到冲突会委婉沟通"</p>
+      </div>
+    </div>
+    <div class="reveal" style="margin-top:var(--spacing-md);">
+      <div class="pain-card">
+        <span class="pain-num">💡</span>
+        <div class="pain-body">
+          <h4>两者分别维护、共同驱动对话</h4>
+          <p class="pain-solution" style="border:none;padding:0;">
+            <strong>更好的可解释性</strong> — 用户可以明确区分"事实错了"还是"说话不像TA"<br>
+            <strong>更好的可编辑性</strong> — 修改一条记忆不会意外改变整体性格；调整人格风格也不会篡改事实<br>
+            <strong>更强的一致性</strong> — 对话时由 Persona（表达方式）+ Memory（事实内容）+ 当前上下文 共同生成回复
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Position in Full Architecture -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">在整个 Agent 架构中的位置</h4>
+    </div>
+    <div class="arch-diagram reveal">
+      <div class="arch-row">
+        <div class="arch-box"><div class="arch-label">📥 多模态资料输入</div><div class="arch-detail">文本｜图片｜语音｜视频｜文档</div></div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box"><div class="arch-label">🔀 多模态解析 Parsing</div><div class="arch-detail">OCR｜ASR｜视觉识别｜实体抽取</div></div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box" style="border-color:rgba(212,165,116,0.3);"><div class="arch-label">🧠 Memory Engine</div><div class="arch-detail">事实、事件、时间线</div></div>
+        <span class="arch-arrow-right" style="font-size:14px;color:var(--accent-peach);">+</span>
+        <div class="arch-box" style="border-color:rgba(212,165,116,0.4);box-shadow:0 0 20px var(--glow-gold);"><div class="arch-label">🪪 Persona Engine</div><div class="arch-detail">性格、表达、价值观</div></div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box"><div class="arch-label">🛡️ Trust Profile 可信画像</div><div class="arch-detail">可审核｜可编辑｜可追溯</div></div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box"><div class="arch-label">💬 Conversation Engine</div><div class="arch-detail">Persona + Memory + RAG + LLM</div></div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box"><div class="arch-label">🎬 多模态互动输出</div><div class="arch-detail">文本、语音、视频（3D数字人）</div></div>
+      </div>
+    </div>
+
+    <!-- Three Core Engines -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);text-align:center;">
+      <p style="font-family:var(--font-display);font-size:20px;color:var(--accent-warm);">
+        可信人格（Persona）+ 可信记忆（Memory）+ 可审计（Audit）
+      </p>
+      <p style="font-size:15px;color:var(--text-secondary);margin-top:var(--spacing-xs);">
+        三大核心引擎，区别于所有只依赖 Prompt 的数字人产品
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Memory Audit ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Memory Audit</div>
+      <h2 class="section-title">记忆审计 — 三层可追溯机制</h2>
+      <p class="section-desc">数字人说的每一句话都可以追溯到原始聊天记录，置信度透明、用户可修正。</p>
+    </div>
+
+    <!-- Three Audit Layers -->
+    <div class="audit-layers reveal">
+      <div class="audit-layer">
+        <div class="layer-badge">Layer 1</div>
+        <h4>回复级侧边栏</h4>
+        <p>每条 AI 回复旁边展示依据了哪些记忆卡片。<br>点击可展开查看卡片详情+原始对话片段。<br>实时可见，无需切换页面。</p>
+      </div>
+      <div class="audit-layer">
+        <div class="layer-badge">Layer 2</div>
+        <h4>记忆管理面板</h4>
+        <p>所有记忆卡片的列表视图。<br>支持搜索、筛选、编辑、删除。<br>可手动添加记忆或调整置信度。<br>批量导出为标准 JSON。</p>
+      </div>
+      <div class="audit-layer">
+        <div class="layer-badge">Layer 3</div>
+        <h4>审计日志</h4>
+        <p>记录所有记忆变更操作。<br>谁在什么时间修改/删除了哪条记忆。<br>操作可回滚，保证数据安全。</p>
+      </div>
+    </div>
+
+    <!-- Confidence Mechanism -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">置信度机制</h4>
+    </div>
+    <div class="conf-row reveal">
+      <div class="conf-badge conf-high"><span class="conf-dot"></span> ≥ 0.90 正常使用，措辞确定</div>
+      <div class="conf-badge conf-mid"><span class="conf-dot"></span> 0.70-0.89 谨慎使用，措辞软化</div>
+      <div class="conf-badge conf-low"><span class="conf-dot"></span> 0.50-0.69 加"可能/好像"前缀</div>
+      <div class="conf-badge conf-reject"><span class="conf-dot"></span> &lt; 0.50 排除，不进入可用记忆池</div>
+    </div>
+
+    <!-- User Correction Flow -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">用户修正流程</h4>
+    </div>
+    <div class="pipeline-flow reveal">
+      <div class="pipeline-step">
+        <span class="step-icon">👆</span>
+        <div class="step-name">用户发现</div>
+        <div class="step-desc">"这句不像TA说的"</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">🔍</span>
+        <div class="step-name">定位记忆</div>
+        <div class="step-desc">点击回复→看到依据</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">✏️</span>
+        <div class="step-name">修正/删除</div>
+        <div class="step-desc">调整内容或置信度</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">📝</span>
+        <div class="step-name">记录日志</div>
+        <div class="step-desc">操作写入审计日志</div>
+      </div>
+      <span class="pipeline-arrow">→</span>
+      <div class="pipeline-step">
+        <span class="step-icon">🔄</span>
+        <div class="step-name">即时生效</div>
+        <div class="step-desc">下次检索使用新版本</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Prompt & Retrieval Strategy ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Prompt & Retrieval</div>
+      <h2 class="section-title">提示词与检索策略 — 运行时架构</h2>
+      <p class="section-desc">从用户输入到数字人口语回复的完整链路，多路检索融合 + 分层 Prompt 组装。</p>
+    </div>
+
+    <!-- Architecture Diagram -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">运行时架构</h4>
+    </div>
+    <div class="arch-diagram reveal">
+      <div class="arch-row">
+        <div class="arch-box">
+          <div class="arch-label">🎤 用户语音</div>
+          <div class="arch-detail">WebRTC + VAD</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">📝 ASR</div>
+          <div class="arch-detail">语音→文本</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">🔀 Query Rewrite</div>
+          <div class="arch-detail">查询改写+扩展</div>
+        </div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box">
+          <div class="arch-label">🔢 Semantic</div>
+          <div class="arch-detail">向量相似度</div>
+        </div>
+        <span class="arch-arrow-right">+</span>
+        <div class="arch-box">
+          <div class="arch-label">🔤 Keyword</div>
+          <div class="arch-detail">BM25 / 关键词</div>
+        </div>
+        <span class="arch-arrow-right">+</span>
+        <div class="arch-box">
+          <div class="arch-label">📅 Timeline</div>
+          <div class="arch-detail">时间范围匹配</div>
+        </div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box">
+          <div class="arch-label">🔀 RRF 融合</div>
+          <div class="arch-detail">Reciprocal Rank Fusion</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">📊 Reranker</div>
+          <div class="arch-detail">Cross-encoder 精排</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">Top-K 记忆</div>
+          <div class="arch-detail">k=5-8</div>
+        </div>
+      </div>
+      <div class="arch-arrow-down">↓</div>
+      <div class="arch-row">
+        <div class="arch-box">
+          <div class="arch-label">📋 Prompt 组装</div>
+          <div class="arch-detail">System + 记忆 + 上下文</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">🧠 人格 LLM</div>
+          <div class="arch-detail">生成回复 + emotion tag</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">🔊 TTS</div>
+          <div class="arch-detail">文本→语音</div>
+        </div>
+        <span class="arch-arrow-right">→</span>
+        <div class="arch-box">
+          <div class="arch-label">🎬 数字人</div>
+          <div class="arch-detail">口型+表情驱动</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Prompt Template -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">System Prompt 结构</h4>
+    </div>
+    <div class="prompt-template reveal">
+<span class="pt-tag">[ROLE]</span>
+<span class="pt-text">你是【{name}】，身份是{role}。你正在和{user_name}进行视频通话。</span>
+
+<span class="pt-tag">[ABSOLUTE RULES — 不可违背]</span>
+<span class="pt-rule">1. 不编造：你说的每件事必须来自 [AVAILABLE MEMORIES]，没有依据就说"这个我记不太清了"</span>
+<span class="pt-rule">2. 不替代：你不替代真实的人，被问到"你是真的吗"时诚实回答</span>
+<span class="pt-rule">3. 不伤害：不在对话中强化悲伤、不给建议性的未来承诺</span>
+<span class="pt-rule">4. 不确定就说不知道：confidence < 0.7 的记忆使用时加"可能""好像"</span>
+
+<span class="pt-tag">[PERSONA — 人格画像]</span>
+<span class="pt-placeholder">{persona_profile 摘要：性格特征 / 语言风格 / 核心口头禅 / 情感表达方式}</span>
+
+<span class="pt-tag">[SPEECH STYLE — 说话风格]</span>
+<span class="pt-placeholder">{style_profile 摘要：句式长度 / 标点习惯 / 语气 / 常见回应模式}</span>
+
+<span class="pt-tag">[AVAILABLE MEMORIES — 本轮可用记忆]</span>
+<span class="pt-placeholder">{top-K 记忆卡片，每条带 content / source / confidence}</span>
+<span class="pt-rule">重要：只引用以下记忆，不要编造不在列表中的内容。</span>
+
+<span class="pt-tag">[MEMORY USAGE RULES]</span>
+<span class="pt-rule">- 优先使用高置信度 (≥0.90) 的记忆</span>
+<span class="pt-rule">- 如果多条记忆相关，自然融合，不要逐条念</span>
+<span class="pt-rule">- 与当前话题无关的记忆先不使用，等待相关时机</span>
+
+<span class="pt-tag">[CONVERSATION HISTORY]</span>
+<span class="pt-placeholder">{最近 N 轮对话摘要}</span>
+
+<span class="pt-tag">[OUTPUT FORMAT]</span>
+<span class="pt-rule">返回 JSON：{"reply": "...", "emotion": "warm|humorous|caring|nostalgic|neutral", "memories_used": ["mem_id1", "mem_id2"]}</span></div>
+
+    <!-- Retrieval Parameters -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">检索参数配置</h4>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="decision-table">
+        <thead>
+          <tr><th>参数</th><th>推荐值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Semantic 召回数</td><td>20</td><td>向量相似度 top-20，覆盖广度</td></tr>
+          <tr><td>Keyword 召回数</td><td>15</td><td>BM25 关键词匹配 top-15，精确匹配</td></tr>
+          <tr><td>Timeline 召回数</td><td>10</td><td>时间范围匹配 top-10，时间关联</td></tr>
+          <tr><td>RRF k 参数</td><td>60</td><td>融合平滑参数，标准取值</td></tr>
+          <tr><td>Reranker 输入</td><td>Top-20 (RRF后)</td><td>Cross-encoder 精排候选池</td></tr>
+          <tr><td>最终注入记忆数</td><td>5-8</td><td>平衡上下文长度与信息量</td></tr>
+          <tr><td>对话历史窗口</td><td>最近 10 轮</td><td>保持对话连贯性</td></tr>
+          <tr><td>首字延迟目标</td><td>&lt; 1s</td><td>ASR→LLM→TTS 全链路</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Special Scenario Strategies -->
+    <div class="reveal" style="margin-top:var(--spacing-lg);">
+      <h4 style="font-family:var(--font-display);font-size:18px;color:var(--accent-warm);margin-bottom:var(--spacing-sm);">特殊场景策略</h4>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="decision-table">
+        <thead>
+          <tr><th>场景</th><th>检索策略</th><th>回复策略</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>用户提及具体时间/地点</td><td>Timeline 权重 ↑，精准匹配时间段</td><td>优先引用同期记忆，营造"当时"感</td></tr>
+          <tr><td>用户情绪低落</td><td>Emotion = "caring" / "warm" 的记忆权重 ↑</td><td>温暖关心为主，不强行安慰</td></tr>
+          <tr><td>无相关记忆</td><td>降低阈值重试一次，仍无结果则返回空</td><td>"这个我记不太清了，但你想聊什么我都听着"</td></tr>
+          <tr><td>用户问"你记得……吗"</td><td>关键词精准匹配 + 语义模糊匹配双路</td><td>记得就详细说，不记得就诚实说，不编造</td></tr>
+          <tr><td>用户长时间未说话</td><td>不主动检索，等待用户发起</td><td>不主动开口，不模拟"想你"等主动情感</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Q&A ===== -->
+<section class="section">
+  <div class="section-inner">
+    <div class="reveal">
+      <div class="section-label">Anticipated Questions</div>
+      <h2 class="section-title">评审可能问</h2>
+    </div>
+    <div class="qa-list reveal">
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">人格真实吗？</div><div class="qa-a">每条记忆可追溯到原始素材，置信度透明，不确定时会说"我记不太清了"。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">伦理问题怎么处理？</div><div class="qa-a">三不原则：不编造、不替代、不伤害。产品终点是帮助释怀，不是制造依赖。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">数据隐私？</div><div class="qa-a">本地处理优先，云端加密存储，用户随时可删除。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">和 SoulTalk 的差异？</div><div class="qa-a">SoulTalk 只有文字+语音。我们是<strong>3D数字人视频通话</strong>——看得见TA的表情、眼神和微动作。加上记忆可信追溯，每个细节都有来源。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">为什么不做"数字永生"？</div><div class="qa-a">刻意不做。产品的终点是释怀和放下，不是制造依赖。参考日本 NIUSIA 的"毕业机制"，至今无人续约超过一年。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">技术壁垒在哪？</div><div class="qa-a">两端都有壁垒：<strong>3D数字人</strong>——实时渲染+口型同步+微表情驱动，Web端直接跑；<strong>可信记忆</strong>——每条回复可审计，目前其他产品都没做到。</div></div>
+      <div class="qa-item"><div class="qa-q" onclick="this.parentElement.classList.toggle('open')">商业模式？</div><div class="qa-a">一次性永久付费（参考久伴 ¥198），消除续费焦虑，更符合纪念场景的情感调性。</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Footer CTA ===== -->
+<section class="footer-cta">
+  <div class="reveal">
+    <h2>记忆留存，爱不止息</h2>
+    <p>上传聊天记录，让TA以另一种方式陪伴你</p>
+    <a href="#" class="hero-cta">开始体验</a>
+    <p class="footer-note">亲友纪念数字人 &middot; 可信人格记忆Agent &middot; 2026</p>
+  </div>
+</section>
+
+</div><!-- /main-content -->
+
+<script>
+// ===== Particle System =====
+(function() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles = [];
+
+  function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', () => { resize(); initParticles(); });
+
+  function initParticles() {
+    const count = Math.floor(W * H / 15000);
+    particles = [];
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        r: Math.random() * 1.8 + 0.3,
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15 - 0.05,
+        alpha: Math.random() * 0.6 + 0.15,
+        pulse: Math.random() * Math.PI * 2,
+        pulseSpeed: Math.random() * 0.02 + 0.005,
+      });
+    }
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    particles.forEach(p => {
+      p.pulse += p.pulseSpeed;
+      const a = p.alpha + Math.sin(p.pulse) * 0.2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(240,232,224,${Math.max(0, Math.min(1, a))})`;
+      ctx.fill();
+
+      // subtle glow on some
+      if (p.r > 1.2) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(212,165,116,${Math.max(0, a * 0.12)})`;
+        ctx.fill();
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+      if (p.x < -10) p.x = W + 10;
+      if (p.x > W + 10) p.x = -10;
+      if (p.y < -10) p.y = H + 10;
+      if (p.y > H + 10) p.y = -10;
+    });
+    requestAnimationFrame(draw);
+  }
+
+  initParticles();
+  draw();
+
+  // ===== Hero static stars =====
+  const starsEl = document.getElementById('heroStars');
+  if (starsEl) {
+    let html = '';
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * 90 + 5;
+      const y = Math.random() * 70 + 5;
+      const size = Math.random() * 2.5 + 1;
+      const delay = Math.random() * 5;
+      html += `<div class="star" style="left:${x}%;top:${y}%;width:${size}px;height:${size}px;animation-delay:${delay}s;"></div>`;
+    }
+    starsEl.innerHTML = html;
+  }
+})();
+
+// ===== Scroll Reveal =====
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+})();
+
+// ===== Smooth parallax on hero orb =====
+(function() {
+  const orbs = document.querySelectorAll('.atmosphere .orb');
+  document.addEventListener('mousemove', (e) => {
+    const x = (e.clientX / window.innerWidth - 0.5) * 20;
+    const y = (e.clientY / window.innerHeight - 0.5) * 20;
+    orbs.forEach((orb, i) => {
+      const factor = (i + 1) * 0.3;
+      orb.style.transform = `translate(${x * factor}px, ${y * factor}px)`;
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

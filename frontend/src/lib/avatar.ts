@@ -68,6 +68,11 @@ export type AvatarGenerateResponse = {
 
 export const AVATAR_API_PATHS = API_PATHS.avatar;
 
+export type AvatarDisplaySource =
+  | { kind: "model"; model: AvatarModelRead; previewImageUrl: null }
+  | { kind: "preview"; model: null; previewImageUrl: string }
+  | { kind: "placeholder"; model: null; previewImageUrl: null };
+
 export function personaAvatarRoute(personaId: string): string {
   return ROUTES.personaAvatar(personaId);
 }
@@ -116,14 +121,47 @@ export function avatarStyleLabel(style: string | null | undefined): string {
   }
 }
 
-export function hasRenderableAvatarModel(model: AvatarModelRead | null | undefined): boolean {
+export function hasRenderableAvatarModel(
+  model: AvatarModelRead | null | undefined
+): boolean {
   return Boolean(model?.model_url?.trim() && model.format);
+}
+
+export function hasUsablePreviewImage(value: string | null | undefined): boolean {
+  const url = value?.trim();
+  if (!url) {
+    return false;
+  }
+  return (
+    url.startsWith("/") ||
+    url.startsWith("https://") ||
+    url.startsWith("http://") ||
+    url.startsWith("data:image/")
+  );
+}
+
+export function getAvatarDisplaySource(
+  config: AvatarConfigResponse | null | undefined
+): AvatarDisplaySource {
+  const selectedModel = config?.selected_avatar_model;
+  if (selectedModel && hasRenderableAvatarModel(selectedModel)) {
+    return { kind: "model", model: selectedModel, previewImageUrl: null };
+  }
+  const previewImageUrl = selectedModel?.preview_image_url?.trim();
+  if (previewImageUrl && hasUsablePreviewImage(previewImageUrl)) {
+    return {
+      kind: "preview",
+      model: null,
+      previewImageUrl
+    };
+  }
+  return { kind: "placeholder", model: null, previewImageUrl: null };
 }
 
 export function shouldShowChatAvatar(
   config: AvatarConfigResponse | null | undefined
 ): boolean {
-  return hasRenderableAvatarModel(config?.selected_avatar_model);
+  return getAvatarDisplaySource(config).kind !== "placeholder";
 }
 
 export function shouldDriveAvatarMouth(

@@ -37,6 +37,7 @@ class Message(Base):
     audio_url: Mapped[str | None] = mapped_column(Text)
     metadata_json: Mapped[dict | list | None] = mapped_column("metadata", JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class MessageCitation(Base):
@@ -58,3 +59,4 @@ class MessageCitation(Base):
     quote: Mapped[str | None] = mapped_column(Text)
     source_location: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -95,6 +95,8 @@ def synthesize_speech(
         "voice_model_id": selected.id,
         "voice_status": voice_status,
         "provider_name": selected.provider_name or "mock_default_tts",
+        "model_artifact_url": selected.model_artifact_url,
+        "voice_id": _voice_id_for_model(selected),
         "default_tts_notice": DEFAULT_TTS_NOTICE,
     }
     job = AIJob(
@@ -111,6 +113,8 @@ def synthesize_speech(
     db.flush()
 
     result = _run_gateway("tts", {**provider_payload, "job_id": job.id})
+    job.provider_type = result["provider_type"]
+    job.provider_name = result["provider_name"]
     job.status = "succeeded"
     job.output_json = result
     job.finished_at = _utcnow()
@@ -197,10 +201,18 @@ def clone_voice(
     payload: VoiceCloneCreate,
 ) -> VoiceCloneResponse:
     voice_model = _get_clone_source_model(db, persona, payload.voice_model_id)
+    source_material = _get_owned_material_or_404(
+        db,
+        persona,
+        voice_model.reference_audio_asset_id,
+    )
     provider_payload = {
         "persona_id": persona.id,
         "voice_model_id": voice_model.id,
         "reference_audio_asset_id": voice_model.reference_audio_asset_id,
+        "storage_url": source_material.storage_url,
+        "file_name": source_material.file_name,
+        "mime_type": source_material.mime_type,
         "sample_audio_url": voice_model.sample_audio_url,
         "sample_text": voice_model.sample_text,
         "simulate_failure": payload.simulate_failure,
@@ -217,9 +229,12 @@ def clone_voice(
 
     result = _run_gateway("voice_clone", {**provider_payload, "job_id": job.id})
     output = result["output"]
+    job.provider_type = result["provider_type"]
+    job.provider_name = result["provider_name"]
     if output["clone_status"] == "failed":
         voice_model.status = "clone_failed"
-        voice_model.provider_name = "mock_voice_clone"
+        voice_model.provider_type = result["provider_type"]
+        voice_model.provider_name = result["provider_name"]
         voice_model.user_selected = False
         job.status = "failed"
         job.error_message = output["error_message"]
@@ -228,8 +243,8 @@ def clone_voice(
         voice_status: VoiceStatus = "default_tts"
     else:
         _clear_selected_voice_models(db, persona)
-        voice_model.provider_type = "local"
-        voice_model.provider_name = "mock_voice_clone"
+        voice_model.provider_type = result["provider_type"]
+        voice_model.provider_name = result["provider_name"]
         voice_model.status = "cloned_ready"
         voice_model.model_artifact_url = output["model_artifact_url"]
         voice_model.sample_audio_url = output["preview_audio_url"]
@@ -402,6 +417,13 @@ def _default_tts_summary(payload: DefaultTTSSelection) -> str:
         f"speed={payload.speed};"
         f"emotion={payload.emotion}"
     )
+
+
+def _voice_id_for_model(model: VoiceModel) -> str | None:
+    artifact = model.model_artifact_url or ""
+    if artifact.startswith("minimax://voice/"):
+        return artifact.rsplit("/", 1)[-1]
+    return None
 
 
 def _run_gateway(capability: str, payload: dict[str, Any]) -> dict[str, Any]:

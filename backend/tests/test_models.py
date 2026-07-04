@@ -38,6 +38,7 @@ def test_schema_can_be_created_in_sqlite_test_database(db_session):
         "persona_type",
         "relationship_to_user",
         "user_nickname_by_persona",
+        "age",
     }.issubset(persona_columns)
     assert {"title", "content", "confidence_level", "status"}.issubset(
         memory_columns

@@ -4,13 +4,99 @@ import asyncio
 import re
 from typing import Any
 
+from app.core.config import Settings, get_settings
+from app.providers.dashscope import DashScopeProvider
+from app.providers.minimax import MiniMaxProvider
+
+
+REAL_PARSE_CAPABILITIES = {
+    "text_parser",
+    "ocr",
+    "image_understanding",
+    "asr",
+    "video_understanding",
+    "memory_extraction",
+}
+REAL_VOICE_CAPABILITIES = {"tts", "voice_clone"}
+REAL_TEXT_LLM_CAPABILITIES = {
+    "chat_llm",
+    "story_generation",
+    "memory_context_compression",
+    "persona_profile_analysis",
+}
+
 
 class ProviderGateway:
-    def __init__(self, provider_name: str = "mock") -> None:
-        self.provider_name = provider_name
+    def __init__(
+        self,
+        provider_name: str | None = None,
+        *,
+        settings: Settings | None = None,
+        dashscope_client: DashScopeProvider | None = None,
+        minimax_client: MiniMaxProvider | None = None,
+    ) -> None:
+        self.settings = settings or get_settings()
+        self.provider_name = provider_name or self.settings.default_llm_provider
+        self._dashscope_client = dashscope_client
+        self._minimax_client = minimax_client
 
     async def run(self, capability: str, payload: dict[str, Any]) -> dict[str, Any]:
         await asyncio.sleep(0)
+        if self._should_use_dashscope(capability):
+            dashscope = self._dashscope()
+            output = await dashscope.run(capability, payload)
+            return {
+                "provider_type": getattr(dashscope, "provider_type", "third_party"),
+                "provider_name": getattr(dashscope, "provider_name", "dashscope"),
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": output,
+            }
+        if self._should_use_minimax(capability):
+            minimax = self._minimax()
+            output = await minimax.run(capability, payload)
+            return {
+                "provider_type": getattr(minimax, "provider_type", "third_party"),
+                "provider_name": getattr(minimax, "provider_name", "minimax"),
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": output,
+            }
+        return self._mock_result(capability, payload)
+
+    def _should_use_dashscope(self, capability: str) -> bool:
+        if capability not in REAL_PARSE_CAPABILITIES:
+            return False
+        if self.provider_name not in {"dashscope", "qwen", "aliyun_dashscope"}:
+            return False
+        return self._dashscope().is_configured
+
+    def _dashscope(self) -> DashScopeProvider:
+        if self._dashscope_client is None:
+            self._dashscope_client = DashScopeProvider(self.settings)
+        return self._dashscope_client
+
+    def _should_use_minimax(self, capability: str) -> bool:
+        if capability not in REAL_VOICE_CAPABILITIES | REAL_TEXT_LLM_CAPABILITIES:
+            return False
+        if self.settings.app_env == "test":
+            return False
+        minimax = self._minimax()
+        if capability in REAL_TEXT_LLM_CAPABILITIES:
+            return bool(
+                getattr(minimax, "is_text_configured", minimax.is_configured)
+                and self.settings.openai_compatible_model
+            )
+        return minimax.is_configured
+
+    def _minimax(self) -> MiniMaxProvider:
+        if self._minimax_client is None:
+            self._minimax_client = MiniMaxProvider(self.settings)
+        return self._minimax_client
+
+    def _mock_result(self, capability: str, payload: dict[str, Any]) -> dict[str, Any]:
         if capability == "text_parser":
             output = _text_parser_output(payload)
         elif capability == "ocr":
@@ -27,6 +113,10 @@ class ProviderGateway:
             output = _chat_llm_output(payload)
         elif capability == "story_generation":
             output = _story_generation_output(payload)
+        elif capability == "memory_context_compression":
+            output = _memory_context_compression_output(payload)
+        elif capability == "persona_profile_analysis":
+            output = _persona_profile_analysis_output(payload)
         elif capability == "tts":
             output = _tts_output(payload)
         elif capability == "extract_voice_sample":
@@ -39,7 +129,8 @@ class ProviderGateway:
             output = {"message": "mock provider result"}
 
         return {
-            "provider_name": self.provider_name,
+            "provider_type": "local",
+            "provider_name": "mock",
             "capability": capability,
             "status": "succeeded",
             "input": payload,
@@ -199,6 +290,75 @@ def _story_generation_output(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _memory_context_compression_output(payload: dict[str, Any]) -> dict[str, Any]:
+    long_md = str(payload.get("long_term_memory_md") or "")
+    short_md = str(payload.get("short_term_memory_md") or "")
+    max_long = int(payload.get("max_long_term_chars") or 12000)
+    max_short = int(payload.get("max_short_term_chars") or 6000)
+    max_ids = int(payload.get("max_selected_memory_ids") or 8)
+    selected_ids = _memory_ids_from_markdown(long_md)[:max_ids]
+    return {
+        "long_term_memory_md": _trim_markdown(long_md, max_long),
+        "short_term_memory_md": _trim_markdown(short_md, max_short),
+        "selected_memory_ids": selected_ids,
+    }
+
+
+def _persona_profile_analysis_output(payload: dict[str, Any]) -> dict[str, Any]:
+    persona_card = payload.get("persona_card") if isinstance(payload.get("persona_card"), dict) else {}
+    memories = payload.get("active_memory_cards") if isinstance(payload.get("active_memory_cards"), list) else []
+    evidence = [
+        str(memory.get("id"))
+        for memory in memories
+        if isinstance(memory, dict) and memory.get("id")
+    ]
+    texts = [
+        _clean_text(str(memory.get("content") or ""))
+        for memory in memories
+        if isinstance(memory, dict) and memory.get("content")
+    ]
+    joined = "；".join(texts[:3])
+    confidence = 0.45 + min(len(memories), 5) * 0.08
+    return {
+        "persona_version": "persona_engine_v2_mock",
+        "basic_info": {
+            "name": persona_card.get("name"),
+            "relationship_to_user": persona_card.get("relationship_to_user"),
+            "evidence": ["persona_card"],
+        },
+        "personality_traits": [
+            {"trait": "温和", "confidence": round(confidence, 2), "evidence": evidence[:2]}
+        ],
+        "speech_style": {
+            "summary": "语气温和，常用“慢慢来”式的安抚表达。",
+            "evidence": evidence[:3],
+        },
+        "interests": [
+            {"name": "家庭记忆", "evidence": evidence[:3], "confidence": round(confidence, 2)}
+        ],
+        "habits": [],
+        "emotional_style": {
+            "summary": "倾向先安抚，再给出具体陪伴。",
+            "evidence": evidence[:3],
+        },
+        "relationships": [
+            {
+                "name": persona_card.get("relationship_to_user"),
+                "summary": persona_card.get("relationship_to_user"),
+                "evidence": ["persona_card"],
+            }
+        ],
+        "worldview": {"summary": "重视陪伴和确定的生活细节。", "evidence": evidence[:3]},
+        "decision_style": {"summary": "偏谨慎、循序渐进。", "evidence": evidence[:3]},
+        "taboos": [],
+        "profile_summary": joined or "TA 的人格画像仍需要更多已确认记忆；当前可先保持慢慢来、重视陪伴的表达基调。",
+        "overall_confidence": round(min(confidence, 0.9), 2),
+        "low_confidence_fields": [] if memories else ["personality_traits", "habits"],
+        "pending_verification": [] if memories else ["继续确认更多记忆卡片"],
+        "source_memory_ids": evidence,
+    }
+
+
 def _tts_output(payload: dict[str, Any]) -> dict[str, Any]:
     persona_id = payload.get("persona_id") or "persona"
     job_id = payload.get("job_id") or "preview"
@@ -279,6 +439,26 @@ def _avatar_3d_output(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _memory_ids_from_markdown(markdown: str) -> list[str]:
+    ids: list[str] = []
+    seen: set[str] = set()
+    for memory_id in re.findall(r"memory_card_id:\s*([A-Za-z0-9_-]+)", markdown):
+        if memory_id not in seen:
+            ids.append(memory_id)
+            seen.add(memory_id)
+    return ids
+
+
+def _trim_markdown(markdown: str, max_chars: int) -> str:
+    if len(markdown) <= max_chars:
+        return markdown
+    if max_chars <= 80:
+        return markdown[:max_chars]
+    head = max_chars // 3
+    tail = max_chars - head - 48
+    return f"{markdown[:head]}\n\n... 已压缩省略 ...\n\n{markdown[-tail:]}"
 
 
 def _sentences(text: str) -> list[str]:

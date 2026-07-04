@@ -34,6 +34,11 @@ class MemoryCard(Base):
     status: Mapped[str] = mapped_column(String(50), default="pending_review")
     user_correction: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[str] = mapped_column(String(50), default="system")
+    embedding: Mapped[list | None] = mapped_column(JSON)
+    embedding_model: Mapped[str | None] = mapped_column(String(120))
+    embedding_provider: Mapped[str | None] = mapped_column(String(50))
+    embedding_text_hash: Mapped[str | None] = mapped_column(String(64))
+    embedding_updated_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

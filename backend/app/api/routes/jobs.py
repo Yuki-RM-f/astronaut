@@ -20,7 +20,13 @@ CANCELABLE_STATUSES = {"pending", "running", "retrying"}
 
 
 def _get_job_or_404(job_id: str, user: User, db: Session) -> AIJob:
-    job = db.scalar(select(AIJob).where(AIJob.id == job_id, AIJob.user_id == user.id))
+    job = db.scalar(
+        select(AIJob).where(
+            AIJob.id == job_id,
+            AIJob.user_id == user.id,
+            AIJob.deleted_at.is_(None),
+        )
+    )
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return job
@@ -35,7 +41,11 @@ def list_jobs(
     persona = get_persona_or_404(persona_id, current_user, db)
     jobs = db.scalars(
         select(AIJob)
-        .where(AIJob.user_id == current_user.id, AIJob.persona_id == persona.id)
+        .where(
+            AIJob.user_id == current_user.id,
+            AIJob.persona_id == persona.id,
+            AIJob.deleted_at.is_(None),
+        )
         .order_by(AIJob.created_at.desc(), AIJob.id.desc())
     ).all()
     return AIJobListResponse(items=[AIJobRead.model_validate(job) for job in jobs])

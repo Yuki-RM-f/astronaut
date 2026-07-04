@@ -7,7 +7,9 @@ import {
   avatarStyleLabel,
   buildDefaultAvatarPayload,
   buildGenerateAvatarPayload,
+  getAvatarDisplaySource,
   hasRenderableAvatarModel,
+  hasUsablePreviewImage,
   personaAvatarRoute,
   shouldDriveAvatarMouth,
   shouldShowChatAvatar
@@ -105,6 +107,70 @@ test("chat avatar renders only when a selected model is loadable", () => {
     false
   );
   assert.equal(shouldShowChatAvatar({ ...config, selected_avatar_model: null }), false);
+});
+
+test("chat avatar display source prefers renderable models then usable preview images", () => {
+  const selectedModel = {
+    id: "a1",
+    persona_id: "p1",
+    provider_type: "mock",
+    provider_name: "mock_avatar_3d",
+    status: "generated_ready",
+    source_image_material_id: "mat1",
+    style: "memorial",
+    model_url: "mock://avatar/default/memorial.glb",
+    preview_image_url: "/avatar-preview.png",
+    format: "glb",
+    expression_config_json: null,
+    animation_config_json: null,
+    lip_sync_config_json: null,
+    user_selected: true,
+    created_at: "2026-07-04T00:00:00",
+    updated_at: "2026-07-04T00:00:00"
+  };
+  const config = {
+    persona_id: "p1",
+    avatar_status: "generated_ready",
+    selected_avatar_model: selectedModel,
+    avatar_models: [],
+    style_options: ["memorial"],
+    failure_notice: AVATAR_FAILURE_NOTICE
+  };
+
+  assert.equal(hasUsablePreviewImage("/avatar-preview.png"), true);
+  assert.equal(hasUsablePreviewImage("https://example.test/avatar.png"), true);
+  assert.equal(hasUsablePreviewImage("mock://avatar-preview/p1.png"), false);
+  assert.deepEqual(getAvatarDisplaySource(config), {
+    kind: "model",
+    model: selectedModel,
+    previewImageUrl: null
+  });
+  assert.deepEqual(
+    getAvatarDisplaySource({
+      ...config,
+      selected_avatar_model: {
+        ...selectedModel,
+        model_url: "",
+        preview_image_url: "https://example.test/avatar.png"
+      }
+    }),
+    {
+      kind: "preview",
+      model: null,
+      previewImageUrl: "https://example.test/avatar.png"
+    }
+  );
+  assert.deepEqual(
+    getAvatarDisplaySource({
+      ...config,
+      selected_avatar_model: {
+        ...selectedModel,
+        model_url: "",
+        preview_image_url: "mock://avatar-preview/p1.png"
+      }
+    }),
+    { kind: "placeholder", model: null, previewImageUrl: null }
+  );
 });
 
 test("avatar mouth is driven only by the currently playing persona audio message", () => {

@@ -23,6 +23,7 @@ def persona_payload() -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -75,6 +76,26 @@ def job_count(db_session, persona_id: str, job_type: str) -> int:
         )
     ).all()
     return len(jobs)
+
+
+def assert_basic_facts_include_age(body: dict, age: int = 72):
+    assert {
+        "field": "age",
+        "value": age,
+        "content": f"年龄/享年：{age}",
+        "source": "persona_card",
+    } in body["basic_facts"]
+
+
+def test_profile_basic_facts_include_user_filled_age_from_persona_card(client):
+    token = register_user(client, "m4-profile-age@example.com")
+    persona = create_persona(client, token)
+
+    response = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token))
+    body = response.json()
+
+    assert response.status_code == 200
+    assert_basic_facts_include_age(body)
 
 
 def test_confirmed_memory_generates_profile_and_changes_trust(client):
@@ -206,6 +227,36 @@ def test_profile_regenerate_rebuilds_from_confirmed_and_corrected_memories(
     assert memories[1]["id"] in source_memory_ids(body)
     assert "慢慢来" in body["profile_summary"]
     assert job_count(db_session, persona["id"], "update_profile") == 1
+
+
+def test_profile_regenerate_stores_persona_engine_json_and_records_job(client, db_session):
+    token = register_user(client, "m4-profile-engine@example.com")
+    persona = create_persona(client, token)
+    create_manual_material(client, token, persona["id"])
+    memories = list_memories(client, token, persona["id"])
+    client.post(f"/api/memories/{memories[0]['id']}/confirm", headers=auth(token))
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/profile/regenerate",
+        headers=auth(token),
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["persona_engine_json"]["persona_version"] == "persona_engine_v2_mock"
+    assert body["persona_engine_json"]["overall_confidence"] >= 0
+    assert body["persona_engine_generated_at"] is not None
+    assert memories[0]["content"] in body["profile_summary"]
+
+    job = db_session.scalars(
+        select(AIJob)
+        .where(AIJob.persona_id == persona["id"], AIJob.job_type == "update_profile")
+        .order_by(AIJob.created_at.desc())
+    ).first()
+    assert job is not None
+    assert job.provider_name == "mock"
+    assert job.output_json["persona_engine_status"] == "succeeded"
+    assert job.output_json["persona_engine_json"]["persona_version"] == "persona_engine_v2_mock"
 
 
 def test_recalculate_trust_returns_breakdown_and_records_job(client, db_session):

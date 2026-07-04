@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { DemoEntry } from "@/src/components/DemoEntry";
+import { Mic2 } from "lucide-react";
 import {
-  AiReminder,
-  GlassPanel,
-  MemoryContainer,
-  MemoryShell,
-  MemoryTitle,
-  VoiceWave
-} from "@/src/components/MemorySpace";
-import { getAuthToken } from "@/src/lib/auth";
+  PageTitle,
+  StarNav,
+  StarPanel,
+  StarShell
+} from "@/src/components/StarSite";
+import { ensureDemoSession } from "@/src/lib/auth";
 import { listMaterials, SourceMaterialRead } from "@/src/lib/materials";
 import { getPersona, PersonaRead } from "@/src/lib/persona";
 import { ROUTES } from "@/src/lib/routes";
@@ -30,7 +28,7 @@ import {
   voiceStatusLabel
 } from "@/src/lib/voice";
 
-type PageState = "checking" | "signedOut" | "loading" | "ready" | "error";
+type PageState = "loading" | "ready" | "error";
 
 export default function PersonaVoicePage() {
   const params = useParams();
@@ -38,7 +36,7 @@ export default function PersonaVoicePage() {
     const rawId = params.id;
     return Array.isArray(rawId) ? rawId[0] : rawId;
   }, [params.id]);
-  const [state, setState] = useState<PageState>("checking");
+  const [state, setState] = useState<PageState>("loading");
   const [persona, setPersona] = useState<PersonaRead | null>(null);
   const [config, setConfig] = useState<VoiceConfigResponse | null>(null);
   const [audioMaterials, setAudioMaterials] = useState<SourceMaterialRead[]>([]);
@@ -50,10 +48,6 @@ export default function PersonaVoicePage() {
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      setState("signedOut");
-      return;
-    }
     if (!personaId) {
       setError("缺少人物 ID。");
       setState("error");
@@ -63,7 +57,9 @@ export default function PersonaVoicePage() {
     let isCurrent = true;
     setState("loading");
     setError(null);
-    loadVoicePage(personaId)
+
+    ensureDemoSession()
+      .then(() => loadVoicePage(personaId))
       .then((loaded) => {
         if (!isCurrent) {
           return;
@@ -164,160 +160,156 @@ export default function PersonaVoicePage() {
   }
 
   return (
-    <MemoryShell background="memoryStringLights">
-      <MemoryContainer>
-      <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-memoryAccent">
-        <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
-          返回记忆空间
-        </Link>
-        {personaId ? <Link href={ROUTES.personaChat(personaId)}>进入对话</Link> : null}
-        {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传音频</Link> : null}
-      </div>
+    <StarShell>
+      <StarNav />
+      <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10">
+        <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-starGold">
+          <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
+            返回星星
+          </Link>
+          {personaId ? <Link href={ROUTES.personaChat(personaId)}>进入对话</Link> : null}
+          {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传音频</Link> : null}
+        </div>
 
-      <div className="mt-6 grid gap-4">
-        <MemoryTitle
+        <PageTitle
+          className="mt-6"
           title={persona ? `${persona.name}的声音` : "TA 的声音"}
-          subtitle="选择默认 TTS、整理音色样本并试听一段回复。当前仍是 mock 能力，不代表真实音色或真实语音质量。"
+          subtitle="选择默认 TTS、整理音色样本并试听一段回复。当前不声明真实音色能力。"
         />
-        <AiReminder text="AI 身份提醒：语音预览不是 TA 的真实声音，当前仅用于本地 mock 演示。" />
-      </div>
 
-      {state === "signedOut" ? <SignedOutState /> : null}
-      {state === "loading" || state === "checking" ? <Notice text="正在加载声音设置..." /> : null}
-      {state === "error" ? <Notice text={error ?? "无法加载声音设置。"} /> : null}
+        {state === "loading" ? <Notice text="正在加载声音设置..." /> : null}
+        {state === "error" ? <Notice text={error ?? "无法加载声音设置。"} /> : null}
 
-      {state === "ready" && config ? (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <GlassPanel>
-            <h2 className="font-serif text-2xl font-semibold text-memoryText">
-              当前状态：{voiceStatusLabel(config.voice_status)}
-            </h2>
-            <div className="mt-4">
-              <VoiceWave label={persona ? `${persona.name}的声音` : "TA 的声音"} />
-            </div>
-            <p className="mt-5 rounded-2xl bg-memoryWarm/70 p-3 text-sm leading-7 text-memoryText/74">
-              {config.default_tts_notice || DEFAULT_TTS_NOTICE}
-            </p>
-
-            <dl className="mt-5 grid gap-4 text-sm">
-              <Detail
-                label="选中声音"
-                value={
-                  config.selected_voice_model
-                    ? voiceModelSummary(config.selected_voice_model)
-                    : "未设置"
-                }
-              />
-              <Detail label="样本数量" value={`${config.voice_models.length}`} />
-            </dl>
-
-            {config.voice_models.length > 0 ? (
-              <div className="mt-5 border-t border-memoryLine/60 pt-4">
-                <p className="text-sm font-semibold text-memoryText">声音记录</p>
-                <div className="mt-3 grid gap-2">
-                  {config.voice_models.map((model) => (
-                    <p
-                      key={model.id}
-                      className="rounded-2xl bg-memoryPaper/75 px-4 py-3 text-sm leading-6 text-memoryText/72"
-                    >
-                      {voiceModelSummary(model)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </GlassPanel>
-
-          <section className="grid gap-5">
-            {error ? <Alert tone="error" text={error} /> : null}
-            {notice ? <Alert tone="success" text={notice} /> : null}
-
-            <Panel title="1. 默认 TTS">
-              <p className="text-sm leading-7 text-memoryText/70">
-                无定制音色时，先选择系统默认 TTS。该声音必须明确标注不是 TA 的真实声音。
+        {state === "ready" && config ? (
+          <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+            <StarPanel className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-starGold">
+                当前状态：{voiceStatusLabel(config.voice_status)}
+              </h2>
+              <VoiceOrb label={persona ? `${persona.name}的声音` : "TA 的声音"} />
+              <p className="mt-5 rounded-2xl border border-white/8 bg-white/6 p-3 text-sm font-semibold leading-7 text-starMist/74">
+                {config.default_tts_notice || DEFAULT_TTS_NOTICE}
               </p>
-              <button
-                type="button"
-                onClick={handleDefaultTts}
-                disabled={busyAction !== null}
-                className="memory-button mt-4 rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm disabled:bg-memoryText/30"
-              >
-                {busyAction === "default-tts" ? "正在设置..." : "选择默认 TTS"}
-              </button>
-            </Panel>
 
-            <Panel title="2. 音色样本与克隆">
-              <label className="text-sm font-semibold text-memoryText" htmlFor="audio-material">
-                选择音频资料
-              </label>
-              <select
-                id="audio-material"
-                value={selectedMaterialId}
-                onChange={(event) => setSelectedMaterialId(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-memoryLine/80 bg-white/74 px-4 py-3 text-sm text-memoryText outline-none focus:border-memoryAccent focus:ring-4 focus:ring-memoryAccent/20"
-              >
-                <option value="">暂无可用音频资料</option>
-                {audioMaterials.map((material) => (
-                  <option key={material.id} value={material.id}>
-                    {material.file_name || material.user_description || material.id}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleCreateSample}
-                  disabled={busyAction !== null || !selectedMaterialId}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText disabled:cursor-not-allowed disabled:text-memoryText/40"
-                >
-                  {busyAction === "sample" ? "正在创建..." : "创建音色样本"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloneVoice}
-                  disabled={busyAction !== null}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText disabled:cursor-not-allowed disabled:text-memoryText/40"
-                >
-                  {busyAction === "clone" ? "正在克隆..." : "生成模拟音色"}
-                </button>
-              </div>
-            </Panel>
-
-            <Panel title="3. 语音预览">
-              <form onSubmit={handleSynthesize} className="grid gap-3">
-                <label className="text-sm font-semibold text-memoryText" htmlFor="voice-preview">
-                  预览文本
-                </label>
-                <textarea
-                  id="voice-preview"
-                  value={previewText}
-                  onChange={(event) => setPreviewText(event.target.value)}
-                  rows={3}
-                  className="w-full rounded-2xl border border-memoryLine/80 bg-white/74 px-4 py-3 text-sm leading-7 text-memoryText outline-none focus:border-memoryAccent focus:ring-4 focus:ring-memoryAccent/20"
+              <dl className="mt-5 grid gap-4 text-sm">
+                <Detail
+                  label="选中声音"
+                  value={
+                    config.selected_voice_model
+                      ? voiceModelSummary(config.selected_voice_model)
+                      : "未设置"
+                  }
                 />
-                <button
-                  type="submit"
-                  disabled={busyAction !== null || isBlankVoiceText(previewText)}
-                  className="memory-button rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm disabled:bg-memoryText/30 md:w-fit"
-                >
-                  {busyAction === "synthesize" ? "正在生成..." : "生成语音预览"}
-                </button>
-              </form>
-              {previewAudioUrl ? (
-                <div className="mt-4 rounded-2xl bg-memoryPaper/75 p-3">
-                  <p className="text-sm font-semibold text-memoryText">预览音频</p>
-                  <audio className="mt-3 w-full" controls src={previewAudioUrl}>
-                    <track kind="captions" />
-                  </audio>
-                  <p className="mt-2 break-all text-xs text-memoryText/50">{previewAudioUrl}</p>
+                <Detail label="样本数量" value={`${config.voice_models.length}`} />
+              </dl>
+
+              {config.voice_models.length > 0 ? (
+                <div className="mt-5 border-t border-white/8 pt-4">
+                  <p className="text-sm font-bold text-starCream">声音记录</p>
+                  <div className="mt-3 grid gap-2">
+                    {config.voice_models.map((model) => (
+                      <p
+                        key={model.id}
+                        className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3 text-sm font-semibold leading-6 text-starMist/72"
+                      >
+                        {voiceModelSummary(model)}
+                      </p>
+                    ))}
+                  </div>
                 </div>
               ) : null}
-            </Panel>
-          </section>
-        </div>
-      ) : null}
-      </MemoryContainer>
-    </MemoryShell>
+            </StarPanel>
+
+            <section className="grid gap-5">
+              {error ? <Alert tone="error" text={error} /> : null}
+              {notice ? <Alert tone="success" text={notice} /> : null}
+
+              <Panel title="1. 默认 TTS">
+                <p className="text-sm font-semibold leading-7 text-starMist/70">
+                  无定制音色时，先选择系统默认 TTS。该声音必须明确标注不是 TA 的真实声音。
+                </p>
+                <button
+                  type="button"
+                  onClick={handleDefaultTts}
+                  disabled={busyAction !== null}
+                  className={primaryButtonClass}
+                >
+                  {busyAction === "default-tts" ? "正在设置..." : "选择默认 TTS"}
+                </button>
+              </Panel>
+
+              <Panel title="2. 音色样本与克隆">
+                <label className="text-sm font-bold text-starMist/78" htmlFor="audio-material">
+                  选择音频资料
+                </label>
+                <select
+                  id="audio-material"
+                  value={selectedMaterialId}
+                  onChange={(event) => setSelectedMaterialId(event.target.value)}
+                  className={`${inputClass} mt-2`}
+                >
+                  <option value="">暂无可用音频资料</option>
+                  {audioMaterials.map((material) => (
+                    <option key={material.id} value={material.id}>
+                      {material.file_name || material.user_description || material.id}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCreateSample}
+                    disabled={busyAction !== null || !selectedMaterialId}
+                    className={secondaryButtonClass}
+                  >
+                    {busyAction === "sample" ? "正在创建..." : "创建音色样本"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloneVoice}
+                    disabled={busyAction !== null}
+                    className={secondaryButtonClass}
+                  >
+                    {busyAction === "clone" ? "正在克隆..." : "生成模拟音色"}
+                  </button>
+                </div>
+              </Panel>
+
+              <Panel title="3. 语音预览">
+                <form onSubmit={handleSynthesize} className="grid gap-3">
+                  <label className="text-sm font-bold text-starMist/78" htmlFor="voice-preview">
+                    预览文本
+                  </label>
+                  <textarea
+                    id="voice-preview"
+                    value={previewText}
+                    onChange={(event) => setPreviewText(event.target.value)}
+                    rows={3}
+                    className={`${inputClass} leading-7`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={busyAction !== null || isBlankVoiceText(previewText)}
+                    className={`${primaryButtonClass} md:w-fit`}
+                  >
+                    {busyAction === "synthesize" ? "正在生成..." : "生成语音预览"}
+                  </button>
+                </form>
+                {previewAudioUrl ? (
+                  <div className="mt-4 rounded-2xl border border-white/8 bg-white/6 p-3">
+                    <p className="text-sm font-bold text-starCream">预览音频</p>
+                    <audio className="mt-3 w-full" controls src={previewAudioUrl}>
+                      <track kind="captions" />
+                    </audio>
+                    <p className="mt-2 break-all text-xs text-starMist/50">{previewAudioUrl}</p>
+                  </div>
+                ) : null}
+              </Panel>
+            </section>
+          </div>
+        ) : null}
+      </main>
+    </StarShell>
   );
 }
 
@@ -338,56 +330,71 @@ async function loadVoicePage(personaId: string): Promise<{
   };
 }
 
-function SignedOutState() {
+function VoiceOrb({ label }: { label: string }) {
   return (
-    <GlassPanel className="mt-8 max-w-3xl">
-      <h2 className="font-serif text-2xl font-semibold text-memoryText">需要先进入记忆空间</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-memoryText/70">
-        可以免注册体验外婆示例，或登录已有账号整理私有声音。
-      </p>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
+    <div className="mt-5 rounded-[1.5rem] border border-starGold/14 bg-indigo-950/32 p-5">
+      <div className="flex items-center gap-4">
+        <span className="grid h-16 w-16 place-items-center rounded-full bg-starGold/14 text-starGold shadow-[0_0_34px_rgba(255,190,109,0.28)]">
+          <Mic2 className="h-8 w-8" aria-hidden="true" />
+        </span>
+        <div>
+          <p className="text-sm font-bold text-starGold">{label}</p>
+          <div className="mt-3 flex items-end gap-1">
+            {[14, 28, 18, 36, 22, 30, 16].map((height, index) => (
+              <span
+                key={`${height}-${index}`}
+                className="w-2 rounded-full bg-starGold/70"
+                style={{ height }}
+              />
+            ))}
+          </div>
+        </div>
       </div>
-    </GlassPanel>
+    </div>
   );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <GlassPanel>
-      <h2 className="font-serif text-2xl font-semibold text-memoryText">{title}</h2>
+    <StarPanel className="p-5">
+      <h2 className="font-serif text-2xl font-bold text-starGold">{title}</h2>
       <div className="mt-4">{children}</div>
-    </GlassPanel>
+    </StarPanel>
   );
 }
 
 function Detail({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
-      <dt className="font-semibold text-memoryText/60">{label}</dt>
-      <dd className="mt-1 whitespace-pre-wrap leading-6 text-memoryText">{value || "未设置"}</dd>
+      <dt className="font-bold text-starMist/60">{label}</dt>
+      <dd className="mt-1 whitespace-pre-wrap leading-6 text-starCream">{value || "未设置"}</dd>
     </div>
   );
 }
 
 function Notice({ text }: { text: string }) {
   return (
-    <GlassPanel className="mt-8 text-sm leading-7 text-memoryText/72">
+    <StarPanel className="mt-8 p-5 text-sm font-semibold leading-7 text-starMist/72">
       {text}
-    </GlassPanel>
+    </StarPanel>
   );
 }
 
 function Alert({ tone, text }: { tone: "error" | "success"; text: string }) {
-  const color =
-    tone === "error"
-      ? "text-red-700 bg-red-50"
-      : "text-memoryAccentDark bg-memoryWarm/70";
-  return <div className={`rounded-2xl p-3 text-sm ${color}`}>{text}</div>;
+  return (
+    <div
+      className={`rounded-2xl border p-4 text-sm font-bold ${
+        tone === "error"
+          ? "border-rose-300/20 bg-rose-500/15 text-rose-100"
+          : "border-emerald-200/20 bg-emerald-400/12 text-emerald-100"
+      }`}
+    >
+      {text}
+    </div>
+  );
 }
+
+const inputClass = "star-input text-sm";
+const primaryButtonClass = "star-button mt-4 min-w-32 disabled:opacity-60";
+const secondaryButtonClass =
+  "rounded-full border border-starGold/22 bg-starGold/10 px-4 py-2.5 text-sm font-bold text-starCream transition hover:bg-starGold/16 disabled:cursor-not-allowed disabled:opacity-35";

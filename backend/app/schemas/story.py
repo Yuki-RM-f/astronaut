@@ -40,6 +40,20 @@ class MemoryStoryListResponse(BaseModel):
     items: list[MemoryStoryRead]
 
 
+class MemoryStoryExportResponse(BaseModel):
+    story_id: str
+    persona_id: str
+    theme: str
+    title: str
+    export_text: str
+    text_filename: str
+    audio_url: str | None
+    audio_filename: str | None
+    audio_export_notice: str
+    source_memory_ids: list[str]
+    source_memories: list[StoryMemorySource]
+
+
 class MemoryStoryCreate(BaseModel):
     theme: str = Field(min_length=1)
 

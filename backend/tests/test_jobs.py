@@ -23,6 +23,7 @@ def persona_payload() -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",

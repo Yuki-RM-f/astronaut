@@ -3,13 +3,360 @@
 ## Current State
 
 - 项目：可信人格记忆Agent
-- 当前阶段：全站温馨沉浸式「记忆空间」前端改造与免注册一键演示入口已接入；Milestone 6 Task 1/2/3/4 后端默认 TTS、语音合成、音色样本、音色克隆兜底、语音消息 ASR 到 TTS、前端录音、声音设置和 mock 语音播放基础闭环已接入；Milestone 7 Task 1/2/3 后端 3D 数字人配置、默认形象、mock 生成、前端 Three.js mock 预览、对话页 3D 数字人展示和播放状态口型联动基础闭环已接入，Milestone 0 到 Milestone 5 保持可验证
-- 当前活跃功能：免注册 `POST /api/auth/demo` 本地演示会话、中文首页和 DemoEntry 演示入口；全站「记忆空间」暖色视觉系统、Pexels 本地素材和共享组件；Milestone 1 人物 CRUD、认证表单接入、人物列表、四步创建人物和人物记忆空间页；Milestone 2 SourceMaterial 资料记录、AI Job、资料上传页和任务状态页；Milestone 3 deterministic mock parsing、ParsedChunk、MemoryCard、记忆审计 API 和记忆审计页；Milestone 4 `PersonaProfile` 聚合/编辑/重生成、可信度重算、上传建议和 profile/trust 页面；Milestone 5 conversation/message/citation/correct-memory API、mock `chat_llm` Provider Gateway、deterministic retrieval 和 `/personas/{id}/chat` 文本对话页；Milestone 6 voice config/default TTS/samples/clone/synthesize/voice-message API、mock `asr`/`tts`/`extract_voice_sample`/`voice_clone` Provider Gateway、voice AI Jobs、`/personas/{id}/voice` 声音设置页、聊天页浏览器录音/已上传音频语音消息和 audio playback；Milestone 7 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、`avatar_3d` AI Job、default/generated/failure fallback AvatarModel、`/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动
-- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证、免注册本地演示、人物创建/记忆空间基础闭环、资料上传/任务队列基础闭环、mock 解析/记忆审计基础闭环、deterministic local 人格档案/可信度基础闭环、deterministic mock 文本对话基础闭环、deterministic mock 默认 TTS/语音合成/音色样本/音色克隆兜底/语音消息/前端录音播放基础闭环和 mock 3D 形象配置/生成/前端预览/对话页播放状态口型联动基础闭环
-- 当前技术栈：Next.js 15、React 19、Three.js、FastAPI、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis、MinIO、Docker Compose
-- 当前统一验证入口：`docs/init.sh`
+- 当前阶段：以当前工作区为基础完成 yawen 星空前端交互迁移、长期/短期记忆 Markdown 上下文和 Memory Audit v2 星空集成。当前前端不展示登录/注册、登录态差异、数据设置页、模型设置页或独立回忆讲述页；无 token 时透明调用现有 `POST /api/auth/demo` 获取 demo token。
+- 当前活跃功能：星空首页、Dashboard、创建星星页、人物详情、资料上传、任务、记忆解析与审核、人格档案、对话、声音和 3D 形象页面；对话页使用右侧 `AvatarStage` 数字人舞台，形象页选择或生成 avatar 后可替换星空占位；创建星星页保留后端必需 `age` 字段，提交 `language=zh-CN`、默认说话风格、情绪边界和禁用表达，创建成功后通过现有资料上传 API 上传已选文件。后端注册/登录、Memory Audit v2 审计 API、Persona Engine 显式画像分析、导出/删除、provider settings、stories API 和长期/短期记忆 Markdown 上下文仍保留；yawen 未闭环的视频手势互动、遗憾对话室和心愿延续仅作为前端模式或 prompt 入口。
+- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证/API、免注册本地演示、人物创建/记忆空间、资料上传/任务队列、mock/可选 DashScope 真实解析、Memory Audit v2 审计/冲突/语义搜索/历史、deterministic local 人格档案/可信度、Persona Engine 显式画像分析、长期/短期 Markdown 记忆上下文、deterministic/mock fallback 与可选 MiniMax 文本对话、mock/可选 MiniMax 语音、mock 3D 形象、后端故事/导出/删除/清空账号数据和 provider settings API。当前前端交互以 yawen 星空体验为准；Memory Audit v2 不包含 snapshot、rollback 或 persona drift。
+- 当前技术栈：Next.js 15、React 19、Three.js、FastAPI、SQLAlchemy、Alembic、PostgreSQL、Redis、MinIO、Docker Compose、DashScope/Qwen、MiniMax、ffmpeg
+- 当前完整基线验证入口：`docs/init.sh`；仅在用户明确要求时运行，agent 任何情况下都不要主动运行。
+- 当前下一步边界：不自动推进 P1/P2 功能点；只在用户明确要求时做已完成功能的验收、修复、文档同步或恢复指定范围开发。若恢复数据设置、模型设置、独立故事页前端入口、Memory Audit snapshot/rollback 或 persona drift，需要重新纳入产品范围并同步 `feature-list.json`。
 
-## Latest Session Update - 2026-07-04 Milestone 7 Task 3 Chat Avatar Mouth Linkage
+## Latest Session Update - 2026-07-04 Homepage Tabs and Motion
+
+- 根据用户确认的首页锚点方案，本次只调整首页和共享前端导航，不恢复 `/login`、`/register`、`/settings/data`、`/settings/providers` 或独立 `/personas/{id}/stories` 页面，不新增后端 API，不扩大产品范围。
+- 首页顶部 tab 已统一为 `首页`、`产品介绍`、`创建档案`、`记忆审核`、`星光故事`；`产品介绍`、`记忆审核` 和 `星光故事` 指向首页锚点，`创建档案` 继续指向 `/personas/new`。移动端顶部 tab 保持可见且无横向页面溢出。
+- 首屏 `StarPlanetScene` 只调大当前星球视觉运动参数：主 group yaw/pitch、星球 wobble、星环 wobble 和粒子漂移幅度更明显；未改 `AvatarPreview` 或对话/形象页 3D 预览。
+- 首页新增 `#product-intro`、`#memory-review`、`#star-stories` 三个锚点区块，分别说明产品闭环、记忆审核入口和基于已审核记忆的星光故事体验；星光故事仍承接现有对话页故事面板/API helper，不恢复独立 stories 页面。
+- PRD 前端覆盖核对：当前显式页面覆盖 Dashboard、创建人物、人物详情、资料上传、解析任务、记忆审计、人格档案、数字人对话、声音设置和形象设置；故事、数据设置、模型设置只有后端 API/helper 或对话页入口承接，非独立页面；登录/注册 UI、设置页和独立 stories 页是当前星空前端产品取舍；P1/P2 主动关怀、心愿延续、邀请家人和付费页仍暂缓/未覆盖。
+- 已执行 TDD RED/GREEN：先更新 `frontend/tests/memory-space.test.mjs` 断言五个 tab 与 href，`npm.cmd --prefix frontend run test -- memory-space.test.mjs` 初次失败于旧三项导航；实现后同命令 56 passed。
+- 完整前端验证：`npm.cmd --prefix frontend run test` 56 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，构建路由仍不包含 login/register/settings/stories。
+- 浏览器 smoke：因既有 `localhost:3000` 服务是旧资产，另从当前工作区启动 `npm.cmd exec next dev -- -p 3100`，验证 `http://localhost:3100/`。桌面 1280x720：五个 tab 标签和 href 正确、三个锚点存在、canvas 数量 1、横向溢出 0、截图采样 `BrightSamples=6102/7722`、`ColorBuckets=121`；移动 390x844：五个 tab 均在视口内、href 正确、锚点存在、canvas 数量 1、横向溢出 0、截图采样 `BrightSamples=8118/9165`、`ColorBuckets=96`。
+- 本次遵守仓库规则，未运行 `docs/init.sh`。
+
+## Latest Session Update - 2026-07-04 数字人交互与审核界面视觉对齐
+
+- 根据用户计划，本次继续以当前工作区为基础，不直接合并 `yawen`，不按本轮计划编辑 `backend/`，只收口对话页数字人交互、审核页视觉和对应文档。
+- 对话页按参考图改为左侧三模式对话区、右侧大幅 `AvatarStage` 数字人舞台；`loadChat()` 读取现有 avatar config，优先展示 selected 可渲染 AvatarModel，其次展示可显示 preview image，否则回退星空人像占位。形象页复用同一 `AvatarStage`，选择默认形象或 mock 生成后回到对话页即可替换右侧占位。
+- 记忆审核页标题改为“记忆解析与审核”，首屏保留可信度横幅、重新解析/新增维度按钮、6 个维度卡片和底部“完成审核，点亮星星”CTA；维度确认/删除只由前端循环调用现有 `confirmMemory`/`deleteMemory`，编辑仍只更新单条现有记忆，不新增后端维度模型。
+- 新增前端 helper 测试覆盖 avatar display source 优先级、可用 preview image 判断和维度批量动作目标选择；同步 `docs/README.md`、`docs/feature-list.json`、`docs/prd-checklist.md` 和 `docs/平台说明.md`，明确本轮是前端视觉与交互收口，后端能力边界不变。
+- 验证通过：`python -m json.tool docs/feature-list.json` 退出码 0；`npm.cmd --prefix frontend run test` 退出码 0，56 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0。
+- 浏览器 smoke 通过：本轮先在临时端口 3102 对当前源码执行 Playwright smoke，随后停止旧 3000 node 进程并运行 `docker compose up --build -d frontend`，在 `http://localhost:3000` 复验通过；覆盖对话页三种互动模式、默认星空占位、形象页选择默认纪念形象、回到对话页后数字人 canvas 非空、记忆解析与审核页可信度横幅/6 维卡片/底部 CTA，以及 1365x768 与 390x844 视口无横向溢出；smoke demo persona 均已通过现有 DELETE API 清理，临时 3102 dev server 已停止。
+- 后端守卫：`backend/` 在本轮开始前已经存在大量工作区脏改；任务前保存的 backend 快照与最终快照哈希不一致，比较发现差异集中在 `backend/app/schemas/profile.py` 和 `backend/app/services/persona_engine_prompt.py` 两个路径相对该快照的状态变化。本轮未用 `apply_patch` 或 shell 写入编辑 `backend/`，未按本任务修改后端 API/逻辑；这些后端差异已按边界风险记录，未擅自回滚。
+
+## Latest Session Update - 2026-07-04 Markdown Memory Context
+
+- 根据用户计划，停用并移除 embedding 运行入口：删除本地 GPU embedding worker/provider/service 和 `backend/requirements-embedding.txt`，解析、手动记忆、纠错和聊天不再写入或读取 embedding；`memory_cards.embedding*` 字段和 Alembic `0004` 保留兼容旧库。
+- 新增 `backend/app/services/memory_markdown.py`：长期记忆写入 `storage/memory_context/{persona_id}/long_term_memory.md`，只包含 confirmed/corrected 且未删除记忆；短期记忆写入 `short_term_memory.md`，按人物聚合所有未删除会话消息；删除人物和清空账号会移除对应 memory_context 缓存。
+- `send_text_message` 改为读取长期/短期 Markdown，上下文过长时调用 Provider Gateway `memory_context_compression`，失败时确定性截断兜底；`message_citations` 来自 selected memory ids；metadata 保留兼容 `retrieval` 字段但来源为 `memory_markdown`。
+- Provider settings 不再返回 `local_gpu`，写入 `EMBEDDING_PROVIDER`、`LOCAL_EMBEDDING_*` 或 `LOCAL_GPU_WORKER_URL` 返回 400；MiniMax/OpenAI-compatible provider capabilities 增加 `memory_context_compression`。
+- 验证中顺手修复阻断基线的问题：`test_audit.py` 改为普通同目录导入并放宽与当前自动解析/时间线排序一致的断言；`test_profile.py` 对齐 persona engine mock summary；`frontend/src/lib/avatar.ts` 去掉错误 type guard；记忆审计页保留已有 audit 子组件定义；Alembic `0006` revision id 缩短为 `0006_audit_persona_engine`，避免 PostgreSQL `alembic_version.version_num VARCHAR(32)` 启动失败。
+- 已执行检查：聚焦后端 `python -m pytest backend/tests/test_chat.py backend/tests/test_memories.py backend/tests/test_parsing.py backend/tests/test_provider_settings.py backend/tests/test_config.py backend/tests/test_memory_markdown.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_personas.py::test_delete_persona_soft_deletes_prd_related_records backend/tests/test_settings_data.py::test_clear_current_account_data_soft_deletes_owned_domain_records -q` 56 passed；`python -m pytest backend/tests -q` 194 passed；`npm.cmd --prefix frontend run test` 56 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0；`python -m json.tool docs/feature-list.json` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，194 backend tests、56 frontend tests、frontend lint/build 和 Compose config 均通过；`docker compose up --build -d backend frontend` 退出码 0，backend healthy、frontend started。
+- 浏览器/API 验收：创建测试人物和 confirmed 记忆后，聊天 metadata 为 `provider=minimax`、`capability=chat_llm`、`memory_context.source=memory_markdown`，`selected_memory_ids` 与 `message_citations` 指向同一记忆；容器内 `long_term_memory.md` 与 `short_term_memory.md` 均包含 `MD-CONTEXT-ACCEPTANCE`；in-app Browser 打开 `/personas/1de5db0a-ec9c-4846-a2ac-a35a80c1cf6b/chat`，页面展示测试人物和基于 Markdown 记忆的回复，未出现 `<think>`。
+
+## Latest Session Update - 2026-07-04 Memory Audit v2 星空集成
+
+- 根据用户计划，本次不直接合并 `origin/jinru`，只吸收 `Memory_Audit_v2`、`Persona_Engine_System_Prompt.md` 和 `展览路演材料.html` 的设计/内容，并按当前项目 FastAPI/SQLAlchemy/Next.js 星空风格重写。
+- 后端新增 Memory Audit v2：扩展 `audit_logs`，新增 `memory_conflicts` 和 0006 增量迁移；新增 audit logs/summary/report/dashboard/conflicts/resolve/search/history API；所有 audit API 复用 JWT 用户隔离，跨用户访问返回 404。
+- 审计事件已接入记忆创建、编辑、确认、拒绝、停用、删除，对话记忆引用和纠错，profile 手动编辑、重生成和可信度变化，story 引用记忆，以及记忆搜索；写入都参与当前事务，不使用不存在的 `"system"` 外键。
+- Persona Engine prompt 已归档为 `docs/Persona_Engine_System_Prompt.md`，代码从文档加载 prompt 并新增 `persona_profile_analysis` provider capability；显式 `POST /api/personas/{id}/profile/regenerate` 保存完整 `persona_engine_json` 和生成时间，解析失败回退 deterministic profile 并记录 fallback，不影响聊天 prompt 或自动记忆审核刷新。
+- 前端 `/personas/{id}/memories` 已升级为星空主题“记忆档案馆”：保留分类审核卡片和“完成审核，点亮星星”流程，新增审计仪表盘、语义搜索、冲突中心、最近事件和单条记忆历史；未新增独立 `/audit` 页面。
+- `docs/展览路演材料.html` 已归档为 docs 静态资料；`docs/feature-list.json` 新增 `feat-043` 记录本次集成，因为当前账本中 `feat-042` 已用于长期/短期记忆 Markdown。
+- 已完成的聚焦验证：`python -m pytest backend/tests/test_audit.py backend/tests/test_profile.py::test_profile_regenerate_stores_persona_engine_json_and_records_job backend/tests/test_provider_gateway.py::test_mock_gateway_returns_persona_profile_analysis backend/tests/test_provider_gateway.py::test_minimax_gateway_routes_persona_profile_analysis_when_configured backend/tests/test_minimax_provider.py::test_minimax_persona_profile_analysis_uses_persona_engine_prompt backend/tests/test_migrations.py::test_memory_audit_v2_migration_uses_incremental_explicit_operations -q` 11 passed；`npm.cmd --prefix frontend run test -- routes.test.mjs audit.test.mjs memories.test.mjs` 56 passed。
+- 完整验证通过：`python -m json.tool docs/feature-list.json > $null` 退出码 0；`python -m pytest backend/tests/test_audit.py backend/tests/test_profile.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_migrations.py -q` 34 passed；`python -m pytest backend/tests -q` 194 passed；`npm.cmd --prefix frontend run test` 56 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0；`docker compose config > $null` 退出码 0。
+- 浏览器 smoke 通过：使用临时 demo persona 打开 `http://localhost:3000/personas/{id}/memories`，桌面视口确认“记忆档案馆”、审计仪表盘、语义搜索、冲突中心和最近事件可见；提交“馄饨”搜索后结果可见，点击搜索结果可切换到记忆历史并显示创建/确认事件，冲突中心“已处理”按钮可把开放冲突处理为已按用户处理；移动视口下搜索结果、冲突中心和时间线可见，检测到 0 个 StarPanel 重叠、0 个文本溢出且无横向滚动。临时 smoke persona 已通过 DELETE API 清理，浏览器临时 token 已清除并重置视口。
+- 本次仍遵守仓库规则，不主动运行 `docs/init.sh`。
+
+## Latest Session Update - 2026-07-04 yawen 星空前端交互迁移
+
+- 根据用户计划，本次不直接合并 `yawen`，以当前工作区为基础迁移 `origin/yawen` 前端视觉和交互，并保持 `backend/` 逻辑不变。
+- 前端已迁移星空首页、全局布局/样式、Dashboard、创建星星页、人物详情、资料上传、任务、记忆审计、档案、对话、声音和 3D 页面；删除登录/注册页面、数据设置页、模型设置页和独立 stories 页面入口。
+- `frontend/src/lib/auth.ts` 保留 `startDemoSession()` 并新增/使用 `ensureDemoSession()`：无 token 时调用现有 `POST /api/auth/demo`，已有 token 静默复用；UI 不展示账号入口或登录态差异。
+- 创建星星页保留当前后端必需的 `age`，payload 继续写入 `language=zh-CN`、默认说话风格、情绪边界和禁用表达；创建成功后调用现有 `uploadMaterials()` 上传已选照片/视频/声音/文字文件，上传失败时保留已创建 persona 并提示去资料上传页补传。
+- yawen 未闭环的视频手势互动、遗憾对话室和心愿延续保留为前端模式或 prompt 入口，不新增后端能力声明。
+- `docs/feature-list.json` 新增 `feat-041`，并将旧 MemorySpace 前端、独立 stories 前端、`/settings/data` 和 `/settings/providers` 前端页面切片标记为被星空前端替换；后端导出/删除、provider settings 和 stories API 仍保持既有状态。
+- 应用路由层已移除旧 `DemoEntry`、`MemorySpace` 页面壳、登录/注册页面、设置页面和独立 stories 页面；`frontend/src/components/DemoEntry.tsx` 与 `frontend/src/components/MemorySpace.tsx` 已删除，`frontend/app/globals.css` 清理不再使用的 `memory-*` 样式块。
+- 验证通过：`npm.cmd --prefix frontend run test` 退出码 0，50 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，构建路由只包含 `/`、`/dashboard`、`/personas/new`、`/personas/{id}`、uploads/jobs/memories/profile/chat/voice/avatar，不包含 login/register/settings/stories；`python -m json.tool docs/feature-list.json` 退出码 0。
+- 浏览器烟测通过：临时 Playwright Chromium 打开 `http://localhost:3000/`，确认星空首页、创建入口和 StarPlanetScene canvas 非空；清空 token 后进入 `/personas/new`，提交年龄 72 和文本资料，前端自动获取 demo token、创建 persona、上传资料并跳转记忆审计页；后端读取确认 persona `age=72`、`language=zh-CN`、默认说话风格存在且资料数为 1；记忆审计页新增维度交互可用；对话页三种互动模式、记忆档案馆、遗憾对话室和心愿延续入口可见；烟测 persona 已通过正式 DELETE API 清理。
+- 构建首次在 dev server 正在写入 `.next` 时遇到 stale page module 收集错误；停止当前 Next dev server、删除 `frontend/.next` 后重建通过。
+- 本次不运行 `docs/init.sh`，因为当前仓库规则要求仅在用户明确要求完整基线时运行；后端测试未运行，后端未在本任务中编辑，收尾用 backend diff 守卫确认无新增后端改动。
+
+## Latest Session Update - 2026-07-04 Init Harness User-Requested Only
+
+- 根据用户最新指令，`docs/init.sh` 现在定义为“只有用户明确要求才需要跑”的完整基线验证入口；agent 不因收尾、发布/合并前、启动/验证链路变化、改动较大或需要完整基线证据而主动运行它。
+- `AGENTS.md` 已同步：Commands、Editing Guidance 和 Validation Expectations 均改为“仅用户明确要求时运行 `docs/init.sh`”；修改 `docs/init.sh` 本身时也只做静态检查或文本审阅，除非用户明确要求完整自检。
+- `docs/README.md` 已同步：文档地图、当前状态、统一 harness 和维护流程均明确 `docs/init.sh` 不主动运行，其他场景使用与改动直接相关的单项验证。
+- `docs/平台说明.md` 和 `docs/prd-checklist.md` 已同步：`docs/init.sh` 不再作为普通验证命令组或默认 harness，自检表格改为“仅用户明确要求”。
+- 本次不改后端、前端、Compose 或 `docs/init.sh` 脚本行为；遵守该规则，不运行 `docs/init.sh`。
+- 已执行轻量验证：`python -m json.tool docs/feature-list.json` 退出码 0；针对旧策略关键词的 `rg` 检查在当前规则文档中无命中；`git diff --check -- AGENTS.md docs/README.md docs/progress.md docs/平台说明.md docs/prd-checklist.md` 退出码 0，仅有既有 LF/CRLF working-copy warning。
+
+## Latest Session Update - 2026-07-04 Chat Think Block Cleanup
+
+- 根据浏览器评论，聊天页不应向用户展示模型 `<think>` 推理过程；本次在后端聊天输出边界处理，而不是只做前端隐藏。
+- `backend/app/services/chat.py` 在保存新的 persona 回复前剥离 `<think>...</think>` 推理块；如果模型只返回推理块导致清洗后为空，则回退到本地 deterministic draft reply。
+- `message_response()` 返回 persona 消息时也剥离 `<think>` 推理块，覆盖已存历史消息、消息列表和复用该响应结构的对话导出；用户消息原文不做此类过滤。
+- `run_chat_gateway()` 传入历史对话时也会对 persona 历史消息使用同一清洗逻辑，避免旧推理文本再次进入下一轮真实 LLM 上下文。
+- 已执行 RED/GREEN：新增 `test_send_text_message_strips_model_thinking_from_real_llm_reply` 和 `test_list_messages_strips_model_thinking_from_existing_persona_message`，修复前 2 failed，修复后 2 passed；随后 `python -m pytest backend/tests/test_chat.py -q` 16 passed。
+- 完整验证：`python -m json.tool docs/feature-list.json > $null` 退出码 0；`python -m pytest backend/tests/test_exports.py -q` 4 passed；`python -m pytest backend/tests -q` 181 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，181 backend tests、50 frontend tests、frontend lint/build 和 `docker compose config` 均通过。
+- 浏览器验收：`docker compose up --build -d backend` 退出码 0 后打开 `http://localhost:3000/personas/8163ecfa-0c65-47e3-a8ce-52116f5beb96/chat`，当前 4 条消息正文中 `hasThinkTag=false`、`hasPrivateReasoning=false`，原先泄漏的英文推理块不再显示。
+- `git diff --check -- backend/app/services/chat.py backend/tests/test_chat.py docs/可信人格记忆Agent_mvp_prd.md docs/feature-list.json docs/prd-checklist.md docs/progress.md` 退出码 0，仅有既有 LF/CRLF working-copy warning。
+
+## Latest Session Update - 2026-07-04 Init Harness Policy Cleanup
+
+- 根据用户指令，删除本仓库“每次收尾默认运行 `docs/init.sh`”的要求；`docs/init.sh` 保留为完整基线验证入口，仅在用户明确要求时运行。
+- `AGENTS.md` 的 Constraint Workflow、Commands、Editing Guidance 和 Validation Expectations 已改为按改动范围运行最小必要验证；文档/规则变更优先使用 JSON、脚本语法或 `rg` 等轻量检查。
+- `docs/README.md` 的文档地图、Harness 分工、当前状态、统一 harness 和维护流程已同步：普通文档、局部后端或局部前端改动不再要求默认跑完整 harness。
+- 本次属于 agent 规则与文档维护，不改后端、前端、Compose 或 `docs/init.sh` 脚本行为；按新规则不运行完整 `docs/init.sh`。
+- 已执行轻量验证：`python -m json.tool docs/feature-list.json` 退出码 0；针对旧的强制 `docs/init.sh` 收尾规则运行 `rg` 检查无命中；`git diff --check -- AGENTS.md docs/README.md docs/progress.md` 退出码 0，仅有既有 LF/CRLF working-copy warning。
+
+## Latest Session Update - 2026-07-04 Create Persona Defaults Cleanup
+
+- 根据浏览器评论，`/personas/new` 不再展示“主要语言”输入框，也不再展示“说话风格与边界”区块；用户只填写类型、基础资料、关系和称呼。
+- 前端 `PersonaDraft` 改为只包含用户可填写字段；创建 payload 固定写入 `language=zh-CN`，并写入系统默认 `speaking_style`、`emotional_style` 和 `forbidden_expressions`。
+- 后端 `PersonaCreate` 省略 `language` 时默认 `zh-CN`，创建或更新传入非 `zh-CN` 语言值会返回 422；保留 response、数据库列和 prompt_context 读取链路。
+- 已执行聚焦 RED/GREEN：`python -m pytest backend/tests/test_personas.py -q` 先失败于省略 language 不能创建和非中文未被拒绝，修复后 57 passed；`npm.cmd --prefix frontend run test -- persona.test.mjs` 先失败于隐藏字段仍被 required 和 payload builder 缺失，修复后 63 passed。
+- 完整验证：`python -m json.tool docs/feature-list.json` 退出码 0；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，179 backend tests、63 frontend tests、frontend lint/build 和 `docker compose config` 均通过。
+- 浏览器验收：`docker compose up --build -d frontend` 退出码 0 后刷新 `http://localhost:3000/personas/new`，DOM 检查确认无“主要语言”“说话风格与边界”“说话风格”“情绪方式”“禁止表达”，当前只剩 8 个用户输入控件；浏览器提交测试人物后数据库确认 `language=zh-CN` 且默认风格边界已写入，随后已软删除该测试人物并返回创建页。
+
+## Latest Session Update - 2026-07-04 DashScope Recheck With Current Key
+
+- 根据用户确认，当前 `.env/runtime.env` 已配置 DashScope key，且业务空间已具备当前模型调用资格；本次仅做脱敏配置检查，不在日志或文档中回显原始 key。
+- 脱敏配置检查确认：`DEFAULT_LLM_PROVIDER=dashscope`，`DASHSCOPE_API_KEY` 已设置，region 为 `cn-beijing`，workspace 为 `ws-oyohscx3hl0sgsdz`，当前模型为 `QWEN_TEXT_MODEL=qwen-plus`、`QWEN_VISION_MODEL=qwen3.7-plus`、`QWEN_OCR_MODEL=qwen-vl-ocr-latest`、`QWEN_ASR_MODEL=qwen3-asr-flash`。
+- 已强制重建并重启 backend：`docker compose up --build -d --force-recreate backend` 退出码 0；`http://localhost:8000/health` 返回 200。
+- 复跑 `python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000` 退出码 0；结果文件 `.smoke/real-multimodal/results/20260704-180621.json` 记录 provider report 中 DashScope configured，text、image、audio、video、pdf、docx、doc 七类样本均 `parse_status=succeeded`、job `status=succeeded`，provider 为 `dashscope`/`third_party`，生成 ParsedChunk 与 source-backed MemoryCard，`errors=[]`。
+- 当前结论：此前 `403 AccessDenied.Unpurchased` 已解除；公网样本闭环不是代码阻断，当前 key、业务空间和模型资格可支撑真实 DashScope 多模态解析 smoke。
+
+## Latest Session Update - 2026-07-04 MiniMax Text LLM Verification
+
+- 按用户要求检查所有文本对话相关 LLM 调用：此前 `chat_llm` 和 `story_generation` 仍主要走 mock/local 路径；本轮将非 test 环境下的 `chat_llm` 与 `story_generation` 统一接到 env 中 MiniMax/OpenAI-compatible 配置，使用 MiniMax `/chat/completions` 和 `OPENAI_MODEL`，未配置或 `APP_ENV=test` 时保留 deterministic mock fallback。
+- 更新 `backend/app/providers/minimax.py`、`backend/app/providers/gateway.py`、`backend/app/services/chat.py` 和 `backend/app/services/provider_settings.py`：MiniMax provider 增加 `chat_llm`/`story_generation`，Provider Gateway 路由文本 LLM 能力到 MiniMax，模型设置接口展示 MiniMax 文本能力，chat service 对真实 LLM 回复继续执行 persona 禁用表达过滤；story generation 支持模型返回严格 JSON，也支持普通文本回退为带来源记忆的故事内容。
+- 真实调用检查不输出密钥：本地配置显示 MiniMax key 已配置、base URL 为 MiniMax OpenAI-compatible、chat model 为 `MiniMax-M3`。直接 provider smoke 中 `chat_llm` 和 `story_generation` 均返回 trace id；Docker backend 重建后 `/health` 返回 200；真实 API smoke 中文本对话 metadata 为 `provider=minimax`、`capability=chat_llm`，故事生成 metadata 为 `provider=minimax`、`capability=story_generation`，并返回 source memory ids 和 audio URL。
+- 已执行检查：RED `python -m pytest backend/tests/test_minimax_provider.py backend/tests/test_provider_gateway.py -q` 先失败于 MiniMax 未支持文本能力，RED `python -m pytest backend/tests/test_chat.py::test_send_text_message_sanitizes_real_llm_reply -q` 先失败于真实 LLM 回复未过滤禁用表达，RED `python -m pytest backend/tests/test_minimax_provider.py::test_minimax_story_generation_falls_back_when_model_returns_plain_text -q` 先失败于真实模型返回非 JSON；修复后 `python -m pytest backend/tests/test_minimax_provider.py backend/tests/test_provider_gateway.py backend/tests/test_chat.py backend/tests/test_stories.py backend/tests/test_provider_settings.py backend/tests/test_config.py -q` 40 passed；直连 MiniMax smoke 使用 env 中 `MiniMax-M3`，`chat_llm` 与 `story_generation` 均返回 trace id；真实 API smoke 返回 chat `provider=minimax`/`capability=chat_llm`、story `provider=minimax`/`capability=story_generation`；`python -m json.tool docs/feature-list.json > $null` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON validation、177 backend tests、62 frontend tests、frontend lint、frontend build 和 `docker compose config` 均通过；`git diff --check -- ...` 退出码 0，仅 LF-to-CRLF working-copy warnings。
+
+## Latest Session Update - 2026-07-04 DashScope 403 Documentation Cleanup
+
+- 核对本地真实多模态 smoke 结果：`.smoke/real-multimodal/results/20260704-160242.json` 中 image/audio/video/pdf/docx 曾被 DashScope `403 AccessDenied.Unpurchased` 阻断；最新 `.smoke/real-multimodal/results/20260704-170719.json` 中 text、image、audio、video、pdf、docx、doc 七类样本均 `parse_status=succeeded`、job `status=succeeded`，provider 为 `dashscope`/`third_party`，`errors=[]`。
+- 修正文档陈旧结论：`docs/平台说明.md` 不再声明最近一次完整烟测仍被 403 阻断，改为记录 2026-07-04 完整 smoke 已通过，并保留遇到 `AccessDenied.Unpurchased` 时需开通百炼服务、确认实名认证、业务空间/API Key/region 匹配和模型权限后重启 backend 复跑；`docs/prd-checklist.md` 不再把 DashScope 公网样本 smoke 阻断项列为待补齐。
+- 本次不改后端 adapter 或 smoke 脚本；根因属于 DashScope 账号/模型调用资格，而不是仓库解析代码缺口。
+- 已执行检查：`python -m json.tool docs/feature-list.json` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 首次 120 秒超时，随后以更长超时复跑退出码 0，required files、JSON validation、176 backend tests、62 frontend tests、frontend lint、frontend build 和 `docker compose config` 均通过。
+
+## Latest Session Update - 2026-07-04 Real Multimodal Smoke Verification Follow-up
+
+- 根据用户反馈 DashScope 权限已解决，强制重建/重启 backend 以重新加载 `.env/runtime.env`，`http://localhost:8000/health` 返回 200。
+- 复跑 `python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000` 退出码 0；结果文件 `.smoke/real-multimodal/results/20260704-170719.json` 记录 text/image/audio/video/pdf/docx/doc 七类样本均 `parse_status=succeeded`、job `status=succeeded`，provider 为 `dashscope`/`third_party`，生成 ParsedChunk 与 source-backed MemoryCard，`errors=[]`。
+- `docs/feature-list.json` 中 `feat-039` 从 `blocked` 调整为 `completed`；`docs/prd-checklist.md` 的 M3-AC-008 和 `docs/README.md` 残余风险同步更新为真实完整 smoke 已通过。P1/P2 暂缓边界不变。
+- 已执行检查：`docker compose up --build -d --force-recreate backend` 退出码 0；`http://localhost:8000/health` 返回 200；`python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000` 退出码 0；`python -m json.tool docs/feature-list.json > $null` 退出码 0，当前状态为 38 completed / 1 deferred；`python -m pytest backend/tests/test_dashscope_provider.py backend/tests/test_material_extractors.py backend/tests/test_real_multimodal_smoke.py -q` 12 passed；`docker compose config > $null` 退出码 0；`git diff --check -- docs/feature-list.json docs/prd-checklist.md docs/README.md docs/progress.md` 退出码 0，仅 LF-to-CRLF working-copy warnings。
+- 完整统一验证已复跑：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON validation、172 backend tests、62 frontend tests、frontend lint、frontend build 和 `docker compose config` 均通过。
+
+## Previous Session Update - 2026-07-04 Pause P1/P2 Feature Development
+
+- 根据用户最新指令，暂时不再开发 P1/P2 功能点；已完成的 Milestone 0-8、provider settings、本地 embedding、真实多模态烟测脚本和 P1 age 必填基础闭环全部保留。
+- 撤回本轮刚开始但未完成的 P1 自定义人格档案维度切片残留：未保留 `custom_dimensions` schema/model/API/page/test 变更，避免留下半成品或失败测试。
+- `docs/feature-list.json` 中 `feat-036` 从 `planned` 调整为 `deferred`，表示自定义人格档案维度、AI 主动关怀、心愿延续及其他 P1/P2 功能点暂缓；`feat-038` age 必填功能仍保持 `completed`。
+- 本次轻量检查：`rg -n "custom_dimensions|custom_profile_dimensions|format_custom_profile_dimensions|纪念日陪伴方式" backend frontend` 无命中（退出码 1，表示未找到）；`npm.cmd --prefix frontend run test -- profile.test.mjs` 62 passed；`npm.cmd --prefix frontend run build` 退出码 0。
+
+## Previous Session Update - 2026-07-04 Local GPU bge-m3 Embedding Verification
+
+- 完成本地 GPU bge-m3 embedding 接入收口：主 FastAPI 后端继续不直接加载 torch/FlagEmbedding，只通过 `LOCAL_GPU_WORKER_URL` 调用 `backend/app/local_embedding_worker.py`；worker 不可用、未配置、请求失败或维度不匹配时，聊天检索回退 deterministic lexical retrieval。
+- 记忆写入链路已覆盖解析生成记忆、手动创建记忆、title/content 编辑和 `correct-memory` 纠错刷新 embedding；status-only 变更不刷新 embedding。`memory_cards` 新增 embedding JSON、provider/model/hash/updated_at 元数据和 Alembic 迁移。
+- Provider settings 后端 allowlist、状态报告和前端 `/settings/providers` 已展示/保存 `local_gpu` embedding 配置；本地 ignored `.env/runtime.env` 已追加非密钥 embedding 运行变量，未把真实密钥写入 tracked 文件。
+- 为当前全量后端测试补回缺失的 `backend/scripts/real_multimodal_smoke.py` 最小脚本入口，使既有 smoke 测试可收集并通过；该脚本不接入主服务路径。
+- 保持范围边界：本轮不把 `chat_llm`/`story_generation` 切到 MiniMax，不实现 sparse/multi-vector、pgvector ANN index、真实 3D provider 或生产级 secret manager；真实 GPU worker 质量仍需在本机 CUDA 环境安装 `backend/requirements-embedding.txt` 后单独验收。
+- 已执行检查：RED `python -m pytest backend/tests/test_config.py backend/tests/test_provider_settings.py backend/tests/test_local_embedding_provider.py backend/tests/test_chat.py backend/tests/test_parsing.py backend/tests/test_memories.py -q` 失败于缺少 `app.providers.local_embedding`；实现后同命令 34 passed；`python -m pytest backend/tests/test_real_multimodal_smoke.py -q` 6 passed；`DEFAULT_LLM_PROVIDER=mock python -m pytest backend/tests -q` 172 passed in 674.17s；`npm.cmd --prefix frontend run test` 62 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0；`docker compose config` 退出码 0；`python -m json.tool docs/feature-list.json` 退出码 0；`git diff --check` 退出码 0（仅 LF-to-CRLF working-copy warnings）；`DEFAULT_LLM_PROVIDER=mock & "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、172 backend tests、62 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Real Multimodal Public-Sample Smoke
+
+- 修正 DashScope adapter 真实请求形态：Qwen3-ASR 改为单一 `input_audio` content item + `asr_options`；视频整段 fallback 改为 `video_url`；关键帧列表提高到 `fps=0.5` 且少于 4 帧时回退整段视频，避免 DashScope sequence image 最小帧数错误。
+- 新增 `backend/scripts/real_multimodal_smoke.py`：下载 Project Gutenberg 文本、Wikimedia Commons 图片、LibriVox/Internet Archive 公版音频和 Wikimedia/USGS 视频；从文本派生 PDF/DOCX/DOC；通过 host ffmpeg 或 backend Docker 镜像裁剪视频；经真实上传 API 校验 provider、parse job、ParsedChunk id 和 source-backed MemoryCard；输出 `.smoke/real-multimodal/results/*.json` 并脱敏 provider secret 状态。
+- 明确当前 PRD 边界：PDF/DOC/DOCX 只做本地文本抽取，不做扫描 PDF OCR；音频本阶段只覆盖 ASR 和基础 `sample_metadata`，不做 VAD、说话人分离或关键片段质量筛选；视频本阶段只覆盖音频提取、ASR、关键帧采样、视觉摘要和基础时间戳，不做稳定场景切分。
+- 真实烟测记录：`docker compose up --build -d backend` 后运行 `python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000`。最近结果写入 `.smoke/real-multimodal/results/20260704-160242.json`：text 与 DOC 成功通过 DashScope；前一次结果 `.smoke/real-multimodal/results/20260704-155929.json` 中 audio ASR 成功通过 DashScope；完整 smoke 仍被 DashScope `403 AccessDenied.Unpurchased` 阻断，错误体为 `Access to model denied. Please make sure you are eligible for using the model.`，需要开通或替换当前 OCR/VL/ASR/文本模型后复跑。
+- 已执行检查：`python -m pytest backend/tests/test_dashscope_provider.py backend/tests/test_material_extractors.py backend/tests/test_real_multimodal_smoke.py -q`，12 passed；`docker compose up --build -d backend` 成功；`http://localhost:8000/health` 返回 200。
+
+## Previous Session Update - 2026-07-04 Persona Age Required Field
+
+- 新增 `Persona.age` 基础闭环：后端模型、Pydantic create/update/read schema、Persona API 响应、demo seed、profile export snapshot 和 Alembic 迁移 `0005_persona_age.py` 支持用户填写的年龄/享年；迁移列保持 nullable 以兼容既有数据，新建/更新 schema 要求 1..150。
+- 前端 `/personas/new` 新增年龄/享年输入，`validatePersonaDraft` 将 age 纳入必填和范围校验，创建 payload 转为整数；人物详情页展示年龄/享年。
+- profile/profile export 的 `basic_facts` 在用户未手动覆盖该维度时注入 `source=persona_card` 的 age fact，使 PRD 基础事实维度可以读取创建人物资料卡片中的年龄；用户手动编辑 `basic_facts` 后不再自动覆盖。
+- 保持范围边界：本次不实现头像文件上传、出生年份替代表单、自定义人格档案维度、AI 主动关怀、心愿延续或新的模型链路。
+- 已执行检查：RED `python -m pytest backend/tests/test_personas.py backend/tests/test_models.py -q` 失败于后端接受缺失/null/越界 age、响应缺少 age 和 schema 缺少列；RED `npm.cmd --prefix frontend run test -- persona.test.mjs` 失败于 missingFields 未包含 age；实现后 `python -m pytest backend/tests/test_personas.py backend/tests/test_models.py backend/tests/test_auth.py -q` 63 passed，`npm.cmd --prefix frontend run test -- persona.test.mjs` 62 passed；随后 RED `python -m pytest backend/tests/test_profile.py::test_profile_basic_facts_include_user_filled_age_from_persona_card backend/tests/test_exports.py::test_export_profile_returns_watermarked_profile_snapshot -q` 失败于 profile basic_facts 缺少 age，修复后 `python -m pytest backend/tests/test_profile.py backend/tests/test_exports.py -q` 13 passed。
+
+## Previous Session Update - 2026-07-04 Local GPU bge-m3 Embedding
+
+- 新增本机 GPU embedding worker：`backend/app/local_embedding_worker.py` 提供 `GET /health` 和 `POST /embeddings`，默认模型 `BAAI/bge-m3`、1024 维 dense embedding；`backend/requirements-embedding.txt` 单独放置 FlagEmbedding/torch 重依赖，主 FastAPI 后端不直接加载 torch。
+- 后端配置新增 `EMBEDDING_PROVIDER`、`LOCAL_EMBEDDING_MODEL`、`LOCAL_EMBEDDING_DIMENSIONS`、`LOCAL_EMBEDDING_BATCH_SIZE` 和 `LOCAL_GPU_WORKER_URL`；`GET/PUT /api/settings/providers` 与前端 `/settings/providers` 已展示/保存 local_gpu embedding 配置，响应不涉及新密钥。
+- `memory_cards` 新增 embedding JSON、model/provider/text hash/updated_at 元数据和 Alembic 迁移；解析生成记忆、手动创建记忆、title/content 编辑、chat correct-memory 会尝试写入或刷新 embedding，status-only 变更不会重写。
+- `retrieve_memories()` 优先使用本地 bge-m3 cosine 向量召回，候选规则为 cosine >= 0.35 或词法 overlap > 0；存在 confirmed/corrected 候选时仍只在事实记忆中排序；worker 未配置、不可用、请求失败或维度不匹配时回退原 deterministic lexical retrieval。
+- 保持范围边界：本轮不把 `chat_llm`/`story_generation` 切到 MiniMax，不实现 sparse/multi-vector、pgvector ANN index、真实 3D provider 或生产级 secret manager；真实 GPU worker 质量需在本机 CUDA 环境安装 embedding requirements 后单独验收。
+- 已执行检查：先跑 RED `python -m pytest backend/tests/test_config.py backend/tests/test_provider_settings.py backend/tests/test_local_embedding_provider.py backend/tests/test_chat.py backend/tests/test_parsing.py backend/tests/test_memories.py -q` 失败于缺少 `app.providers.local_embedding`；实现后同命令 GREEN，34 passed。
+
+## Previous Session Update - 2026-07-04 Data Settings Browser Smoke
+
+- 以服务级 Docker Compose 拓扑重建并启动当前本地代码，确认 backend healthy、frontend started。
+- 使用临时账号和临时人物通过后端 API 预置资料、已确认记忆、对话和引用，再在真实 Chrome/Playwright 页面打开 `/settings/data`。
+- 浏览器 smoke 覆盖：点击「导出档案」「导出记忆」「导出对话」并验证下载 JSON 的 `export_type`、文件名和 AI 模拟水印；点击「删除对话」「删除资料」「删除人物」后分别验证导出/详情/人物接口返回 404；另用第二个临时账号点击「清空当前账号数据」，验证 `/api/auth/me` 仍可用且 `/api/personas` 返回空列表。
+- 调试记录：首次 browser launch 失败是 Playwright 自带 Chromium 未安装；改用系统 Chrome channel 后继续。第二个账号分支初次未显示新人物，根因为同一 Playwright context 的 `addInitScript` 在导航时把 localStorage 重设为第一个 token；改用新的 browser context 后通过。
+- 保持范围边界：本次不新增产品能力，不实现真实 MinIO/S3 bucket object 删除、向量索引清理、审计回放、复杂合规审核或生产级 secret manager。
+- 已执行检查：`docker compose up --build -d` 在延长等待后完成并替换 backend/frontend/worker 容器；`/settings/data` service-backed browser smoke 通过，导出下载 3 个 JSON 均含水印，删除对话/资料/人物后对应 API 均返回 404，清空账号后 token 仍可访问 `/api/auth/me` 且人物列表为空；`python -m json.tool docs/feature-list.json` 退出码 0；`git diff --check` 退出码 0（仅 LF-to-CRLF working-copy warnings）；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、155 backend tests、61 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 P1 PRD Scope Alignment
+
+- PRD 创建人物模块已明确「资料卡片」指人物基础资料卡片，不等同于后续上传的 SourceMaterial 或系统抽取的记忆卡片。
+- PRD `7.2.2` 必填字段表新增 `age`，类型为 `integer`，说明为用户填写的年龄/享年，不由系统推断。
+- PRD 人格档案模块新增自定义维度，要求用户可新增、编辑、删除自定义档案维度，且自定义维度优先视为用户手动补充内容。
+- PRD 新增 P1 `7.13 AI 主动关怀模块` 和 `7.14 心愿延续系统`，并在页面清单与 V1.1 规划中补充入口；两项均明确不属于当前已完成 Milestone 0-8。
+- `docs/feature-list.json` 新增 `feat-036`，状态为 `planned`；`docs/prd-checklist.md` 新增 P1 planned 对照项并记录后端、前端、数据库、API、任务调度和模型链路均未实现；`docs/README.md` 只在残余风险中补充 P1 未实现说明。
+- 已执行检查：`python -m json.tool docs/feature-list.json` 退出码 0；`rg "主动关怀|心愿延续|资料卡片|自定义维度|\\| age \\|" docs` 命中 PRD、feature-list、prd-checklist 和 README，且 P1 模块在 checklist/README 中标为 planned 或未实现；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、146 backend tests、61 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Local Material File Cleanup
+
+- 新增 `backend/app/services/material_storage.py`，只清理受管本地 `storage/materials/...` 路径，忽略 URL 或越界路径，避免误删非资料文件。
+- `DELETE /api/materials/{id}` 在资料软删除提交后删除对应本地上传文件；人物删除和清空当前账号数据通过 `backend/app/services/data_management.py` 返回被软删除资料的 `storage_url`，路由在数据库提交后统一清理本地文件。
+- 新增/扩展后端测试覆盖：直接删除上传资料会删除本地文件；删除人物会删除其本地资料文件；清空当前账号数据会删除当前账号文件但保留其他用户文件。
+- 保持范围边界：本次不实现真实 MinIO/S3 bucket object 删除、向量索引清理、审计回放、复杂合规审核、后台重试清理任务或真实模型质量。
+- 已执行检查：`python -m pytest backend/tests/test_materials.py::test_delete_uploaded_material_removes_local_storage_file backend/tests/test_personas.py::test_delete_persona_soft_deletes_prd_related_records backend/tests/test_settings_data.py::test_clear_current_account_data_soft_deletes_owned_domain_records -q` RED 后 GREEN，最终 3 passed；`python -m pytest backend/tests/test_materials.py backend/tests/test_personas.py backend/tests/test_settings_data.py backend/tests/test_jobs.py backend/tests/test_parsing.py backend/tests/test_exports.py backend/tests/test_chat.py backend/tests/test_voice.py backend/tests/test_avatar.py backend/tests/test_stories.py -q` 102 passed。
+
+## Previous Session Update - 2026-07-04 Provider Settings Frontend Page
+
+- 新增 `/settings/providers` 页面，登录后读取 `GET /api/settings/providers`，展示 mock、DashScope/Qwen、MiniMax、OpenAI-compatible、Tripo 和本地 GPU worker 的 configured/missing 状态、capabilities、非 secret 设置和 runtime env 存在状态。
+- 新增 `frontend/src/lib/provider-settings.ts`，封装模型设置路由、API path、表单字段、payload 构造、状态摘要、secret 状态文案、provider settings GET/PUT 调用。
+- 全局登录态导航新增「模型设置」入口；路由/API path 测试覆盖 `/settings/providers` 和 `/api/settings/providers`。
+- 表单只提交非空字段；密钥输入默认空，留空不会覆盖已保存密钥，避免误删本地 `.env/runtime.env` 中的 key；页面和 helper 不展示后端原始 API key。
+- 保持范围边界：本次不实现生产级 secret manager、在线密钥分发、真实 provider 质量验收、公开模型市场或复杂权限审批。
+- 已执行检查：`npm.cmd --prefix frontend run test -- provider-settings.test.mjs routes.test.mjs memory-space.test.mjs` RED 后 GREEN，最终 61 passed；`npm.cmd --prefix frontend run test` 61 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，Next.js build 包含 `/settings/providers`；`python -m json.tool docs/feature-list.json` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、145 backend tests、61 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Provider Settings Backend API
+
+- 新增 `GET /api/settings/providers`，当前 JWT 用户可读取 mock、DashScope/Qwen、MiniMax、OpenAI-compatible、Tripo 和本地 GPU worker 的 configured/missing 状态、capabilities 与非 secret 配置字段。
+- 新增 `PUT /api/settings/providers`，只允许写入 allowlist 运行变量到本地 ignored `.env/runtime.env`；写入后清理 settings cache，使后续 provider gateway 读取最新配置。
+- 响应永不返回原始 API key，只返回 `configured`/`missing` 状态；未知运行变量返回 400 且不会创建 runtime env 文件。
+- 保持范围边界：本次不实现前端 `/settings/providers` 页面、生产级 secret manager、真实 provider 质量验收、在线密钥分发或公开模型市场。
+- 已执行检查：`python -m pytest backend/tests/test_provider_settings.py -q` RED 后 GREEN 3 passed；`python -m pytest backend/tests/test_provider_settings.py backend/tests/test_config.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py -q` 15 passed；`python -m pytest backend/tests -q` 145 passed；`python -m json.tool docs/feature-list.json` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、145 backend tests、57 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 MiniMax Voice Provider
+
+- 新增 `backend/app/providers/minimax.py`，通过 MiniMax HTTP API 支持 `tts` 和 `voice_clone`：TTS 调用 `/v1/t2a_v2` 返回 URL；音色复刻先上传本地音频样本到 `/v1/files/upload`，再调用 `/v1/voice_clone` 返回 `minimax://voice/{voice_id}` 和预览音频。
+- 扩展 `backend/app/core/config.py`：支持 `MINIMAX_API_KEY`/`MINIMAX_BASE_URL`，并在 `OPENAI_BASE_URL=https://api.minimaxi.com/v1` 时复用 MiniMax OpenAI 兼容 key；本地 `.env/runtime.env` 只追加非密钥 MiniMax 模型和默认音色配置，真实 key 仍留在 ignored runtime env。
+- 扩展 `backend/app/providers/gateway.py` 和 `backend/app/services/voice.py`：非 test env 且 MiniMax 已配置时，`tts`/`voice_clone` 走 `third_party/minimax`；未配置或 `APP_ENV=test` 时继续 deterministic mock fallback；voice jobs 和 voice models 记录真实 provider metadata。
+- 新增/扩展测试覆盖配置别名读取、MiniMax HTTP 请求形状、gateway 真实/测试环境路由、语音合成和音色复刻 provider metadata。
+- 真实冒烟：使用 LibriVox Short Poetry Collection 277 的 Public Domain 短诗 MP3（约 69 秒，551,193 bytes）做音色复刻样本；MiniMax 默认 TTS 返回 HTTP audio URL 和 trace id；MiniMax `voice_clone` 返回临时 `minimax://voice/...` artifact 与 preview URL；再用该复刻音色调用 TTS 也返回 HTTP audio URL 和 trace id。
+- 已执行检查：`python -m pytest backend/tests/test_config.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_voice.py -q` 22 passed；`python -m json.tool docs/feature-list.json` 退出码 0；`DEFAULT_LLM_PROVIDER=mock` 下 `python -m pytest backend/tests -q` 142 passed；`docker compose config` 退出码 0；`DEFAULT_LLM_PROVIDER=mock` 下 `& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、142 backend tests、57 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 11 Frontend Data Settings
+
+- 新增 `/settings/data` 页面，登录后集中读取当前账号的人物、资料和对话，并提供档案 JSON、记忆 JSON、对话 JSON 导出入口。
+- 新增 `frontend/src/lib/data-settings.ts`，封装数据设置路由、导出下载构造、数量摘要、删除人物、删除资料、删除对话和清空当前账号数据调用；导出文件保留后端返回的文件名与 AI 模拟水印。
+- 全局登录态导航新增「数据设置」入口；路由/API path 测试覆盖 `/settings/data`、profile/memories/conversation export、`DELETE /api/conversations/{id}` 和 `DELETE /api/settings/data`。
+- 页面支持删除人物、资料、单条对话和清空当前账号人物域数据，并明确当前为软删除、账号本身仍可继续使用；单条记忆删除仍通过既有 `/personas/{id}/memories` 审计页完成。
+- 保持范围边界：本次不实现对象存储物理清理、向量索引清理、审计回放、版本查看、复杂合规审核或真实模型质量。
+- 已执行检查：`npm.cmd --prefix frontend run test -- data-settings.test.mjs routes.test.mjs memory-space.test.mjs` RED 后 GREEN，最终 57 passed；`npm.cmd --prefix frontend run test` 57 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，Next.js build 包含 `/settings/data`；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、142 backend tests、57 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 10 Backend Clear Account Data
+
+- 新增 `DELETE /api/settings/data`，按当前 JWT 用户隔离清空当前账号域数据，但不删除用户账号本身，当前 token 仍可读取 `/api/auth/me`。
+- 抽取 `backend/app/services/data_management.py`，让删除人物和清空账号复用同一 PRD 软删除规则；清空账号会软删除该用户所有人物及其资料、解析块、记忆、档案、对话、消息、引用、声音模型、3D 模型、AI Job 和回忆故事。
+- 同步修复验证时暴露的 provider 边界：DashScope 记忆抽取返回非 PRD 分类时归一到 PRD enum 或 `unknown`；voice-message ASR payload 补充 `storage_url`；后端单元测试强制 `DEFAULT_LLM_PROVIDER=mock`，避免受本地 `.env/runtime.env` 真实 provider 波动影响。
+- 保持范围边界：本次不实现前端 `/settings/data` 页面、对象存储物理清理、向量索引清理、审计回放、版本查看或复杂合规审核。
+- 已执行检查：`python -m pytest backend/tests/test_settings_data.py -q` RED 后 GREEN 1 passed；`python -m pytest backend/tests/test_provider_gateway.py::test_dashscope_memory_candidates_normalize_to_prd_categories -q` RED 后 GREEN 1 passed；`python -m pytest backend/tests/test_chat.py backend/tests/test_exports.py -q` 修复 provider 边界后 14 passed；`python -m pytest backend/tests/test_settings_data.py backend/tests/test_personas.py backend/tests/test_jobs.py backend/tests/test_materials.py backend/tests/test_provider_gateway.py backend/tests/test_parsing.py -q` 69 passed；`python -m pytest backend/tests -q` 135 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、135 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 DashScope Runtime Configuration
+
+- 本地未提交 `.env/runtime.env` 已配置 `DEFAULT_LLM_PROVIDER=dashscope`、华北2（北京）业务空间 ID、DashScope compatible base URL 和 Qwen 多模态解析模型；真实密钥仍保留在 ignored runtime env 中，不写入 tracked docs。
+- `docker-compose.yml` 新增可选 `./.env/runtime.env` `env_file`，backend 与 worker 服务在该文件存在时自动加载 provider 配置；同时移除 Compose 中会强制覆盖 runtime env 的 mock/blank provider 变量。
+- 保持范围边界：本次只启用已有 DashScope 多模态解析路径，覆盖 `text_parser`、`ocr`、`image_understanding`、`asr`、`video_understanding` 和 `memory_extraction`；Chat/Story LLM、TTS、音色克隆、真实 3D 和 embedding 检索仍未接真实 provider。
+- 已执行检查：脱敏配置读取确认 provider=`dashscope`、key 已配置、workspace=`ws-oyohscx3hl0sgsdz`、vision model=`qwen3.7-plus` 和 compatible base URL 正确；`docker compose config` 退出码 0；`python -m pytest backend/tests/test_config.py backend/tests/test_provider_gateway.py -q` 6 passed；`DEFAULT_LLM_PROVIDER=mock` 下运行 `& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，134 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过，避免测试期间发起付费真实 provider 调用。
+- 下一步如需验证真实调用：用一张图片或短视频上传触发 parse job，确认 job provider 为 `dashscope`，并检查生成的 `ParsedChunk` 与待审核 `MemoryCard`。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 9 Backend Conversation Delete
+
+- 新增 `DELETE /api/conversations/{id}`，复用当前用户 conversation 隔离，软删除单条对话。
+- `backend/app/services/chat.py` 新增 conversation tombstone helper，同步软删除该 conversation 下的 messages 与 message citations；引用列表过滤已删除 citation。
+- `backend/app/services/data_exports.py` 导出 conversation 时只读取未删除 messages；删除后 conversation export 通过现有 `get_conversation_or_404` 返回 404。
+- 新增后端测试覆盖：删除后 conversation 不再出现在人物会话列表；messages/export/citations 均不再可读；conversation、user/persona messages 和 citation 均写入 `deleted_at`。
+- 保持范围边界：本次不实现前端 `/settings/data` 页面、清空当前账号数据、对象存储物理清理、向量索引清理、审计回放或复杂合规审核。
+- 已执行检查：`python -m pytest backend/tests/test_chat.py::test_delete_conversation_soft_deletes_messages_and_citations -q` RED 后 GREEN 1 passed；`python -m pytest backend/tests/test_chat.py backend/tests/test_exports.py -q` 14 passed；`python -m pytest backend/tests -q` 133 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、133 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 8 Backend Persona Delete Cascade
+
+- 新增 `backend/alembic/versions/0003_soft_delete_related_records.py`，为 parsed chunks、persona profiles、messages、message citations、voice models、avatar models 和 AI jobs 补齐 `deleted_at` tombstone。
+- 扩展 `DELETE /api/personas/{id}`：删除当前用户当前人物时同步软删除 source materials、parsed chunks、memory cards、persona profile、conversations、messages、message citations、voice models、avatar models、AI jobs 和 memory stories。
+- 更新任务读取边界：`/api/jobs/{id}` 和相关任务列表只返回未删除 AI Job，避免人物删除后仍可按 job id 读取已删除任务。
+- 新增后端级联删除测试，覆盖 PRD 7.12.2 关联记录 tombstone、跨当前用户隔离入口和删除后任务详情 404。
+- 保持范围边界：本次不实现前端 `/settings/data` 页面、单条对话删除、清空当前账号数据、对象存储物理清理、向量索引清理、审计回放或复杂合规审核。
+- 已执行检查：`python -m pytest backend/tests/test_personas.py::test_delete_persona_soft_deletes_prd_related_records -q` RED 后 GREEN 1 passed；`python -m pytest backend/tests/test_personas.py backend/tests/test_materials.py backend/tests/test_memories.py backend/tests/test_chat.py backend/tests/test_jobs.py backend/tests/test_voice.py backend/tests/test_avatar.py backend/tests/test_stories.py backend/tests/test_exports.py -q` 99 passed；`python -m pytest backend/tests -q` 132 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、132 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 7 Backend Data Export
+
+- 新增 `backend/app/api/routes/data_exports.py`、`backend/app/services/data_exports.py` 和 `backend/app/schemas/data_export.py`，并在 `backend/app/main.py` 注册 exports router。
+- 新增 `GET /api/personas/{id}/export/profile`，返回当前用户当前人物的 persona/profile/trust JSON snapshot、确定性文件名和「AI 模拟」水印说明。
+- 新增 `GET /api/personas/{id}/export/memories`，返回当前人物未删除 memory cards，保留来源字段和「AI 模拟」水印说明。
+- 新增 `GET /api/conversations/{id}/export`，返回当前用户对话、按时间排序的 messages 和 citations，跨用户访问返回 404。
+- 保持范围边界：本次不实现前端 `/settings/data` 页面、删除关键数据、真实模型质量或复杂合规审核。
+- 已执行检查：`python -m pytest backend/tests/test_exports.py -q` RED 后 GREEN 4 passed；`python -m pytest backend/tests/test_exports.py backend/tests/test_profile.py backend/tests/test_memories.py backend/tests/test_chat.py -q` 26 passed；`python -m pytest backend/tests -q` 131 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、131 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 6 Frontend Story Audio Download
+
+- `frontend/src/lib/api.ts` 新增 `API_PATHS.stories.exportAudio(personaId, storyId)`，对齐后端 `GET /api/personas/{id}/export/story/{story_id}/audio`。
+- `frontend/src/lib/stories.ts` 新增 `StoryAudioFileDownload`、`storyAudioFileExportAvailable`、`buildStoryAudioFileDownload` 和 `downloadStoryAudioFile`，下载后端 mock WAV blob 并保留 AI simulation / 非 TA 真实声音提示。
+- `/personas/{id}/stories` 故事卡片将音频操作从打开 mock `audio_url` 改为「导出音频」，下载 `story-{story_id}.wav`，成功提示包含 mock/非真实声音说明和文件名。
+- 保持范围边界：本次不实现真实 TTS/音色质量、删除关键数据、审计回放或完整 Demo flow。
+- 已执行检查：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` RED 后 GREEN 53 passed；`npm.cmd --prefix frontend run test` 53 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 首次暴露 `downloadBlobFile` 内未定义 `blob`，修复为 `download.blob` 后又遇到 stale `.next` 缺失 `.nft.json` 生成物，删除生成目录并重建后退出码 0，`/personas/[id]/stories` 构建通过；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 5 Backend Story Audio Export
+
+- 新增 `GET /api/personas/{id}/export/story/{story_id}/audio`，复用当前用户和人物隔离，返回 `audio/wav` attachment。
+- `backend/app/services/stories.py` 新增 deterministic mock WAV 生成：文件名为 `story-{story_id}.wav`，WAV INFO metadata 和 `X-AI-Simulation-Notice` 响应头均标注这是 AI simulation mock TTS audio、不是 TA 的真实声音。
+- 保持范围边界：本次不实现前端直接下载按钮、真实 TTS/音色质量、真实 Story LLM、删除关键数据或完整 Demo flow。
+- 同步修复全量后端测试暴露的 Provider Gateway 回归：注入 fake DashScope client 时不再要求 provider metadata 属性；`run_parse_job` 使用 gateway 返回的 `provider_type`，避免第三方 provider job 被硬记为 `mock`。
+- 已执行检查：`python -m pytest backend/tests/test_stories.py -q` RED 后 GREEN 6 passed；`python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_parsing.py::test_parse_job_records_third_party_provider_from_gateway -q` 回归修复后 4 passed；`python -m pytest backend/tests -q` 127 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Real Multimodal Parsing Provider
+
+- 扩展 `backend/app/core/config.py` 和 `docker-compose.yml`，新增 DashScope/Qwen、Tripo、CosyVoice 相关环境变量；默认仍为 `DEFAULT_LLM_PROVIDER=mock`，未配置 `DASHSCOPE_API_KEY` 时不会调用第三方。
+- 新增 `backend/app/providers/dashscope.py`，通过统一 `ProviderGateway` 支持 `text_parser`、`ocr`、`image_understanding`、`asr`、`video_understanding` 和 `memory_extraction` 的 DashScope/Qwen 调用；`chat_llm`、`story_generation`、`tts`、`extract_voice_sample`、`voice_clone` 和 `avatar_3d` 暂不接真实 provider。
+- 新增 `backend/app/services/material_extractors.py`：PDF 使用 `pypdf`，DOCX 读取 `word/document.xml`，DOC 优先 `antiword`/LibreOffice，失败时记录 best-effort metadata；后端容器安装 `ffmpeg` 和 `antiword`。
+- `backend/app/services/parsing.py` 现在向 provider payload 传入 `storage_url`/`mime_type`，将本地文本抽取 metadata 写入 `ParsedChunk.metadata`，并把 parse job、memory evidence 的 `provider_type`/`provider_name` 记录清楚；配置真实 provider 后第三方请求失败会沿用现有 failed job 路径。
+- 新增/扩展测试覆盖 DashScope/Tripo 配置读取、mock fallback、DashScope gateway 路由、第三方 provider job 记录和 DOCX 文本抽取。
+- 保持范围边界：本次不实现真实 TTS、真实音色克隆、真实 Chat/Story LLM、真实 embedding 检索、真实 Tripo 3D 或真实音频导出质量。
+- 已执行检查：`python -m pytest backend/tests/test_config.py backend/tests/test_provider_gateway.py backend/tests/test_parsing.py backend/tests/test_material_extractors.py -q` 10 passed；`python -m json.tool docs/feature-list.json` 退出码 0；`python -m pytest backend/tests -q` 127 passed；`npm.cmd --prefix frontend run test` 53 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0；`docker compose config` 退出码 0；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Frontend UX Polish
+
+- 新增 `MemoryGlobalHeader`，全局导航按 auth token 切换：未登录显示「产品介绍」「登录」「立即体验示例」，已登录显示「记忆空间」「创建人物」「退出」；移动端改为单按钮菜单，路由变化后自动收起。
+- 首页移动端压缩首屏，CTA 和 AI 提醒优先可见；桌面端右侧视觉层叠收敛为主图、声音卡和回复气泡。
+- 人物记忆空间首屏主操作改为「开始对话」和「听 TA 讲个故事」，资料、记忆、档案、声音和 3D 入口降为行动卡。
+- `/personas/{id}/chat` 改为 chat 工作区：顶部工具栏紧凑化，消息列表独立滚动，输入区保持在面板底部；移动端优先显示消息和输入，人物设定/数字人状态折叠；快捷问题可一键填入输入框。
+- 对话来源与纠错默认折叠为「回复依据 N 条」，完整 ID、quote 和纠错 textarea 放进展开区；语音消息入口收进折叠面板，无音频资料时直接提供上传入口。
+- 修复并复验当前运行环境中 `/personas/{id}/stories` 404 问题：前端构建包含 `/personas/[id]/stories`，`docker compose up --build -d frontend` 后 HTTP 返回 200，浏览器可生成故事、显示 mock 音频并收藏。
+- 新增/扩展测试覆盖登录态导航、快捷问题、折叠式来源摘要和音频播放判断；本次改动不新增后端 API、数据库 schema、真实 AI、真实声音、真实 3D 或真实音频导出能力。
+- 浏览器复验：1280x720 对话页发送后输入框/发送按钮仍可见且消息列表滚到底；人物空间首屏可见「开始对话」「听 TA 讲个故事」；390x844 首页 CTA 首屏可见、移动菜单无「登录」泄漏、对话页无横向溢出且发送后仍可操作。
+- 本次改动文件：`frontend/src/components/MemoryGlobalHeader.tsx`、`frontend/src/lib/memory-space.ts`、`frontend/src/lib/chat.ts`、`frontend/app/layout.tsx`、`frontend/app/page.tsx`、`frontend/app/personas/[id]/page.tsx`、`frontend/app/personas/[id]/chat/page.tsx`、`frontend/tests/memory-space.test.mjs`、`frontend/tests/chat.test.mjs`、`docs/feature-list.json`、`docs/progress.md`、`docs/README.md`、`docs/prd-checklist.md`。
+- 已执行检查：`python -m json.tool docs/feature-list.json` 退出码 0；`docker compose config` 退出码 0；`npm.cmd --prefix frontend run test` 53 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，构建包含 `/personas/[id]/stories`；`docker compose up --build -d frontend` 退出码 0，backend healthy、frontend started；HTTP smoke：`/`、`/health`、`/personas/{id}/stories` 均返回 200；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Real Multimodal Parsing Provider banner、required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 4 Frontend Story Export
+
+- `frontend/src/lib/api.ts` 新增 `API_PATHS.stories.export(personaId, storyId)`，对齐 PRD `GET /api/personas/{id}/export/story/{story_id}`。
+- `frontend/src/lib/stories.ts` 新增 `MemoryStoryExportResponse`、`exportStory`、`buildStoryTextDownload`、`buildStoryAudioExportAction` 和 `storyAudioExportAvailable`。
+- `/personas/{id}/stories` 故事卡片新增「导出文本」和「打开音频」按钮；文本导出使用浏览器 `.txt` 下载，音频按钮打开后端返回的 mock `audio_url` 并保留 mock/非真实声音提示。
+- 新增/扩展 frontend tests，覆盖 export path、文本下载 payload、mock audio action 和 audio availability。
+- 保持范围边界：本次不实现真实音频二进制文件、删除关键数据、真实故事生成质量、真实 TTS 音质或完整 Demo flow。
+- 已执行检查：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` RED 后 GREEN 53 passed；`npm.cmd --prefix frontend run test` 53 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，构建包含 `/personas/[id]/stories`；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 8 Task 4 banner、required files、JSON、121 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 3 Backend Story Export
+
+- 新增 `GET /api/personas/{id}/export/story/{story_id}`，复用当前用户和人物隔离；跨用户或 story 不属于该 persona 时返回 404。
+- 新增 `MemoryStoryExportResponse` 和 `export_story` service，返回 story id、persona id、主题、标题、`export_text`、text 文件名、mock `audio_url`、audio 文件名、mock 音频提示、source memory IDs 和来源记忆。
+- `export_text` 包含故事标题、主题、正文、来源记忆和默认 TTS/mock 音频提示，不伪造真实 WAV 文件。
+- 新增 story export 后端测试，覆盖导出内容、来源记忆、mock audio metadata、跨用户隔离和 persona/story 不匹配 404。
+- 保持范围边界：本次不实现前端下载按钮、真实音频二进制文件、删除关键数据、真实故事生成质量、真实 TTS 音质或完整 Demo flow。
+- 已执行检查：`python -m pytest backend/tests/test_stories.py -q` RED 404 后 GREEN 5 passed；`python -m pytest backend/tests -q` 121 passed；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，后端 121 passed、前端 52 passed、lint/build 和 Compose config 通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 2 Frontend Stories
+
+- 新增前端 `/personas/{id}/stories` 回忆讲述页，登录后加载人物与故事列表，支持选择童年、生日、旅行、家常、鼓励、道别或节日主题生成故事。
+- 新增 `frontend/src/lib/stories.ts`，统一 stories API helper、PRD 主题、payload、收藏 payload、来源摘要和音频可用性判断；`frontend/src/lib/api.ts` 与 `frontend/src/lib/routes.ts` 新增 story 路径。
+- 人物记忆空间新增「听 TA 讲个故事」入口；故事页展示第一人称内容、来源记忆、mock audio 播放控件和收藏切换，并明确当前仍依赖已确认/已修正记忆与 mock provider。
+- 新增 `frontend/tests/stories.test.mjs` 并扩展 routes 测试，覆盖 story route、API path、PRD 主题、payload、来源摘要和 audio 判断。
+- 保持范围边界：本次不实现故事文本/音频导出、删除关键数据、真实故事生成质量、真实 TTS 音质或完整 Demo flow。
+- 已执行检查：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 49 passed；`npm.cmd --prefix frontend run test` 52 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，构建包含 `/personas/[id]/stories`；`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，后端 119 passed、前端 52 passed、lint/build 和 Compose config 通过。
+
+## Previous Session Update - 2026-07-04 Milestone 8 Task 1 Backend Stories
+
+- 新增 `memory_stories` 模型和 Alembic 迁移，存储人物故事、主题、内容、mock audio URL、来源记忆、收藏状态和 provider/job metadata。
+- 新增 `GET/POST /api/personas/{id}/stories` 和 `POST /api/stories/{id}/favorite`，复用用户隔离；跨用户故事列表、生成和收藏返回 404。
+- 故事生成只读取 confirmed/corrected 且未删除记忆；没有已审核记忆时返回 400，pending/rejected/disabled/deleted 记忆不会进入故事内容或来源。
+- `ProviderGateway` 新增 mock `story_generation` capability，生成第一人称、使用用户称呼、只串联已传入的审核记忆，并返回 source memory IDs/source memory 摘录。
+- 每次故事生成同步创建 succeeded `generate_story` AI Job，再调用 mock `tts` 创建 succeeded `synthesize_speech` AI Job；返回 `mock://tts/...wav` audio URL，并保留默认 TTS 提示 metadata。
+- 保持范围边界：本次不实现前端 `/personas/{id}/stories` 页面、故事文本/音频导出、删除关键数据、真实故事生成质量、真实 TTS 音质或完整 Demo flow。
+
+## Previous Session Update - 2026-07-04 Milestone 7 Task 3 Chat Avatar Mouth Linkage
 
 - 抽取共享 `frontend/src/components/AvatarPreview.tsx`，复用 Task 2 的 Three.js mock 头像/半身渲染，避免 `/personas/{id}/avatar` 和 `/personas/{id}/chat` 维护两份场景代码。
 - 聊天页加载 `getAvatarConfig(personaId)`；当 selected avatar model 具备 `model_url` 和 `format` 时，在对话侧展示 mock 3D 数字人。
@@ -179,43 +526,114 @@
 - 当前前端主体验已中文化：`lang="zh-CN"`、中文导航、中文首页、四步创建人物、人物记忆空间、资料上传、任务、记忆审计、人格档案和文本对话页。
 - Milestone 6 voice 前后端基础闭环已接入：后端 voice config/default TTS/samples/clone/synthesize/voice-message API，前端声音设置页、聊天页录音/已上传音频语音消息和 audio playback。
 - Milestone 7 avatar 前端/后端基础闭环已接入：后端 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、avatar_3d AI Job、default/generated/failure fallback AvatarModel，前端 `/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动。
+- Milestone 8 后端故事基础闭环已接入：`memory_stories` 表、stories list/generate/favorite API、mock `story_generation` Provider Gateway、source memory 追溯、mock TTS audio URL、`generate_story` 和 `synthesize_speech` AI Jobs。
 - Task 3 已接入 Dockerfile、Compose 拓扑、统一 harness 和 Milestone 0 文档说明。
 - Task 3 review fix 已补齐 tracked PRD、自启动迁移 entrypoint、Docker context 忽略文件和 PRD checklist 清理。
 - Compose 中只包含变量名、空白 provider 配置和开发默认值，不包含真实密钥。
 
 ### What's In Progress
 
-- Milestone 8 下一步：回忆讲述与导出/删除关键数据仍待实现；真实 GLB/3D provider 质量不作为当前 mock MVP 阻塞。
+- 真实多模态解析 provider 已接入并通过公网样本端到端烟测；后续仅在模型、账号或解析链路变化后复跑。
+- MiniMax TTS/音色复刻和文本 Chat/Story LLM provider 已接入并完成真实冒烟；前端仍缺少真实音色试听确认 flow，故事 mock WAV 文件导出仍未转存 MiniMax 真实音频 URL。
+- Milestone 8 数据设置页已接入；真实 GLB/3D provider 质量不作为当前 mock MVP 阻塞。
 
 ### What's Next
 
-1. Milestone 8 后续验收：实现回忆讲述与导出/删除关键数据。
-2. 后续接入真实 AI Provider 或 embedding 检索时，先扩展 provider gateway 和 mock/真实 provider 测试，不直接在业务代码中散落模型调用。
-3. 跟进当前前端依赖树中的 2 个 moderate severity npm audit findings，避免使用 `npm audit fix --force` 进行破坏性升级。
+1. Provider key、模型名或账号权限变化后，复跑 DashScope 多模态烟测和 MiniMax 文本/语音 smoke，确认 provider metadata、trace id 和 job 状态仍正常。
+2. Milestone 8 后续验收：继续跟进真实 MinIO/S3 bucket object 删除和向量索引清理。
+3. 后续扩展 embedding 或 3D Provider 时，继续保持 provider gateway 和 mock/真实 provider 测试；MiniMax Chat/Story/TTS/音色链路后续补前端试听确认、真实质量评估与真实音频转存，不直接在业务代码中散落模型调用。
+4. 跟进当前前端依赖树中的 2 个 moderate severity npm audit findings，避免使用 `npm audit fix --force` 进行破坏性升级。
 
 ## Session Impact Checklist
 
 | 项目 | 状态 | 说明 |
 | --- | --- | --- |
-| 是否改变产品行为 | 是 | 本次会话新增 Milestone 7 对话页 selected mock 3D 数字人展示和语音播放状态口型联动。 |
-| 是否改变代码逻辑 | 是 | 抽取共享 `AvatarPreview`，聊天页读取 avatar config 并将 persona audio 播放状态传入口型动画；Compose 拓扑未改。 |
-| 是否改变启动命令 | 否 | 本地拓扑仍使用 `docker compose up --build`；统一验证入口仍为 `docs/init.sh`。 |
-| 是否更新功能范围账本 | 是 | 新增 `feat-018` 记录 Milestone 7 Task 3 对话页数字人与播放状态口型联动闭环。 |
-| 是否更新交接记录 | 是 | 本文件记录 Milestone 7 Task 3 实现、验证证据和残余风险。 |
+| 是否改变产品行为 | 是 | 本次会话新增可选 MiniMax 文本 Chat/Story LLM provider；配置 key/base URL 与 `OPENAI_MODEL` 后，文本对话和回忆讲述可返回真实 MiniMax 生成内容。 |
+| 是否改变代码逻辑 | 是 | 扩展 MiniMax provider、gateway、chat service 和 provider settings；test env 和未配置 key/model 时保留 mock fallback。 |
+| 是否改变启动命令 | 否 | 本地拓扑仍使用 `docker compose up --build`；统一验证入口仍为 `docs/init.sh`。如需真实解析、文本 LLM 或语音，需要本地未提交环境变量。 |
+| 是否更新功能范围账本 | 是 | 新增 `feat-040` 记录 MiniMax 文本 Chat/Story LLM 接入与烟测。 |
+| 是否更新交接记录 | 是 | 本文件记录 MiniMax 文本 LLM provider 实现、真实冒烟、验证证据和残余风险。 |
 
 ## Blockers / Risks
 
-- 本次已运行首页、免注册进入外婆记忆空间和文本对话的真实浏览器烟测；Milestone 7 形象设置页与聊天页数字人区域已运行临时 mock API 浏览器烟测和桌面/移动 canvas 区域像素检查；Milestone 2 上传页、任务页、Milestone 3 记忆审计页、Milestone 4 profile/trust 页和 Milestone 6 voice 前端仍主要依赖自动化测试、lint、build、Compose 配置和 harness 证据。
+- 本次已运行首页、免注册进入外婆记忆空间和文本对话的真实浏览器烟测；Milestone 7 形象设置页与聊天页数字人区域已运行临时 mock API 浏览器烟测和桌面/移动 canvas 区域像素检查；Milestone 2 上传页、任务页、Milestone 3 记忆审计页、Milestone 4 profile/trust 页、Milestone 6 voice 前端和 Milestone 8 回忆讲述页仍主要依赖自动化测试、lint、build、Compose 配置和 harness 证据。
 - 2026-07-04 本地已完成一次 `docker compose up --build -d` 服务级烟测；后续如重启服务，仍应确认本机端口 3000、8000、15432（或 `POSTGRES_HOST_PORT` 指定端口）、6379、9000、9001 未被占用。
 - 当前前端依赖树存在 2 个 moderate severity npm audit findings；本任务未改依赖版本，未执行破坏性 `npm audit fix --force`。
 - 已新增 `.gitignore` 忽略常见本地生成物和 `.env/`；仍需注意不要手动强制 staging 真实密钥或生成目录。
-- 当前资料解析、OCR、ASR、图片理解、视频分析、记忆抽取和文本 chat 只使用 deterministic mock Provider Gateway/local retrieval 输出，不代表真实模型质量。
+- 当前资料解析、OCR、ASR、图片理解、视频分析和记忆抽取可选 DashScope provider，但默认仍是 deterministic mock；文本 chat、story generation、TTS 和音色克隆可选 MiniMax provider，默认未配置时仍为 mock；3D 仍使用 mock Provider Gateway/local 输出，不代表真实 3D 模型质量。
 - 当前人格档案聚合和可信度重算只使用 deterministic local 规则，不代表真实 provider profile quality。
-- Milestone 6 已接入前端录音、声音设置页和 mock 语音播放；仍未运行真实浏览器连接后端的完整语音端到端 smoke。
+- Milestone 6 已接入前端录音、声音设置页和 mock/可选 MiniMax 语音播放；本次完成后端真实 MiniMax API 冒烟，仍未运行真实浏览器连接后端的完整语音端到端 smoke。
 - Milestone 7 目前完成后端 avatar API、前端 Three.js mock 头像/半身预览和聊天页播放状态口型联动；真实 GLB 加载、真实音频音量包络/viseme 口型同步和真实 3D provider 质量仍未实现。
-- 本地一键演示入口已实现；真实 LLM/embedding 检索质量、真实 TTS/音色质量、故事/导出尚未实现。
+- 本地一键演示入口、后端故事生成/收藏/导出 API、后端 mock WAV 音频文件导出 API、后端档案/记忆/对话 JSON 导出 API、后端人物删除级联软删除、后端单条对话软删除、后端清空当前账号数据、前端回忆讲述页、前端故事导出入口、前端 mock WAV 音频下载入口、前端数据设置页、MiniMax 文本 Chat/Story LLM 和 MiniMax TTS/音色复刻 provider 已实现；真实 LLM 长期质量、embedding 检索质量、MiniMax 前端端到端体验和真实 3D 质量仍需继续验收。
 
 ## Evidence of Completion
+
+- MiniMax voice provider focused GREEN：`python -m pytest backend/tests/test_config.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_voice.py -q` 退出码 0，22 passed。
+- MiniMax backend verification：`DEFAULT_LLM_PROVIDER=mock python -m pytest backend/tests -q` 退出码 0，142 passed。
+- MiniMax real TTS smoke：本地 MiniMax runtime env configured=true；默认音色 `speech-2.8-hd` 调用 `/v1/t2a_v2` 返回 HTTP audio URL 与 trace id。
+- MiniMax real voice clone smoke：下载 LibriVox Short Poetry Collection 277 Public Domain 短诗 MP3 样本（约 69 秒，551,193 bytes），`voice_clone` 返回 succeeded、临时 `minimax://voice/...` artifact 与 preview HTTP URL。
+- MiniMax cloned voice TTS smoke：使用本次复刻返回的 `minimax://voice/...` artifact 再次调用 TTS，返回 HTTP audio URL 与 trace id。
+- MiniMax final harness：`DEFAULT_LLM_PROVIDER=mock & "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、142 backend tests、57 frontend tests、frontend lint/build、Compose config 均通过。
+- Milestone 8 Task 11 RED：`npm.cmd --prefix frontend run test -- data-settings.test.mjs routes.test.mjs memory-space.test.mjs` 退出码 1，按预期暴露 `frontend/src/lib/data-settings.ts`、`ROUTES.settingsData`、data export API paths 和登录态「数据设置」导航尚未实现。
+- Milestone 8 Task 11 focused GREEN：`npm.cmd --prefix frontend run test -- data-settings.test.mjs routes.test.mjs memory-space.test.mjs` 退出码 0，57 passed。
+- Milestone 8 Task 11 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，57 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，Next.js build 包含 `/settings/data`。
+- Milestone 8 Task 11 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、142 backend tests、57 frontend tests、frontend lint/build、Compose config 均通过。
+- Milestone 8 Task 10 RED：`python -m pytest backend/tests/test_settings_data.py -q` 退出码 1，按预期暴露 `DELETE /api/settings/data` 尚不存在。
+- Milestone 8 Task 10 provider boundary RED：`python -m pytest backend/tests/test_provider_gateway.py::test_dashscope_memory_candidates_normalize_to_prd_categories -q` 退出码 1，按预期暴露 DashScope 记忆分类仍直通非 PRD enum；`python -m pytest backend/tests/test_chat.py backend/tests/test_exports.py -q` 退出码 1，暴露本地 runtime 真实 provider 会让单元测试触发非确定输出和 ASR storage_url 边界。
+- Milestone 8 Task 10 focused GREEN：`python -m pytest backend/tests/test_settings_data.py -q` 退出码 0，1 passed；`python -m pytest backend/tests/test_provider_gateway.py::test_dashscope_memory_candidates_normalize_to_prd_categories -q` 退出码 0，1 passed；`python -m pytest backend/tests/test_chat.py backend/tests/test_exports.py -q` 退出码 0，14 passed。
+- Milestone 8 Task 10 adjacent backend verification：`python -m pytest backend/tests/test_settings_data.py backend/tests/test_personas.py backend/tests/test_jobs.py backend/tests/test_materials.py backend/tests/test_provider_gateway.py backend/tests/test_parsing.py -q` 退出码 0，69 passed。
+- Milestone 8 Task 10 backend verification：`python -m pytest backend/tests -q` 退出码 0，135 passed。
+- Milestone 8 Task 10 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、135 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 9 RED：`python -m pytest backend/tests/test_chat.py::test_delete_conversation_soft_deletes_messages_and_citations -q` 退出码 1，按预期暴露 `DELETE /api/conversations/{id}` 尚不存在。
+- Milestone 8 Task 9 focused GREEN：`python -m pytest backend/tests/test_chat.py::test_delete_conversation_soft_deletes_messages_and_citations -q` 退出码 0，1 passed。
+- Milestone 8 Task 9 adjacent backend verification：`python -m pytest backend/tests/test_chat.py backend/tests/test_exports.py -q` 退出码 0，14 passed。
+- Milestone 8 Task 9 backend verification：`python -m pytest backend/tests -q` 退出码 0，133 passed。
+- Milestone 8 Task 9 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、133 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 8 RED：`python -m pytest backend/tests/test_personas.py::test_delete_persona_soft_deletes_prd_related_records -q` 首次退出码 1，按预期暴露删除人物后 SourceMaterial 仍未 soft delete；补充 direct job 读取断言后再次退出码 1，按预期暴露已删除 AI Job 仍可由 `/api/jobs/{id}` 读取。
+- Milestone 8 Task 8 focused GREEN：`python -m pytest backend/tests/test_personas.py::test_delete_persona_soft_deletes_prd_related_records -q` 退出码 0，1 passed。
+- Milestone 8 Task 8 adjacent backend verification：`python -m pytest backend/tests/test_personas.py backend/tests/test_materials.py backend/tests/test_memories.py backend/tests/test_chat.py backend/tests/test_jobs.py backend/tests/test_voice.py backend/tests/test_avatar.py backend/tests/test_stories.py backend/tests/test_exports.py -q` 退出码 0，99 passed。
+- Milestone 8 Task 8 backend verification：`python -m pytest backend/tests -q` 退出码 0，132 passed。
+- Milestone 8 Task 8 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、132 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 7 RED：`python -m pytest backend/tests/test_exports.py -q` 退出码 1，3 failed / 1 passed，按预期暴露 profile/memories/conversation export routes 尚不存在。
+- Milestone 8 Task 7 focused GREEN：`python -m pytest backend/tests/test_exports.py -q` 退出码 0，4 passed。
+- Milestone 8 Task 7 adjacent backend verification：`python -m pytest backend/tests/test_exports.py backend/tests/test_profile.py backend/tests/test_memories.py backend/tests/test_chat.py -q` 退出码 0，26 passed。
+- Milestone 8 Task 7 backend verification：`python -m pytest backend/tests -q` 退出码 0，131 passed。
+- Milestone 8 Task 7 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、131 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 6 RED：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 1，2 failed，按预期暴露 `API_PATHS.stories.exportAudio` 和 audio file download helper 尚不存在。
+- Milestone 8 Task 6 focused GREEN：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 0，53 passed。
+- Milestone 8 Task 6 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，53 passed；`npm.cmd --prefix frontend run lint` 退出码 0。
+- Milestone 8 Task 6 build fix loop：`npm.cmd --prefix frontend run build` 先因 `downloadBlobFile` 使用未定义 `blob` 失败；修复为 `download.blob` 后遇到 stale `.next` 缺失 `.nft.json` 生成物，删除生成目录并重建后退出码 0，`/personas/[id]/stories` 构建通过。
+- Milestone 8 Task 6 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 5 RED：`python -m pytest backend/tests/test_stories.py -q` 退出码 1，1 failed / 5 passed，按预期暴露故事音频文件导出 route 尚不存在。
+- Milestone 8 Task 5 focused GREEN：`python -m pytest backend/tests/test_stories.py -q` 退出码 0，6 passed。
+- Milestone 8 Task 5 provider regression check：`python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_parsing.py::test_parse_job_records_third_party_provider_from_gateway -q` 退出码 0，4 passed。
+- Milestone 8 Task 5 backend verification：`python -m pytest backend/tests -q` 退出码 0，127 passed。
+- Milestone 8 Task 5 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，当前 Real Multimodal Parsing Provider banner、required files、JSON、127 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 4 RED：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 1，2 failed，按预期暴露 `API_PATHS.stories.export` 和 story export helpers 尚不存在。
+- Milestone 8 Task 4 focused GREEN：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 0，53 passed。
+- Milestone 8 Task 4 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，53 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，`/personas/[id]/stories` 构建通过。
+- Milestone 8 Task 4 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 8 Task 4 banner、required files、JSON、121 backend tests、53 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 3 RED：`python -m pytest backend/tests/test_stories.py -q` 退出码 1，1 failed / 4 passed，按预期暴露 story export route 尚不存在。
+- Milestone 8 Task 3 focused GREEN：`python -m pytest backend/tests/test_stories.py -q` 退出码 0，5 passed。
+- Milestone 8 Task 3 backend verification：`python -m pytest backend/tests -q` 退出码 0，121 passed。
+- Milestone 8 Task 3 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 8 Task 3 banner、required files、JSON、121 backend tests、52 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 2 RED：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 1，3 failed，按预期暴露 `ROUTES.personaStories`、`API_PATHS.stories` 和 `frontend/src/lib/stories.ts` 尚不存在。
+- Milestone 8 Task 2 focused GREEN：`npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs` 退出码 0，49 passed。
+- Milestone 8 Task 2 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，52 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，`/personas/[id]/stories` 构建通过。
+- Milestone 8 Task 2 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 8 Task 2 banner、required files、JSON、119 backend tests、52 frontend tests、frontend lint/build、Compose config 均通过。
+
+- Milestone 8 Task 1 RED：`python -m pytest backend/tests/test_stories.py -q` 退出码 1，3 failed，按预期暴露 stories routes 尚不存在。
+- Milestone 8 Task 1 focused GREEN：`python -m pytest backend/tests/test_stories.py -q` 退出码 0，3 passed。
+- Milestone 8 Task 1 backend verification：`python -m pytest backend/tests -q` 退出码 0，119 passed。
+- Milestone 8 Task 1 final harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 8 Task 1 banner、required files、JSON、119 backend tests、44 frontend tests、frontend lint/build、Compose config 均通过。
 
 - Milestone 7 Task 3 RED：`npm.cmd --prefix frontend run test -- avatar.test.mjs` 退出码 1，缺少 `shouldDriveAvatarMouth` export，按预期暴露对话页口型 helper 尚未实现。
 - Milestone 7 Task 3 focused GREEN：`npm.cmd --prefix frontend run test -- avatar.test.mjs` 退出码 0，44 passed。

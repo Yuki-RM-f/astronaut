@@ -20,7 +20,14 @@ const config: Config = {
         memoryAccentDark: "#c9552d",
         memoryText: "#3b241b",
         memoryLine: "#e8c9aa",
-        memoryGlow: "#ffd7a8"
+        memoryGlow: "#ffd7a8",
+        starNight: "#090f2f",
+        starDeep: "#161048",
+        starViolet: "#302060",
+        starGold: "#ffd28a",
+        starPeach: "#f0a875",
+        starCream: "#fff0d7",
+        starMist: "#d9d2f2"
       },
       boxShadow: {
         soft: "0 14px 36px rgba(96, 47, 22, 0.10)",

@@ -12,11 +12,12 @@ AllowedPersonaType = Literal[
 ]
 AllowedGender = Literal["female", "male", "unknown"]
 AllowedPersonaStatus = Literal["deceased", "living", "public", "fictional"]
+AllowedPersonaLanguage = Literal["zh-CN"]
+DEFAULT_PERSONA_LANGUAGE = "zh-CN"
 CREATE_REQUIRED_STRING_FIELDS = (
     "name",
     "relationship_to_user",
     "user_nickname_by_persona",
-    "language",
     "short_bio",
     "speaking_style",
     "emotional_style",
@@ -27,6 +28,7 @@ PATCH_REQUIRED_FIELDS = (
     "persona_type",
     "relationship_to_user",
     "user_nickname_by_persona",
+    "age",
     "gender",
     "language",
     "status",
@@ -43,8 +45,9 @@ class PersonaCreate(BaseModel):
     status: AllowedPersonaStatus
     relationship_to_user: str = Field(min_length=1, max_length=100)
     user_nickname_by_persona: str = Field(min_length=1, max_length=100)
+    age: int = Field(ge=1, le=150)
     gender: AllowedGender
-    language: str = Field(min_length=1, max_length=50)
+    language: AllowedPersonaLanguage = DEFAULT_PERSONA_LANGUAGE
     birth_date: date | None = None
     death_date: date | None = None
     short_bio: str = Field(min_length=1)
@@ -69,8 +72,9 @@ class PersonaUpdate(BaseModel):
     user_nickname_by_persona: str | None = Field(
         default=None, min_length=1, max_length=100
     )
+    age: int | None = Field(default=None, ge=1, le=150)
     gender: AllowedGender | None = None
-    language: str | None = None
+    language: AllowedPersonaLanguage | None = None
     birth_date: date | None = None
     death_date: date | None = None
     short_bio: str | None = None
@@ -102,6 +106,7 @@ class PersonaRead(BaseModel):
     status: str | None
     relationship_to_user: str
     user_nickname_by_persona: str
+    age: int | None
     gender: str | None
     language: str
     birth_date: date | None

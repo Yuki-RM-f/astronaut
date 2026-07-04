@@ -22,7 +22,10 @@ from app.schemas.memory import (
     MemoryUpdate,
 )
 from app.services.materials import get_persona_or_404
+from app.services.memory_markdown import refresh_long_term_memory_md
 from app.services.profile import refresh_profile_and_trust
+from app.services.audit import snapshot_entity, write_audit_event
+from app.services.conflict_detector import detect_conflicts_for_memory
 
 
 router = APIRouter(tags=["memories"])
@@ -75,6 +78,7 @@ def _refresh_profile_for_memory(memory: MemoryCard, db: Session) -> None:
     persona = db.get(Persona, memory.persona_id)
     if persona is not None:
         refresh_profile_and_trust(db, persona)
+        refresh_long_term_memory_md(db, persona)
 
 
 @router.get("/personas/{persona_id}/memories", response_model=MemoryListResponse)
@@ -138,6 +142,20 @@ def create_memory(
         created_by="user",
     )
     db.add(memory)
+    db.flush()
+    write_audit_event(
+        db,
+        user_id=current_user.id,
+        persona_id=persona.id,
+        target_type="memory",
+        target_id=memory.id,
+        event_type="memory.created",
+        action="创建记忆卡片",
+        after_snapshot=snapshot_entity(memory),
+    )
+    if memory.status in {"confirmed", "corrected"}:
+        refresh_long_term_memory_md(db, persona)
+        detect_conflicts_for_memory(db, memory)
     db.commit()
     db.refresh(memory)
     return _memory_response(memory)
@@ -160,6 +178,7 @@ def update_memory(
     db: Session = Depends(get_db),
 ):
     memory = _get_memory_or_404(memory_id, current_user, db)
+    before = snapshot_entity(memory)
     updates = payload.model_dump(exclude_unset=True)
     content_or_title_changed = "title" in updates or "content" in updates
     for field, value in updates.items():
@@ -169,6 +188,19 @@ def update_memory(
         memory.user_correction = memory.content
     db.add(memory)
     _refresh_profile_for_memory(memory, db)
+    db.flush()
+    write_audit_event(
+        db,
+        user_id=current_user.id,
+        persona_id=memory.persona_id,
+        target_type="memory",
+        target_id=memory.id,
+        event_type="memory.updated",
+        action="更新记忆卡片",
+        before_snapshot=before,
+        after_snapshot=snapshot_entity(memory),
+    )
+    detect_conflicts_for_memory(db, memory)
     db.commit()
     db.refresh(memory)
     return _memory_response(memory)
@@ -181,9 +213,23 @@ def _set_memory_status(
     db: Session,
 ) -> MemoryRead:
     memory = _get_memory_or_404(memory_id, user, db)
+    before = snapshot_entity(memory)
     memory.status = new_status
     db.add(memory)
     _refresh_profile_for_memory(memory, db)
+    db.flush()
+    write_audit_event(
+        db,
+        user_id=user.id,
+        persona_id=memory.persona_id,
+        target_type="memory",
+        target_id=memory.id,
+        event_type=f"memory.{_status_event_name(new_status)}",
+        action=f"记忆状态改为 {new_status}",
+        before_snapshot=before,
+        after_snapshot=snapshot_entity(memory),
+    )
+    detect_conflicts_for_memory(db, memory)
     db.commit()
     db.refresh(memory)
     return _memory_response(memory)
@@ -223,8 +269,29 @@ def delete_memory(
     db: Session = Depends(get_db),
 ):
     memory = _get_memory_or_404(memory_id, current_user, db)
+    before = snapshot_entity(memory)
     memory.deleted_at = _utcnow()
     db.add(memory)
     _refresh_profile_for_memory(memory, db)
+    db.flush()
+    write_audit_event(
+        db,
+        user_id=current_user.id,
+        persona_id=memory.persona_id,
+        target_type="memory",
+        target_id=memory.id,
+        event_type="memory.deleted",
+        action="删除记忆卡片",
+        before_snapshot=before,
+        after_snapshot=snapshot_entity(memory),
+    )
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _status_event_name(new_status: str) -> str:
+    return {
+        "confirmed": "confirmed",
+        "rejected": "rejected",
+        "disabled": "disabled",
+    }.get(new_status, "updated")

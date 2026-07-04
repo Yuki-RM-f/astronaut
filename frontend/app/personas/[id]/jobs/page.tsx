@@ -3,15 +3,13 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { DemoEntry } from "@/src/components/DemoEntry";
 import {
-  GlassPanel,
-  MemoryContainer,
-  MemoryShell,
-  MemoryTitle,
-  StepRibbon
-} from "@/src/components/MemorySpace";
-import { getAuthToken } from "@/src/lib/auth";
+  PageTitle,
+  StarNav,
+  StarPanel,
+  StarShell
+} from "@/src/components/StarSite";
+import { ensureDemoSession } from "@/src/lib/auth";
 import {
   AIJobRead,
   canCancelJob,
@@ -23,7 +21,7 @@ import {
 } from "@/src/lib/jobs";
 import { ROUTES } from "@/src/lib/routes";
 
-type PageState = "checking" | "signedOut" | "loading" | "ready" | "error";
+type PageState = "loading" | "ready" | "error";
 
 export default function PersonaJobsPage() {
   const params = useParams();
@@ -31,18 +29,13 @@ export default function PersonaJobsPage() {
     const rawId = params.id;
     return Array.isArray(rawId) ? rawId[0] : rawId;
   }, [params.id]);
-  const [state, setState] = useState<PageState>("checking");
+  const [state, setState] = useState<PageState>("loading");
   const [jobs, setJobs] = useState<AIJobRead[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      setState("signedOut");
-      return;
-    }
-
     if (!personaId) {
       setError("缺少人物 ID。");
       setState("error");
@@ -53,7 +46,8 @@ export default function PersonaJobsPage() {
     setState("loading");
     setError(null);
 
-    listJobs(personaId)
+    ensureDemoSession()
+      .then(() => listJobs(personaId))
       .then((items) => {
         if (!isCurrent) {
           return;
@@ -112,86 +106,62 @@ export default function PersonaJobsPage() {
   }
 
   return (
-    <MemoryShell background="familyAlbum">
-      <MemoryContainer>
-      <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-memoryAccent">
-        <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
-          返回记忆空间
-        </Link>
-        {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传资料</Link> : null}
-      </div>
-
-      <div className="mt-6 grid gap-5">
-        <MemoryTitle
-          title="资料整理进度"
-          subtitle="这里展示资料进入 mock 解析链路后的状态。真实模型解析、语音和数字人能力仍不在当前范围内。"
-        />
-        <StepRibbon activeIndex={1} />
-      </div>
-
-      {state === "signedOut" ? <SignedOutState /> : null}
-      {state === "loading" || state === "checking" ? <Notice text="正在加载任务..." /> : null}
-      {state === "error" ? <Notice text={error ?? "无法加载任务。"} /> : null}
-
-      {state === "ready" ? (
-        <div className="mt-8 grid gap-6">
-          {error ? <Alert tone="error" text={error} /> : null}
-          {notice ? <Alert tone="success" text={notice} /> : null}
-
-          <GlassPanel>
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="font-serif text-2xl font-semibold text-memoryText">任务状态</h2>
-                <p className="mt-2 text-sm leading-7 text-memoryText/70">
-                  可以重试或取消未完成的任务，状态会回写到后端任务记录。
-                </p>
-              </div>
-              <span className="text-sm font-semibold text-memoryText/60">
-                {jobs.length} 个任务
-              </span>
-            </div>
-            {jobs.length === 0 ? (
-              <p className="mt-6 rounded-2xl bg-memoryPaper/75 p-4 text-sm text-memoryText/70">
-                还没有任务。上传文件或创建手动资料后会出现解析任务。
-              </p>
-            ) : (
-              <div className="mt-6 grid gap-3">
-                {jobs.map((job) => (
-                  <JobCard
-                    key={job.id}
-                    job={job}
-                    busy={busyJobId === job.id}
-                    onRetry={handleRetry}
-                    onCancel={handleCancel}
-                  />
-                ))}
-              </div>
-            )}
-          </GlassPanel>
+    <StarShell>
+      <StarNav />
+      <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10">
+        <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-starGold">
+          <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
+            返回星星
+          </Link>
+          {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传资料</Link> : null}
         </div>
-      ) : null}
-      </MemoryContainer>
-    </MemoryShell>
-  );
-}
 
-function SignedOutState() {
-  return (
-    <GlassPanel className="mt-8 max-w-3xl">
-      <h2 className="font-serif text-2xl font-semibold text-memoryText">需要先进入记忆空间</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-memoryText/70">
-        可以免注册体验外婆示例，或登录已有账号查看私有任务。
-      </p>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
-      </div>
-    </GlassPanel>
+        <PageTitle
+          className="mt-6"
+          title="资料整理进度"
+          subtitle="这里展示资料进入当前后端解析链路后的状态。"
+        />
+
+        {state === "loading" ? <Notice text="正在加载任务..." /> : null}
+        {state === "error" ? <Notice text={error ?? "无法加载任务。"} /> : null}
+
+        {state === "ready" ? (
+          <div className="mt-8 grid gap-6">
+            {error ? <Alert tone="error" text={error} /> : null}
+            {notice ? <Alert tone="success" text={notice} /> : null}
+
+            <StarPanel className="p-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-starGold">任务状态</h2>
+                  <p className="mt-2 text-sm font-semibold leading-7 text-starMist/70">
+                    可以重试或取消未完成的任务，状态会回写到后端任务记录。
+                  </p>
+                </div>
+                <span className="text-sm font-bold text-starMist/60">{jobs.length} 个任务</span>
+              </div>
+              {jobs.length === 0 ? (
+                <p className="mt-6 rounded-2xl border border-white/8 bg-white/6 p-4 text-sm font-semibold text-starMist/70">
+                  还没有任务。上传文件或创建手动资料后会出现解析任务。
+                </p>
+              ) : (
+                <div className="mt-6 grid gap-3">
+                  {jobs.map((job) => (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      busy={busyJobId === job.id}
+                      onRetry={handleRetry}
+                      onCancel={handleCancel}
+                    />
+                  ))}
+                </div>
+              )}
+            </StarPanel>
+          </div>
+        ) : null}
+      </main>
+    </StarShell>
   );
 }
 
@@ -207,21 +177,21 @@ function JobCard({
   onCancel: (job: AIJobRead) => void;
 }) {
   return (
-    <article className="rounded-2xl border border-memoryLine/55 bg-memoryPaper/70 p-4 shadow-soft">
+    <article className="rounded-2xl border border-white/8 bg-white/6 p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-memoryText">{jobTypeLabel(job.job_type)}</p>
-          <p className="mt-1 text-xs font-semibold tracking-[0.08em] text-memoryAccent">
+          <p className="text-sm font-bold text-starCream">{jobTypeLabel(job.job_type)}</p>
+          <p className="mt-1 text-xs font-bold tracking-[0.08em] text-starGold">
             {providerLabel(job.provider_type)}
             {job.provider_name ? ` · ${job.provider_name}` : ""}
           </p>
-          <dl className="mt-4 grid gap-2 text-xs text-memoryText/60 md:grid-cols-3">
+          <dl className="mt-4 grid gap-2 text-xs text-starMist/60 md:grid-cols-3">
             <Stat label="状态" value={jobStatusLabel(job.status)} />
             <Stat label="重试次数" value={String(job.retry_count)} />
             <Stat label="创建时间" value={formatDate(job.created_at)} />
           </dl>
           {job.error_message ? (
-            <p className="mt-3 text-sm leading-6 text-red-700">{job.error_message}</p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-rose-100">{job.error_message}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -250,26 +220,31 @@ function JobCard({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="font-medium">{label}</dt>
-      <dd className="mt-1 text-memoryText">{value}</dd>
+      <dt className="font-bold">{label}</dt>
+      <dd className="mt-1 break-words text-starCream">{value}</dd>
     </div>
   );
 }
 
 function Alert({ tone, text }: { tone: "error" | "success"; text: string }) {
-  const className =
-    tone === "error"
-      ? "border-red-200 bg-red-50 text-red-700"
-      : "border-memoryAccent/25 bg-memoryWarm/70 text-memoryAccentDark";
-
-  return <div className={`rounded-lg border p-4 text-sm ${className}`}>{text}</div>;
+  return (
+    <div
+      className={`rounded-2xl border p-4 text-sm font-bold ${
+        tone === "error"
+          ? "border-rose-300/20 bg-rose-500/15 text-rose-100"
+          : "border-emerald-200/20 bg-emerald-400/12 text-emerald-100"
+      }`}
+    >
+      {text}
+    </div>
+  );
 }
 
 function Notice({ text }: { text: string }) {
   return (
-    <GlassPanel className="mt-8 text-sm leading-7 text-memoryText/72">
+    <StarPanel className="mt-8 p-5 text-sm font-semibold leading-7 text-starMist/72">
       {text}
-    </GlassPanel>
+    </StarPanel>
   );
 }
 
@@ -308,4 +283,4 @@ function providerLabel(value: string): string {
 }
 
 const secondaryButtonClass =
-  "rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText shadow-soft transition hover:border-memoryAccent hover:text-memoryAccent disabled:cursor-not-allowed disabled:border-memoryLine/40 disabled:text-memoryText/35";
+  "rounded-full border border-starGold/22 bg-starGold/10 px-4 py-2.5 text-sm font-bold text-starCream transition hover:bg-starGold/16 disabled:cursor-not-allowed disabled:opacity-35";

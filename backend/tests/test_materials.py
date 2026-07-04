@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -18,6 +21,7 @@ def persona_payload() -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -139,6 +143,26 @@ def test_material_list_detail_parse_and_delete_are_user_scoped(client):
         .json()["items"]
         == []
     )
+
+
+def test_delete_uploaded_material_removes_local_storage_file(client):
+    token = register_user(client, "material-file-delete@example.com")
+    persona = create_persona(client, token)
+
+    uploaded = client.post(
+        f"/api/personas/{persona['id']}/materials/upload",
+        headers=auth(token),
+        files=[("files", ("delete-me.txt", b"delete me", "text/plain"))],
+    )
+    assert uploaded.status_code == 201
+    material = uploaded.json()["items"][0]
+    storage_path = Path(material["storage_url"])
+    assert storage_path.exists()
+
+    deleted = client.delete(f"/api/materials/{material['id']}", headers=auth(token))
+
+    assert deleted.status_code == 204
+    assert not storage_path.exists()
 
 
 def test_upload_rejects_unsupported_file_type(client):

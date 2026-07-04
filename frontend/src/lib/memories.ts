@@ -83,6 +83,8 @@ export type MemoryUpdatePayload = Partial<{
   status: MemoryStatus;
 }>;
 
+export type DimensionAction = "confirm" | "delete" | "update";
+
 export function memoryStatusLabel(value: MemoryStatus): string {
   return MEMORY_STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value;
 }
@@ -109,6 +111,21 @@ export function memorySourceTypeLabel(value: MemorySourceType | null): string {
 
 export function canUseMemoryInConversation(status: MemoryStatus): boolean {
   return status === "confirmed" || status === "corrected";
+}
+
+export function selectDimensionActionTargets(
+  memories: Array<Pick<MemoryRead, "id" | "status">>,
+  action: DimensionAction
+): string[] {
+  if (action === "delete") {
+    return memories.map((memory) => memory.id);
+  }
+  if (action === "update") {
+    return memories[0]?.id ? [memories[0].id] : [];
+  }
+  return memories
+    .filter((memory) => !["confirmed", "corrected", "rejected", "disabled"].includes(memory.status))
+    .map((memory) => memory.id);
 }
 
 export async function listMemories(

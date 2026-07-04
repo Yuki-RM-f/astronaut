@@ -23,6 +23,7 @@ def persona_payload(name: str = "外婆") -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -132,6 +133,44 @@ def test_select_default_tts_and_synthesize_speech_job(client):
     )
 
 
+def test_synthesize_speech_records_minimax_provider_metadata(client, monkeypatch):
+    from app.services import voice as voice_service
+
+    def fake_gateway(capability, payload):
+        assert capability == "tts"
+        return {
+            "provider_type": "third_party",
+            "provider_name": "minimax",
+            "capability": "tts",
+            "status": "succeeded",
+            "input": payload,
+            "output": {
+                "audio_url": "https://api.minimaxi.com/audio/preview.mp3",
+                "duration_ms": 1200,
+                "voice_status": payload["voice_status"],
+                "voice_model_id": payload["voice_model_id"],
+                "default_tts_notice": payload["default_tts_notice"],
+            },
+        }
+
+    monkeypatch.setattr(voice_service, "_run_gateway", fake_gateway)
+    token = register_user(client, "voice-minimax-tts@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/synthesize",
+        headers=auth(token),
+        json={"text": "小铭，慢慢来。"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["audio_url"] == "https://api.minimaxi.com/audio/preview.mp3"
+    assert data["provider"]["provider_name"] == "minimax"
+    assert data["job"]["provider_type"] == "third_party"
+    assert data["job"]["provider_name"] == "minimax"
+
+
 def test_synthesize_without_clone_falls_back_to_default_tts(client):
     token = register_user(client, "voice-fallback@example.com")
     persona = create_persona(client, token)
@@ -219,6 +258,68 @@ def test_clone_voice_success_selects_cloned_voice_model(client):
     assert data["job"]["job_type"] == "clone_voice"
     assert data["job"]["status"] == "succeeded"
     assert data["provider"]["capability"] == "voice_clone"
+
+
+def test_clone_voice_records_minimax_voice_id_and_provider_metadata(client, monkeypatch):
+    from app.services import voice as voice_service
+
+    def fake_gateway(capability, payload):
+        if capability == "extract_voice_sample":
+            return {
+                "provider_type": "local",
+                "provider_name": "mock",
+                "capability": "extract_voice_sample",
+                "status": "succeeded",
+                "input": payload,
+                "output": {
+                    "sample_text": "外婆的清晰语音，来自 sample.mp3 的 00:00-00:08 片段。",
+                    "sample_audio_url": payload["storage_url"],
+                    "start_time": "00:00",
+                    "end_time": "00:08",
+                    "quality_score": 76,
+                },
+            }
+        assert capability == "voice_clone"
+        assert payload["storage_url"]
+        assert payload["file_name"] == "sample.mp3"
+        return {
+            "provider_type": "third_party",
+            "provider_name": "minimax",
+            "capability": "voice_clone",
+            "status": "succeeded",
+            "input": payload,
+            "output": {
+                "clone_status": "succeeded",
+                "model_artifact_url": "minimax://voice/PMV12345678",
+                "preview_audio_url": "https://api.minimaxi.com/audio/clone.mp3",
+                "quality_score": 82,
+            },
+        }
+
+    monkeypatch.setattr(voice_service, "_run_gateway", fake_gateway)
+    token = register_user(client, "voice-minimax-clone@example.com")
+    persona = create_persona(client, token)
+    material = upload_audio_material(client, token, persona["id"])
+    sample = client.post(
+        f"/api/personas/{persona['id']}/voice/samples",
+        headers=auth(token),
+        json={"source_material_id": material["id"]},
+    ).json()["voice_model"]
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/clone",
+        headers=auth(token),
+        json={"voice_model_id": sample["id"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider"]["provider_name"] == "minimax"
+    assert data["selected_voice_model"]["provider_type"] == "third_party"
+    assert data["selected_voice_model"]["provider_name"] == "minimax"
+    assert data["selected_voice_model"]["model_artifact_url"] == "minimax://voice/PMV12345678"
+    assert data["job"]["provider_type"] == "third_party"
+    assert data["job"]["provider_name"] == "minimax"
 
 
 def test_clone_voice_failure_falls_back_to_default_tts(client):

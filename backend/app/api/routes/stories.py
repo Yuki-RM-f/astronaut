@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -8,12 +8,19 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.story import (
     MemoryStoryCreate,
+    MemoryStoryExportResponse,
     MemoryStoryFavoriteUpdate,
     MemoryStoryListResponse,
     MemoryStoryRead,
 )
 from app.services.materials import get_persona_or_404
-from app.services.stories import generate_story, list_stories, update_story_favorite
+from app.services.stories import (
+    export_story,
+    export_story_audio,
+    generate_story,
+    list_stories,
+    update_story_favorite,
+)
 
 
 router = APIRouter(tags=["stories"])
@@ -52,3 +59,36 @@ def favorite_story(
     db: Session = Depends(get_db),
 ):
     return update_story_favorite(db, current_user, story_id, payload)
+
+
+@router.get(
+    "/personas/{persona_id}/export/story/{story_id}",
+    response_model=MemoryStoryExportResponse,
+)
+def export_persona_story(
+    persona_id: str,
+    story_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    persona = get_persona_or_404(persona_id, current_user, db)
+    return export_story(db, persona, story_id)
+
+
+@router.get("/personas/{persona_id}/export/story/{story_id}/audio")
+def export_persona_story_audio(
+    persona_id: str,
+    story_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    persona = get_persona_or_404(persona_id, current_user, db)
+    filename, content, notice = export_story_audio(db, persona, story_id)
+    return Response(
+        content=content,
+        media_type="audio/wav",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-AI-Simulation-Notice": notice,
+        },
+    )

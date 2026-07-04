@@ -28,3 +28,4 @@ class ParsedChunk(Base):
     metadata_json: Mapped[dict | list | None] = mapped_column("metadata", JSON)
     embedding: Mapped[list | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)

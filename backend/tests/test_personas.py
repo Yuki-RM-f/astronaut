@@ -1,4 +1,19 @@
+from pathlib import Path
+
 import pytest
+from sqlalchemy import select
+
+from app.models.ai_job import AIJob
+from app.models.conversation import Conversation, Message, MessageCitation
+from app.models.memory_card import MemoryCard
+from app.models.memory_story import MemoryStory
+from app.models.parsed_chunk import ParsedChunk
+from app.models.persona import Persona
+from app.models.persona_profile import PersonaProfile
+from app.models.source_material import SourceMaterial
+from app.models.user import User
+from app.models.voice_avatar import AvatarModel, VoiceModel
+from app.services import memory_markdown
 
 
 PATCH_REQUIRED_FIELDS = [
@@ -36,6 +51,7 @@ def persona_payload(persona_type: str = "deceased_relative") -> dict[str, str]:
         "status": "deceased",
         "relationship_to_user": "外婆",
         "user_nickname_by_persona": "小铭",
+        "age": 72,
         "gender": "female",
         "language": "zh-CN",
         "short_bio": "她很温柔，喜欢做饭。",
@@ -67,7 +83,7 @@ def assert_required_fields_unchanged(client, token: str, persona: dict):
     "field",
     [
         "gender",
-        "language",
+        "age",
         "status",
         "short_bio",
         "speaking_style",
@@ -89,6 +105,7 @@ def test_create_persona_rejects_omitted_required_profile_fields(client, field):
     "field",
     [
         "gender",
+        "age",
         "language",
         "status",
         "short_bio",
@@ -144,6 +161,52 @@ def test_create_persona_rejects_unsupported_gender_and_status(client, field, val
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize("age", [-1, 0, 151])
+def test_create_persona_rejects_out_of_range_age(client, age):
+    token = register_user(client, "age-range@example.com")
+    payload = persona_payload()
+    payload["age"] = age
+
+    response = client.post("/api/personas", headers=auth(token), json=payload)
+
+    assert response.status_code == 422
+
+
+def test_create_persona_defaults_language_to_chinese_when_omitted(client):
+    token = register_user(client, "default-language@example.com")
+    payload = persona_payload()
+    payload.pop("language")
+
+    response = client.post("/api/personas", headers=auth(token), json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["language"] == "zh-CN"
+
+
+def test_create_persona_rejects_non_chinese_language(client):
+    token = register_user(client, "non-chinese-language@example.com")
+    payload = persona_payload()
+    payload["language"] = "en-US"
+
+    response = client.post("/api/personas", headers=auth(token), json=payload)
+
+    assert response.status_code == 422
+
+
+def test_update_persona_rejects_non_chinese_language_and_preserves_existing_value(client):
+    token = register_user(client, "patch-non-chinese-language@example.com")
+    persona = create_persona(client, token)
+
+    response = client.patch(
+        f"/api/personas/{persona['id']}",
+        headers=auth(token),
+        json={"language": "en-US"},
+    )
+
+    assert response.status_code == 422
+    assert_required_fields_unchanged(client, token, persona)
+
+
 @pytest.mark.parametrize("field", PATCH_REQUIRED_FIELDS)
 def test_update_persona_rejects_null_required_fields_and_preserves_existing_values(
     client, field
@@ -182,6 +245,7 @@ def test_create_list_detail_update_and_delete_persona(client):
     token = register_user(client, "owner@example.com")
     created = create_persona(client, token, persona_type="deceased_relative")
     assert created["name"] == "外婆"
+    assert created["age"] == 72
     assert created["relationship_to_user"] == "外婆"
     assert created["user_nickname_by_persona"] == "小铭"
     assert created["stats"]["materials_count"] == 0
@@ -198,16 +262,186 @@ def test_create_list_detail_update_and_delete_persona(client):
     patched = client.patch(
         f"/api/personas/{created['id']}",
         headers=auth(token),
-        json={"relationship_to_user": "奶奶", "user_nickname_by_persona": "小明"},
+        json={
+            "relationship_to_user": "奶奶",
+            "user_nickname_by_persona": "小明",
+            "age": 73,
+        },
     )
     assert patched.status_code == 200
     assert patched.json()["relationship_to_user"] == "奶奶"
+    assert patched.json()["age"] == 73
     assert patched.json()["prompt_context"]["user_nickname_by_persona"] == "小明"
 
     deleted = client.delete(f"/api/personas/{created['id']}", headers=auth(token))
     assert deleted.status_code == 204
     assert client.get(f"/api/personas/{created['id']}", headers=auth(token)).status_code == 404
     assert client.get("/api/personas", headers=auth(token)).json()["items"] == []
+
+
+def test_delete_persona_soft_deletes_prd_related_records(
+    client, db_session, monkeypatch, tmp_path
+):
+    token = register_user(client, "cascade-delete@example.com")
+    created = create_persona(client, token)
+    user = db_session.scalar(select(User).where(User.email == "cascade-delete@example.com"))
+    assert user is not None
+
+    material = SourceMaterial(
+        user_id=user.id,
+        persona_id=created["id"],
+        file_name="memory.txt",
+        file_type="text",
+        mime_type="text/plain",
+        file_size=32,
+        storage_url="storage/materials/demo/memory.txt",
+        parse_status="succeeded",
+    )
+    db_session.add(material)
+    db_session.flush()
+
+    chunk = ParsedChunk(
+        persona_id=created["id"],
+        source_material_id=material.id,
+        chunk_type="text",
+        content="外婆会在生日包馄饨。",
+        summary="生日馄饨",
+        source_location="line:1",
+    )
+    profile = PersonaProfile(
+        persona_id=created["id"],
+        basic_facts={"name": "外婆"},
+        relationships={"user": "小铭"},
+        preferences={"food": "馄饨"},
+        habits={"pace": "慢慢说"},
+        expression_style={"tone": "温柔"},
+        shared_events={"birthday": "馄饨"},
+        values_json={"family": "陪伴"},
+        emotional_patterns={"comfort": "先安慰"},
+        profile_summary="外婆说话温柔。",
+        source_memory_ids=[],
+    )
+    conversation = Conversation(
+        user_id=user.id,
+        persona_id=created["id"],
+        title="和外婆的对话",
+    )
+    voice_model = VoiceModel(
+        persona_id=created["id"],
+        provider_type="local",
+        provider_name="mock_default_tts",
+        status="default_tts",
+        user_selected=True,
+    )
+    avatar_model = AvatarModel(
+        persona_id=created["id"],
+        provider_type="local",
+        provider_name="mock_default_avatar",
+        status="default_avatar",
+        style="memorial",
+        user_selected=True,
+    )
+    job = AIJob(
+        user_id=user.id,
+        persona_id=created["id"],
+        source_material_id=material.id,
+        job_type="parse_text",
+        provider_type="local",
+        provider_name="mock",
+        status="succeeded",
+    )
+    db_session.add_all([chunk, profile, conversation, voice_model, avatar_model, job])
+    db_session.flush()
+
+    memory = MemoryCard(
+        persona_id=created["id"],
+        title="生日馄饨",
+        content="外婆会在生日包馄饨。",
+        category="shared_event",
+        confidence_level="high",
+        confidence_score=90,
+        source_material_id=material.id,
+        parsed_chunk_id=chunk.id,
+        source_type="text",
+        source_quote="外婆会在生日包馄饨。",
+        source_location="line:1",
+        evidence_json={"provider": "mock"},
+        status="confirmed",
+    )
+    story = MemoryStory(
+        persona_id=created["id"],
+        theme="生日",
+        title="生日里的馄饨",
+        content="小铭，我记得生日那天的馄饨。",
+        audio_url="mock://tts/story.wav",
+        source_memory_ids=[],
+        source_memories=[],
+        is_favorite=True,
+    )
+    db_session.add_all([memory, story])
+    db_session.flush()
+
+    user_message = Message(
+        conversation_id=conversation.id,
+        role="user",
+        content="你记得生日吗？",
+    )
+    persona_message = Message(
+        conversation_id=conversation.id,
+        role="persona",
+        content="小铭，我记得生日馄饨。",
+    )
+    db_session.add_all([user_message, persona_message])
+    db_session.flush()
+
+    citation = MessageCitation(
+        message_id=persona_message.id,
+        memory_card_id=memory.id,
+        source_material_id=material.id,
+        parsed_chunk_id=chunk.id,
+        quote="外婆会在生日包馄饨。",
+        source_location="line:1",
+    )
+    db_session.add(citation)
+    db_session.commit()
+    storage_path = Path(material.storage_url)
+    storage_path.parent.mkdir(parents=True, exist_ok=True)
+    storage_path.write_bytes(b"local persona material")
+    assert storage_path.exists()
+    monkeypatch.setattr(memory_markdown, "MEMORY_CONTEXT_ROOT", tmp_path / "memory_context")
+    context_dir = memory_markdown.memory_context_dir(created["id"])
+    context_dir.mkdir(parents=True, exist_ok=True)
+    (context_dir / memory_markdown.LONG_TERM_MEMORY_FILE).write_text(
+        "# 长期记忆\n",
+        encoding="utf-8",
+    )
+    assert context_dir.exists()
+
+    response = client.delete(f"/api/personas/{created['id']}", headers=auth(token))
+
+    assert response.status_code == 204
+    assert not storage_path.exists()
+    assert not context_dir.exists()
+    assert client.get(f"/api/jobs/{job.id}", headers=auth(token)).status_code == 404
+    db_session.expire_all()
+    for model, row_id in [
+        (Persona, created["id"]),
+        (SourceMaterial, material.id),
+        (ParsedChunk, chunk.id),
+        (MemoryCard, memory.id),
+        (PersonaProfile, profile.id),
+        (Conversation, conversation.id),
+        (Message, user_message.id),
+        (Message, persona_message.id),
+        (MessageCitation, citation.id),
+        (VoiceModel, voice_model.id),
+        (AvatarModel, avatar_model.id),
+        (AIJob, job.id),
+        (MemoryStory, story.id),
+    ]:
+        row = db_session.get(model, row_id)
+        assert row is not None
+        assert getattr(row, "deleted_at", None) is not None, model.__name__
 
 
 def test_supported_persona_types_and_rejects_reserved_expert_role(client):

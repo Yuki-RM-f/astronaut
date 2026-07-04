@@ -5,9 +5,14 @@ import { API_PATHS, getApiBaseUrl } from "../src/lib/api.js";
 
 test("PRD P0 routes are exposed for the current shell", () => {
   assert.equal(ROUTES.home, "/");
-  assert.equal(ROUTES.login, "/login");
-  assert.equal(ROUTES.register, "/register");
   assert.equal(ROUTES.dashboard, "/dashboard");
+  assert.equal("login" in ROUTES, false);
+  assert.equal("register" in ROUTES, false);
+  assert.equal("settingsData" in ROUTES, false);
+  assert.equal("settingsProviders" in ROUTES, false);
+  assert.equal("personaStories" in ROUTES, false);
+  assert.equal("login" in API_PATHS.auth, false);
+  assert.equal("register" in API_PATHS.auth, false);
 });
 
 test("Milestone 1 persona routes are exposed", () => {
@@ -46,6 +51,21 @@ test("Milestone 3 memory API paths are exposed", () => {
   assert.equal(API_PATHS.memories.confirm("m1"), "/api/memories/m1/confirm");
   assert.equal(API_PATHS.memories.reject("m1"), "/api/memories/m1/reject");
   assert.equal(API_PATHS.memories.disable("m1"), "/api/memories/m1/disable");
+});
+
+test("Memory Audit v2 API paths are exposed without adding product routes", () => {
+  assert.equal("personaAudit" in ROUTES, false);
+  assert.equal(API_PATHS.audit.logs("p1"), "/api/personas/p1/audit/logs");
+  assert.equal(API_PATHS.audit.summary("p1"), "/api/personas/p1/audit/summary");
+  assert.equal(API_PATHS.audit.report("p1"), "/api/personas/p1/audit/report");
+  assert.equal(API_PATHS.audit.dashboard("p1"), "/api/personas/p1/audit/dashboard");
+  assert.equal(API_PATHS.audit.conflicts("p1"), "/api/personas/p1/audit/conflicts");
+  assert.equal(
+    API_PATHS.audit.resolveConflict("p1", "c1"),
+    "/api/personas/p1/audit/conflicts/c1/resolve"
+  );
+  assert.equal(API_PATHS.audit.search("p1"), "/api/personas/p1/audit/search");
+  assert.equal(API_PATHS.audit.history("m1"), "/api/memories/m1/history");
 });
 
 test("Milestone 4 profile API paths are exposed", () => {
@@ -92,6 +112,11 @@ test("Milestone 7 avatar API paths are exposed", () => {
   assert.equal(API_PATHS.avatar.config("p1"), "/api/personas/p1/avatar");
   assert.equal(API_PATHS.avatar.defaultAvatar("p1"), "/api/personas/p1/avatar/default");
   assert.equal(API_PATHS.avatar.generate("p1"), "/api/personas/p1/avatar/generate");
+});
+
+test("Milestone 8 story API paths are exposed", () => {
+  assert.equal(API_PATHS.stories.list("p1"), "/api/personas/p1/stories");
+  assert.equal(API_PATHS.stories.favorite("s1"), "/api/stories/s1/favorite");
 });
 
 test("API base URL defaults to local FastAPI backend", () => {

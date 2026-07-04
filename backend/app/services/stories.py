@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import struct
 import threading
 from datetime import UTC, datetime
 from typing import Any
@@ -17,14 +18,20 @@ from app.models.user import User
 from app.providers.gateway import ProviderGateway
 from app.schemas.story import (
     MemoryStoryCreate,
+    MemoryStoryExportResponse,
     MemoryStoryFavoriteUpdate,
     MemoryStoryRead,
     StoryMemorySource,
 )
+from app.services.audit import write_audit_event
 from app.services.voice import DEFAULT_TTS_NOTICE
 
 
 REVIEWED_MEMORY_STATUSES = {"confirmed", "corrected"}
+MOCK_AUDIO_EXPORT_NOTICE = (
+    "当前音频来自 mock TTS audio_url，不是 TA 的真实声音，也不是已落盘的真实音频文件。"
+)
+MOCK_AUDIO_FILE_NOTICE = "AI simulation mock TTS audio; not TA real voice; default TTS fallback."
 
 
 def _utcnow() -> datetime:
@@ -117,6 +124,19 @@ def generate_story(
         },
     )
     db.add(story)
+    db.flush()
+    for memory_id in story.source_memory_ids or []:
+        write_audit_event(
+            db,
+            user_id=persona.user_id,
+            persona_id=persona.id,
+            target_type="memory",
+            target_id=str(memory_id),
+            event_type="memory.cited_in_story",
+            severity="debug",
+            action="故事生成引用记忆",
+            metadata_json={"story_id": story.id, "story_theme": payload.theme},
+        )
     db.add(story_job)
     db.add(speech_job)
     db.commit()
@@ -136,6 +156,41 @@ def update_story_favorite(
     db.commit()
     db.refresh(story)
     return _story_response(story)
+
+
+def export_story(
+    db: Session,
+    persona: Persona,
+    story_id: str,
+) -> MemoryStoryExportResponse:
+    story = _get_persona_story_or_404(db, persona, story_id)
+
+    source_memories = [
+        StoryMemorySource.model_validate(item) for item in (story.source_memories or [])
+    ]
+    return MemoryStoryExportResponse(
+        story_id=story.id,
+        persona_id=story.persona_id,
+        theme=story.theme,
+        title=story.title,
+        export_text=_story_export_text(story, source_memories),
+        text_filename=f"story-{story.id}.txt",
+        audio_url=story.audio_url,
+        audio_filename=f"story-{story.id}.wav" if story.audio_url else None,
+        audio_export_notice=MOCK_AUDIO_EXPORT_NOTICE,
+        source_memory_ids=[str(item) for item in (story.source_memory_ids or [])],
+        source_memories=source_memories,
+    )
+
+
+def export_story_audio(
+    db: Session,
+    persona: Persona,
+    story_id: str,
+) -> tuple[str, bytes, str]:
+    story = _get_persona_story_or_404(db, persona, story_id)
+    filename = f"story-{story.id}.wav"
+    return filename, _mock_story_wav_bytes(story), MOCK_AUDIO_FILE_NOTICE
 
 
 def _reviewed_memories(db: Session, persona: Persona) -> list[MemoryCard]:
@@ -181,6 +236,38 @@ def _story_response(story: MemoryStory) -> MemoryStoryRead:
     )
 
 
+def _story_export_text(story: MemoryStory, sources: list[StoryMemorySource]) -> str:
+    lines = [
+        story.title,
+        "",
+        f"主题：{story.theme}",
+        "",
+        story.content,
+        "",
+        "来源记忆：",
+    ]
+    if not sources:
+        lines.append("- 无")
+    for source in sources:
+        location = f"（{source.source_location}）" if source.source_location else ""
+        lines.append(f"- {source.title}{location}: {source.quote}")
+    lines.extend(["", MOCK_AUDIO_EXPORT_NOTICE, DEFAULT_TTS_NOTICE])
+    return "\n".join(lines)
+
+
+def _get_persona_story_or_404(db: Session, persona: Persona, story_id: str) -> MemoryStory:
+    story = db.scalar(
+        select(MemoryStory).where(
+            MemoryStory.id == story_id,
+            MemoryStory.persona_id == persona.id,
+            MemoryStory.deleted_at.is_(None),
+        )
+    )
+    if story is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return story
+
+
 def _get_story_or_404(db: Session, user: User, story_id: str) -> MemoryStory:
     story = db.scalar(
         select(MemoryStory)
@@ -195,6 +282,35 @@ def _get_story_or_404(db: Session, user: User, story_id: str) -> MemoryStory:
     if story is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
     return story
+
+
+def _mock_story_wav_bytes(story: MemoryStory) -> bytes:
+    sample_rate = 8000
+    channels = 1
+    sample_width = 2
+    silence = b"\x00\x00" * (sample_rate // 4)
+    fmt_chunk = struct.pack(
+        "<HHIIHH",
+        1,
+        channels,
+        sample_rate,
+        sample_rate * channels * sample_width,
+        channels * sample_width,
+        sample_width * 8,
+    )
+    comment = f"{MOCK_AUDIO_FILE_NOTICE} story_id={story.id}".encode("ascii")
+    info_chunk = b"INFO" + _riff_chunk(b"ICMT", comment)
+    chunks = (
+        _riff_chunk(b"fmt ", fmt_chunk)
+        + _riff_chunk(b"LIST", info_chunk)
+        + _riff_chunk(b"data", silence)
+    )
+    return b"RIFF" + struct.pack("<I", 4 + len(chunks)) + b"WAVE" + chunks
+
+
+def _riff_chunk(chunk_id: bytes, data: bytes) -> bytes:
+    padding = b"\x00" if len(data) % 2 else b""
+    return chunk_id + struct.pack("<I", len(data)) + data + padding
 
 
 def _create_running_job(

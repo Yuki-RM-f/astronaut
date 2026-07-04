@@ -3,8 +3,6 @@ const DEFAULT_API_BASE_URL = "http://localhost:8000";
 export const API_PATHS = {
   health: "/health",
   auth: {
-    register: "/api/auth/register",
-    login: "/api/auth/login",
     me: "/api/auth/me",
     demo: "/api/auth/demo"
   },
@@ -36,6 +34,23 @@ export const API_PATHS = {
     reject: (id: string) => `/api/memories/${encodeURIComponent(id)}/reject`,
     disable: (id: string) => `/api/memories/${encodeURIComponent(id)}/disable`
   },
+  audit: {
+    logs: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/logs`,
+    summary: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/summary`,
+    report: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/report`,
+    dashboard: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/dashboard`,
+    conflicts: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/conflicts`,
+    resolveConflict: (personaId: string, conflictId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/conflicts/${encodeURIComponent(conflictId)}/resolve`,
+    search: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/audit/search`,
+    history: (memoryId: string) => `/api/memories/${encodeURIComponent(memoryId)}/history`
+  },
   profile: {
     detail: (personaId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/profile`,
@@ -47,6 +62,8 @@ export const API_PATHS = {
   chat: {
     conversations: (personaId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/conversations`,
+    conversation: (conversationId: string) =>
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
     messages: (conversationId: string) =>
       `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
     citations: (messageId: string) =>
@@ -73,6 +90,27 @@ export const API_PATHS = {
       `/api/personas/${encodeURIComponent(personaId)}/avatar/default`,
     generate: (personaId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/avatar/generate`
+  },
+  stories: {
+    list: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories`,
+    create: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories`,
+    favorite: (storyId: string) => `/api/stories/${encodeURIComponent(storyId)}/favorite`,
+    export: (personaId: string, storyId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/export/story/${encodeURIComponent(storyId)}`,
+    exportAudio: (personaId: string, storyId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/export/story/${encodeURIComponent(storyId)}/audio`
+  },
+  data: {
+    exportProfile: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/export/profile`,
+    exportMemories: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/export/memories`,
+    exportConversation: (conversationId: string) =>
+      `/api/conversations/${encodeURIComponent(conversationId)}/export`,
+    clearAccountData: "/api/settings/data"
+  },
+  providerSettings: {
+    detail: "/api/settings/providers"
   }
 } as const;
 

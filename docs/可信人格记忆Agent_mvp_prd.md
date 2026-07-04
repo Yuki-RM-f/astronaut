@@ -16,7 +16,7 @@
 3. MVP 允许创建名人、明星、网红、公众人物人格。
 4. 当前阶段是产品 Demo，不展开法规合规约束；仅保留必要的产品提示、AI 模拟标识和体验边界。
 5. Agent 必须直接用「TA」的第一人称回复，不使用第三人称纪念助手口吻。
-6. 创建人物时，用户必须定义：TA 对用户的角色、TA 对用户的称呼、TA 的说话风格、TA 的情绪陪伴边界。
+6. 创建人物时，用户必须定义：TA 对用户的角色、TA 对用户的称呼；主要语言固定为中文，TA 的说话风格、情绪陪伴边界和禁用表达由系统默认值写入。
 7. MVP 必须支持多模态资料：文本、图片、音频、视频。
 8. 图片必须支持 OCR、场景信息识别、图片内容分析。
 9. 音频必须支持 ASR、关键音频片段提取、音色克隆。
@@ -28,7 +28,7 @@
 15. 允许导出对话、音频、视频或记忆故事；导出内容添加「AI 模拟」水印/说明。
 16. 3D 数字人风格默认「温柔半写实 / 纪念风」，降低恐怖谷感；输入单张照片即可，多张照片提升质量。
 17. 最终开发形态采用 Web 产品，默认 Docker Compose 部署。
-18. 技术栈默认：Next.js + FastAPI + PostgreSQL + pgvector + Redis + Celery/RQ + MinIO/S3 + AI Worker。
+18. 技术栈默认：Next.js + FastAPI + PostgreSQL + Redis + Celery/RQ + MinIO/S3 + AI Worker。
 
 ---
 
@@ -222,6 +222,8 @@ MVP 只围绕以下闭环验收：
 | 形象设置 | `/personas/:id/avatar` | P0 | 3D 数字人生成与预览 |
 | 数据设置 | `/settings/data` | P0 | 删除人物/资料/对话，导出数据 |
 | 模型设置 | `/settings/providers` | P0 | 第三方 API Key、本地服务地址 |
+| 主动关怀 | `/personas/:id/care` | P1 | AI 先发起关心，再由用户回复 |
+| 心愿延续 | `/personas/:id/wishes` | P1 | 录入 TA 未完成心愿并长期鼓励行动 |
 | 邀请家人 | `/personas/:id/share` | P1 | 只读邀请链接，后续开发 |
 | 付费页 | `/pricing` | P2 | 买断制展示，MVP 可占位 |
 
@@ -234,12 +236,11 @@ MVP 只围绕以下闭环验收：
 1. 用户注册/登录。
 2. 进入首页，点击「创建一个重要的人」。
 3. 选择人物类型：已故亲友 / 在世亲友 / 公众人物 / 虚拟角色。
-4. 填写基础资料：姓名、头像、性别、年龄/出生年份、语言、人物状态、简介。
+4. 填写基础资料：姓名、头像、性别、年龄/出生年份、人物状态、简介；主要语言固定为中文。
 5. 填写关系设定：
    - TA 对我的角色：外婆/父亲/母亲/朋友/老师等；
    - TA 对我的称呼：小铭、儿子、闺女、乖孙等；
-   - TA 的语气：温柔、朴素、幽默、严厉但关心等；
-   - TA 的禁用表达：不要神化、不要说「我真的回来了」、不要替我做重大决定等。
+   - 系统默认使用温和自然的说话风格、安慰鼓励但不替用户做重大决定的情绪边界，并禁止暗示本人复生。
 6. 进入资料上传页，上传文本、图片、音频、视频。
 7. 系统创建 AI 解析任务，用户在任务页查看进度。
 8. 解析完成后，系统生成：
@@ -336,7 +337,9 @@ MVP 只围绕以下闭环验收：
 | 虚拟角色 | `fictional_character` | 是 | 支持角色设定 |
 | 专家/企业角色 | `expert_role` | 预留 | 后续扩展 |
 
-### 7.2.2 必填字段
+### 7.2.2 资料卡片与必填字段
+
+创建人物时的「资料卡片」指人物基础资料卡片，用于记录用户确认填写的人物基础事实和关系设定，不等同于后续上传的 SourceMaterial 或系统抽取的记忆卡片。
 
 | 字段 | 类型 | 示例 | 说明 |
 |---|---|---|---|
@@ -344,14 +347,15 @@ MVP 只围绕以下闭环验收：
 | persona_type | enum | deceased_relative | 人物类型 |
 | relationship_to_user | string | 外婆 | TA 对用户的角色 |
 | user_nickname_by_persona | string | 小铭 | TA 对用户的称呼 |
+| age | integer | 72 | 用户填写的年龄/享年，不由系统推断 |
 | gender | enum | female | 性别，可选未知 |
-| language | string | zh-CN | 主要语言 |
+| language | string | zh-CN | 主要语言固定为中文，用户不填写 |
 | status | enum | deceased/living/public/fictional | 人物状态 |
 | avatar_image | file | image | 头像或照片 |
 | short_bio | text | 她很温柔，喜欢做饭 | 简介 |
-| speaking_style | text | 温柔、慢慢说、喜欢叫我小铭 | 说话风格 |
-| emotional_style | text | 安慰、鼓励、陪伴 | 情绪支持风格 |
-| forbidden_expressions | text | 不要说我真的复活了 | 禁用表达 |
+| speaking_style | text | 温和、自然，优先使用用户定义的称呼 | 系统默认说话风格，用户创建时不填写 |
+| emotional_style | text | 安慰、鼓励、陪伴，但不替用户做重大决定 | 系统默认情绪支持风格，用户创建时不填写 |
+| forbidden_expressions | text | 不要说「我真的回来了」；不要暗示自己是本人复生 | 系统默认禁用表达，用户创建时不填写 |
 
 ### 7.2.3 可选字段
 
@@ -368,12 +372,13 @@ MVP 只围绕以下闭环验收：
 
 ### 7.2.4 页面交互
 
-创建人物页采用 4 步表单：
+创建人物页采用 3 个用户填写区：
 
 1. 选择类型；
 2. 填写基础资料；
-3. 定义关系和称呼；
-4. 定义说话风格和情绪陪伴方式。
+3. 定义关系和称呼。
+
+主要语言固定为中文；说话风格、情绪陪伴方式和禁用表达由系统默认值写入，用户不需要在创建页填写。
 
 ### 7.2.5 情绪价值默认模板
 
@@ -464,6 +469,8 @@ MVP 只围绕以下闭环验收：
 6. 对 chunk 向量化；
 7. 调用 Memory Extraction Prompt 生成记忆卡片。
 
+当前实现边界：PDF/DOC/DOCX 只做本地文本抽取后进入文本解析，不做扫描 PDF 转图片 OCR；扫描件类 PDF 需要后续单独定义 OCR 流程。
+
 #### 输出
 
 - ParsedChunk；
@@ -521,6 +528,8 @@ MVP 只围绕以下闭环验收：
 7. 生成音频来源记忆卡片；
 8. 如用户点击「生成音色」，提交 Voice Clone Job。
 
+当前实现边界：本阶段真实解析烟测只覆盖 ASR 和基础 `sample_metadata`/音色样本候选记录；VAD、说话人分离/确认、关键片段质量筛选仍不纳入当前实现。
+
 #### 关键音频片段筛选规则
 
 - 时长建议：5 秒到 60 秒；
@@ -549,6 +558,8 @@ MVP 只围绕以下闭环验收：
 6. 生成视频场景片段：起止时间、场景、人物、事件、情绪；
 7. 生成可引用时间戳；
 8. 生成记忆卡片。
+
+当前实现边界：本阶段视频真实解析只覆盖 ffmpeg 音频提取、ASR、关键帧采样、视觉摘要和基础时间戳；稳定场景切分、人物级场景段落和高质量镜头边界判断仍不纳入当前实现。
 
 #### 输出字段
 
@@ -666,12 +677,15 @@ memory_card
 | 情绪陪伴方式 | 安慰、鼓励、倾听、幽默、提醒 |
 | 禁用边界 | 不说哪些话，不碰哪些话题 |
 | 数字人设定 | 形象风格、声音、动作、表情 |
+| 自定义维度 | 用户自行补充的人格档案维度 |
 
 ### 7.6.2 档案生成规则
 
 - 人格档案由多个记忆卡片聚合而成；
 - 用户手动填写内容优先级最高；
 - 用户修正后的记忆优先级高于模型生成；
+- 用户可新增、编辑、删除自定义档案维度；
+- 自定义维度优先视为用户手动补充内容；
 - 档案项需要保存来源记忆 ID；
 - 每次用户审核记忆后，系统重新生成档案摘要。
 
@@ -679,6 +693,7 @@ memory_card
 
 - 人格档案可自动生成；
 - 用户可编辑每个维度；
+- 用户可补充自定义维度；
 - 每个维度可以看到来源记忆；
 - 档案更新后对话风格发生变化。
 
@@ -797,15 +812,16 @@ memory_card
 如果按照你给我的这些资料和公开表达风格来看，我会更倾向于先拆解问题本身，而不是急着给结论。我们可以把这个问题分成三个层面来讨论。
 ```
 
-### 7.8.4 对话检索优先级
+### 7.8.4 对话记忆上下文优先级
 
-1. 用户修正记忆 corrected；
-2. 用户确认记忆 confirmed；
+1. 用户修正记忆 corrected，进入长期记忆 Markdown；
+2. 用户确认记忆 confirmed，进入长期记忆 Markdown；
 3. 用户手动输入的人格档案；
-4. 高置信记忆；
-5. 中置信待审核记忆，仅作为弱参考；
-6. 原始资料片段；
-7. 模型通用能力。
+4. 人物维度短期对话 Markdown；
+5. 当前用户消息；
+6. 模型通用能力，仅用于自然表达，不得补写具体事实。
+
+pending、rejected、disabled、deleted 记忆不进入聊天长期上下文。长期或短期 Markdown 过长时，系统可调用 LLM 做 `memory_context_compression`；LLM 不可用时使用确定性截断，不阻塞对话。
 
 ### 7.8.5 Prompt 变量
 
@@ -818,7 +834,9 @@ speaking_style
 emotional_style
 forbidden_expressions
 profile_summary
-retrieved_memories
+long_term_memory_md
+short_term_memory_md
+selected_memory_ids
 conversation_history
 user_message
 confidence_score
@@ -1066,6 +1084,52 @@ MVP 可先做软删除 `deleted_at`，再提供后台清理任务。
 
 ---
 
+## 7.13 AI 主动关怀模块（P1）
+
+### 7.13.1 功能说明
+
+AI 主动关怀是 P1 后续功能，不属于当前已完成的 Milestone 0-8。系统可在用户进入会话、重要日期、长期未互动或用户配置的关怀场景中，由 TA 先发起第一人称关心，再由用户回复继续对话。
+
+### 7.13.2 功能点
+
+- 用户可开启或关闭某个人物的主动关怀；
+- 用户可配置关怀场景，例如生日、纪念日、节日、长期未互动、低落记录后跟进；
+- AI 主动消息必须使用 TA 的第一人称、用户称呼和已确认/已修正记忆；
+- 主动消息必须避免制造强依赖，不替用户做重大决定；
+- 用户回复后进入普通数字人对话流程，并保留来源与纠错能力。
+
+### 7.13.3 验收标准
+
+- 用户能看到某个人物的主动关怀配置；
+- 开启后，系统能生成一条符合人物设定的第一人称关怀消息；
+- 主动消息明确可被用户忽略、关闭或继续回复；
+- 主动消息不使用未确认事实，不声称 TA 真实回来了。
+
+---
+
+## 7.14 心愿延续系统（P1）
+
+### 7.14.1 功能说明
+
+心愿延续系统是 P1 后续功能，不属于当前已完成的 Milestone 0-8。用户可录入 TA 生前或角色设定中的未完成心愿，AI 以 TA 的视角长期鼓励用户把怀念转化为现实行动。
+
+### 7.14.2 功能点
+
+- 用户可为某个人物新增心愿，记录心愿标题、背景、期望行动和用户备注；
+- 心愿可关联已确认/已修正记忆或用户手动补充资料；
+- AI 可围绕心愿生成温柔鼓励、阶段性提醒和回顾总结；
+- 用户可标记心愿状态：未开始、进行中、已完成、暂时搁置；
+- 心愿相关表达必须避免道德绑架、强迫行动或放大愧疚。
+
+### 7.14.3 验收标准
+
+- 用户能录入、编辑、删除和查看某个人物的心愿；
+- AI 能基于心愿内容生成第一人称鼓励文本；
+- 心愿状态变化会影响后续鼓励语气；
+- 用户可随时停止某个心愿的提醒或鼓励。
+
+---
+
 ## 8. 数据库设计
 
 ### 8.1 users
@@ -1094,6 +1158,7 @@ CREATE TABLE personas (
   status VARCHAR(50),
   relationship_to_user VARCHAR(100) NOT NULL,
   user_nickname_by_persona VARCHAR(100) NOT NULL,
+  age INTEGER,
   gender VARCHAR(50),
   language VARCHAR(50) DEFAULT 'zh-CN',
   birth_date DATE,
@@ -1179,6 +1244,8 @@ CREATE TABLE memory_cards (
   deleted_at TIMESTAMP
 );
 ```
+
+说明：当前代码保留 `parsed_chunks.embedding` 以及历史迁移加入的 `memory_cards.embedding*` 元数据列以兼容旧库，但运行时不再写入或读取 embedding；聊天上下文使用长期/短期记忆 Markdown。
 
 ### 8.6 persona_profiles
 
@@ -1437,7 +1504,7 @@ AI Capability Gateway
 ├── image_understanding
 ├── video_understanding
 ├── memory_extraction
-├── embedding
+├── memory_context_compression
 ├── chat_llm
 ├── tts
 ├── voice_clone
@@ -1488,7 +1555,6 @@ analyze_video_frames
 extract_memory
 update_profile
 calculate_trust_score
-create_embedding
 clone_voice
 synthesize_speech
 generate_avatar_3d
@@ -1521,12 +1587,19 @@ convert_avatar_format
 7. 不要过度依赖说教，不要冷冰冰总结。
 8. 回答要像 TA 正在和用户说话，而不是在分析 TA。
 9. 涉及事实时，在内部输出引用 memory_card_id，供系统展示「查看依据」。
+10. 不要向用户输出 `<think>`、推理过程或草稿分析，只输出最终对话内容。
 
 人物档案：
 {profile_summary}
 
-可用记忆：
-{retrieved_memories}
+长期记忆 Markdown：
+{long_term_memory_md}
+
+短期记忆 Markdown：
+{short_term_memory_md}
+
+已选记忆 ID：
+{selected_memory_ids}
 
 最近对话：
 {conversation_history}
@@ -1617,7 +1690,6 @@ convert_avatar_format
 
 - FastAPI；
 - PostgreSQL；
-- pgvector；
 - Redis；
 - Celery 或 RQ；
 - MinIO/S3；
@@ -1630,7 +1702,7 @@ convert_avatar_format
 | 能力 | 首选 | 备选 |
 |---|---|---|
 | LLM | OpenAI-compatible API | 本地 Qwen/Llama |
-| Embedding | OpenAI-compatible embedding | bge-m3 / m3e |
+| 记忆上下文 | 长期/短期 Markdown + LLM 压缩 | 确定性截断兜底 |
 | OCR | PaddleOCR | 第三方 OCR API |
 | ASR | Whisper / faster-whisper | 第三方 ASR API |
 | 图片理解 | Qwen2.5-VL / Qwen3-VL | 第三方 VLM API |
@@ -1863,7 +1935,7 @@ docker-compose services:
 交付：
 
 - Chat API；
-- 向量检索；
+- 长期/短期记忆 Markdown 上下文；
 - 对话历史；
 - 第一人称 Prompt；
 - 引用来源；
@@ -1955,7 +2027,7 @@ docker-compose services:
 - 姓名：外婆；
 - TA 对我角色：外婆；
 - TA 对我称呼：小铭；
-- 说话风格：温柔、慢、朴素；
+- 系统默认说话风格：温和、自然，优先使用用户定义的称呼；
 - 上传：一段文字、一张生日照片、一段语音、一段家庭视频。
 
 期望：
@@ -2061,7 +2133,6 @@ DEFAULT_LLM_PROVIDER=openai_compatible
 OPENAI_COMPATIBLE_BASE_URL=
 OPENAI_COMPATIBLE_API_KEY=
 OPENAI_COMPATIBLE_MODEL=
-EMBEDDING_MODEL=
 
 OCR_PROVIDER=paddleocr_local
 ASR_PROVIDER=whisper_local
@@ -2070,7 +2141,6 @@ TTS_PROVIDER=cosyvoice_local
 VOICE_CLONE_PROVIDER=gpt_sovits_local
 AVATAR_3D_PROVIDER=hunyuan3d_or_third_party
 
-LOCAL_GPU_WORKER_URL=http://gpu-worker:9000
 THIRD_PARTY_VOICE_API_KEY=
 THIRD_PARTY_3D_API_KEY=
 ```
@@ -2098,7 +2168,7 @@ THIRD_PARTY_3D_API_KEY=
 ```text
 继续根据 PRD 完成 Milestone 1：人物创建与人物工作台。
 实现 personas 表、CRUD API、前端人物列表、创建人物表单、人物详情页。
-创建人物表单必须包含：人物类型、姓名、TA 对用户的角色、TA 对用户的称呼、说话风格、情绪陪伴方式、禁用表达。
+创建人物表单必须包含：人物类型、姓名、年龄/享年、TA 对用户的角色、TA 对用户的称呼和简介；主要语言固定中文，说话风格、情绪陪伴方式和禁用表达使用系统默认值。
 完成后补充 API 测试和前端基础校验。
 ```
 
@@ -2141,6 +2211,8 @@ Demo 成功标准不是模型效果完美，而是完整体验闭环成立：
 
 - 家人共同维护；
 - 只读邀请链接；
+- AI 主动关怀；
+- 心愿延续系统；
 - 更强音色质量评估；
 - 更自然口型同步；
 - 照片说话短视频；

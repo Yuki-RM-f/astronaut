@@ -57,6 +57,7 @@ def test_demo_session_returns_token_and_seeded_persona(client):
     items = personas.json()["items"]
     assert [item["name"] for item in items] == ["外婆"]
     assert items[0]["id"] == body["demo_persona_id"]
+    assert items[0]["age"] == 72
     assert items[0]["user_nickname_by_persona"] == "小铭"
 
 

@@ -1,6 +1,10 @@
 x-backend-build: &backend-build
   context: ./backend
 
+x-runtime-env-file: &runtime-env-file
+  - path: ./.env/runtime.env
+    required: false
+
 x-backend-environment: &backend-environment
   APP_ENV: development
   FRONTEND_URL: http://localhost:3000
@@ -10,11 +14,6 @@ x-backend-environment: &backend-environment
   MINIO_ENDPOINT: minio:9000
   MINIO_BUCKET: persona-memory
   JWT_SECRET: change-me
-  DEFAULT_LLM_PROVIDER: mock
-  OPENAI_COMPATIBLE_BASE_URL: ""
-  OPENAI_COMPATIBLE_API_KEY: ""
-  OPENAI_COMPATIBLE_MODEL: ""
-  LOCAL_GPU_WORKER_URL: http://gpu-worker:9000
 
 x-mock-worker-command: &mock-worker-command
   - python
@@ -72,6 +71,7 @@ services:
   backend:
     build: *backend-build
     image: persona-memory-agent-backend:local
+    env_file: *runtime-env-file
     environment: *backend-environment
     ports:
       - "8000:8000"
@@ -108,6 +108,7 @@ services:
     build: *backend-build
     image: persona-memory-agent-backend:local
     command: *mock-worker-command
+    env_file: *runtime-env-file
     environment:
       <<: *backend-environment
       WORKER_QUEUE: text
@@ -123,6 +124,7 @@ services:
     build: *backend-build
     image: persona-memory-agent-backend:local
     command: *mock-worker-command
+    env_file: *runtime-env-file
     environment:
       <<: *backend-environment
       WORKER_QUEUE: media
@@ -138,6 +140,7 @@ services:
     build: *backend-build
     image: persona-memory-agent-backend:local
     command: *mock-worker-command
+    env_file: *runtime-env-file
     environment:
       <<: *backend-environment
       WORKER_QUEUE: voice
@@ -153,6 +156,7 @@ services:
     build: *backend-build
     image: persona-memory-agent-backend:local
     command: *mock-worker-command
+    env_file: *runtime-env-file
     environment:
       <<: *backend-environment
       WORKER_QUEUE: avatar

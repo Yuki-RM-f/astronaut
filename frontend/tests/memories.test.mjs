@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   canUseMemoryInConversation,
   memoryCategoryLabel,
-  memoryStatusLabel
+  memoryStatusLabel,
+  selectDimensionActionTargets
 } from "../src/lib/memories.js";
 
 test("memory labels expose PRD Milestone 3 statuses and categories", () => {
@@ -20,4 +21,18 @@ test("only confirmed and corrected memories are future usable", () => {
   assert.equal(canUseMemoryInConversation("confirmed"), true);
   assert.equal(canUseMemoryInConversation("corrected"), true);
   assert.equal(canUseMemoryInConversation("disabled"), false);
+});
+
+test("dimension actions target visible memories without inventing backend dimensions", () => {
+  const memories = [
+    { id: "m1", status: "pending_review" },
+    { id: "m2", status: "auto_generated" },
+    { id: "m3", status: "confirmed" },
+    { id: "m4", status: "disabled" }
+  ];
+
+  assert.deepEqual(selectDimensionActionTargets(memories, "confirm"), ["m1", "m2"]);
+  assert.deepEqual(selectDimensionActionTargets(memories, "delete"), ["m1", "m2", "m3", "m4"]);
+  assert.deepEqual(selectDimensionActionTargets(memories, "update"), ["m1"]);
+  assert.deepEqual(selectDimensionActionTargets([], "confirm"), []);
 });

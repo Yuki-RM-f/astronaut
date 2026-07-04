@@ -118,6 +118,7 @@ def demo_session(db: Session = Depends(get_db)):
         status="deceased",
         relationship_to_user="外婆",
         user_nickname_by_persona="小铭",
+        age=72,
         gender="female",
         language="zh-CN",
         short_bio="她温柔、朴素，喜欢给小铭做饭，也总是慢慢安慰家里人。",
