@@ -1,0 +1,153 @@
+{
+  "features": [
+    {
+      "id": "feat-001",
+      "name": "Docs-driven harness 基线",
+      "description": "建立可信人格记忆Agent的文档约束基线，包括文档地图、PRD 模板、功能范围账本、进度交接、PRD 对照清单、首次用户说明、统一自检脚本和 agent 工作规则。该项只定义文档框架，不声明尚未确认的产品能力、技术栈或运行命令。",
+      "dependencies": [],
+      "status": "completed",
+      "evidence": "docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/feature-list.json; docs/progress.md; docs/prd-checklist.md; docs/平台说明.md; docs/init.sh; AGENTS.md"
+    },
+    {
+      "id": "feat-002",
+      "name": "产品目标与 MVP 范围定义",
+      "description": "补齐可信人格记忆Agent的目标用户、核心问题、MVP 工作流、数据对象、边界和验收标准。",
+      "dependencies": [
+        "feat-001"
+      ],
+      "status": "completed",
+      "evidence": "docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md"
+    },
+    {
+      "id": "feat-003",
+      "name": "真实启动与验证命令接入",
+      "description": "在项目技术栈明确后，将依赖安装、测试、构建、启动和用户验收命令接入 docs/init.sh 与 docs/README.md。",
+      "dependencies": [
+        "feat-001",
+        "feat-002"
+      ],
+      "status": "completed",
+      "evidence": "backend/Dockerfile; backend/docker-entrypoint.sh; backend/.dockerignore; backend/app/models/user.py; backend/tests/test_container_runtime.py; frontend/Dockerfile; frontend/.dockerignore; docker-compose.yml; docs/init.sh; docs/README.md; docs/prd-checklist.md; frontend/package-lock.json"
+    },
+    {
+      "id": "feat-004",
+      "name": "Milestone 0 Docker Compose 开发拓扑",
+      "description": "为 Milestone 0 提供 frontend、backend、postgres、redis、minio 和 mock worker 进程的 Docker Compose 配置，并保留后端健康检查与前端 API 基址默认值。",
+      "dependencies": [
+        "feat-003"
+      ],
+      "status": "completed",
+      "evidence": "docker-compose.yml; backend/Dockerfile; backend/docker-entrypoint.sh; backend/.dockerignore; frontend/Dockerfile; frontend/.dockerignore; docker compose config"
+    },
+    {
+      "id": "feat-005",
+      "name": "Milestone 1 人物创建与工作台基础闭环",
+      "description": "实现当前 Milestone 1 已交付范围：注册/登录表单接入后端认证并保存 JWT；Dashboard 拉取用户隔离的人物列表；创建人物表单包含 PRD 必填关系、称呼、说话风格、情绪边界和禁用表达并在前端阻止缺失字段提交；人物详情/工作台页展示关系、称呼、风格、禁用表达、可信度和基础统计；后端提供用户隔离的人物 CRUD、保留四类 MVP 人物类型、拒绝预留 expert_role，并返回可供后续对话读取的 prompt_context。该功能不包含资料上传、材料解析、记忆抽取/审计、对话、语音/TTS、头像/3D、导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-004"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/personas.py; backend/app/schemas/persona.py; backend/app/services/persona_prompt.py; backend/tests/test_personas.py; backend/tests/test_persona_prompt.py; frontend/app/login/page.tsx; frontend/app/register/page.tsx; frontend/app/dashboard/page.tsx; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/src/lib/auth.ts; frontend/src/lib/persona.ts; frontend/src/lib/routes.ts; frontend/tests/persona.test.mjs; frontend/tests/routes.test.mjs; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+    },
+    {
+      "id": "feat-006",
+      "name": "Milestone 2 资料上传与任务队列基础闭环",
+      "description": "实现当前 Milestone 2 已交付范围：后端提供用户隔离的文本、图片、音频、视频多文件上传和手动资料创建，生成 SourceMaterial 记录并为每个资料创建 queued mock parse AI Job；提供资料列表/详情/删除/重新排队接口、任务列表/详情/重试/取消接口和本地 storage 兜底；前端提供人物详情到资料上传页和任务状态页的入口，上传页支持文件资料和手动资料，任务页展示状态并按状态提供重试/取消操作。该功能不包含材料解析、OCR、ASR、图片理解、视频分析、记忆卡片生成、对话、语音/TTS、头像/3D、导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-005"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/materials.py; backend/app/api/routes/jobs.py; backend/app/services/materials.py; backend/app/schemas/material.py; backend/app/schemas/job.py; backend/app/models/source_material.py; backend/app/models/ai_job.py; backend/tests/test_materials.py; backend/tests/test_jobs.py; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/jobs/page.tsx; frontend/src/lib/materials.ts; frontend/src/lib/jobs.ts; frontend/src/lib/routes.ts; frontend/tests/materials.test.mjs; frontend/tests/routes.test.mjs; .gitignore; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose config; docs/init.sh"
+    },
+    {
+      "id": "feat-007",
+      "name": "Milestone 3 mock 多模态解析与记忆审计基础闭环",
+      "description": "实现当前 Milestone 3 已交付范围：mock Provider Gateway 为 text_parser、ocr、asr、image_understanding、video_understanding 和 memory_extraction 生成 deterministic 输出；上传、手动资料和重新解析会同步创建 ParsedChunk 与带 source_material_id、source_quote、source_location 的 MemoryCard，并把 AI Job 标记为 succeeded；后端提供用户隔离的记忆列表、创建、详情、编辑、确认、拒绝、禁用和删除接口；前端提供 /personas/{id}/memories 记忆审计页，支持状态、分类、置信度筛选、来源展示和确认/编辑/拒绝/禁用/删除操作。该功能不包含真实 OCR/ASR/VLM/模型质量、人格档案或可信度重算、对话记忆检索、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-006"
+      ],
+      "status": "completed",
+      "evidence": "commit ed2d6ac feat: add mock material parsing; commit 5c75991 feat: add memory audit API; commit 92cef29 feat: add memory audit frontend; backend/app/providers/gateway.py; backend/app/services/parsing.py; backend/app/services/materials.py; backend/app/api/routes/memories.py; backend/app/schemas/memory.py; backend/tests/test_parsing.py; backend/tests/test_memories.py; frontend/app/personas/[id]/memories/page.tsx; frontend/src/lib/memories.ts; frontend/tests/memories.test.mjs; frontend/tests/routes.test.mjs; python -m json.tool docs/feature-list.json; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose config; docs/init.sh"
+    },
+    {
+      "id": "feat-008",
+      "name": "Milestone 4 人格档案与可信度基础闭环",
+      "description": "实现当前 Milestone 4 已交付范围：后端提供用户隔离的 GET/PATCH /api/personas/{id}/profile、POST /api/personas/{id}/profile/regenerate 和 POST /api/personas/{id}/recalculate-trust；PersonaProfile 从 confirmed/corrected active memories 聚合，保留 source memory IDs，排除 rejected/disabled/deleted memories，并保留用户手动档案覆盖；记忆审计动作会刷新 profile/trust，后续 profile/persona 读取可看到更新后的档案和 personas.trust_score；可信度为 0..100 deterministic/explainable local 指标，使用 PRD 权重 material coverage 25%、memory review rate 25%、source traceability 20%、expression habit completeness 15%、multimodal completeness 15%，trust level 为 0-30 initial、31-60 usable、61-80 trusted、81-100 high_trust；显式重生成/重算会创建 succeeded update_profile 和 calculate_trust_score AI jobs；前端提供 /personas/{id}/profile 页面展示并编辑 trust score、level、components、suggestions、profile dimensions 和 source memory ids，人物工作台链接到该页并显示 trust level/上传建议。该功能不包含真实 provider profile quality、真实 LLM/embedding retrieval quality、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-007"
+      ],
+      "status": "completed",
+      "evidence": "commit 6801bab feat: add profile and trust API; commit 6cc7c21 fix: preserve manual profile edits; commit 24a889d feat: add profile trust frontend; commit a184de0 fix: align profile trust level contract; commit f43e551 test: align trust level contract; backend/app/api/routes/profile.py; backend/app/services/profile.py; backend/app/schemas/profile.py; backend/app/api/routes/memories.py; backend/app/services/persona_prompt.py; backend/tests/test_profile.py; backend/tests/test_memories.py; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/src/lib/profile.ts; frontend/tests/profile.test.mjs; frontend/tests/routes.test.mjs; python -m json.tool docs/feature-list.json; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose config; docs/init.sh"
+    },
+    {
+      "id": "feat-009",
+      "name": "Milestone 5 第一人称文本对话基础闭环",
+      "description": "实现当前 Milestone 5 已交付范围：后端提供用户隔离的 GET/POST /api/personas/{id}/conversations、GET/POST /api/conversations/{id}/messages、GET /api/messages/{id}/citations 和 POST /api/messages/{id}/correct-memory；发送文本消息会保存 user/persona messages、对话历史、mock chat_llm Provider Gateway metadata 和 message_citations；deterministic retrieval 优先 corrected，再用 confirmed，并排除 rejected/disabled/deleted memories；回复使用 TA 第一人称和用户称呼，资料不足时温柔承认不确定，并过滤 AI 助手、语言模型、我真的回来了等禁用表达；correct-memory 只允许纠正当前用户消息引用过的记忆，写入 corrected/user_correction，刷新 profile/trust，并立即影响下一次对话；前端提供 /personas/{id}/chat 文本对话页、依据展示和记忆纠正 UI，人物工作台链接到该页。该功能不包含 voice-message、语音/TTS、音色克隆、3D avatar、故事/导出、真实 LLM 质量或真实 embedding/pgvector 检索质量。",
+      "dependencies": [
+        "feat-008"
+      ],
+      "status": "completed",
+      "evidence": "commit 88b3194 feat: add first-person chat API; commit 01fa440 feat: add text chat frontend; backend/app/api/routes/chat.py; backend/app/services/chat.py; backend/app/schemas/chat.py; backend/app/providers/gateway.py; backend/tests/test_chat.py; backend/tests/test_provider_gateway.py; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/src/lib/chat.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/tests/chat.test.mjs; frontend/tests/routes.test.mjs; python -m json.tool docs/feature-list.json; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose config; docs/init.sh"
+    },
+    {
+      "id": "feat-010",
+      "name": "Milestone 6 Task 1 后端默认 TTS 与语音合成基础闭环",
+      "description": "实现当前 Milestone 6 已交付的后端默认 TTS 与语音合成基础范围：后端提供用户隔离的 GET /api/personas/{id}/voice、POST /api/personas/{id}/voice/default-tts 和 POST /api/personas/{id}/voice/synthesize；默认 TTS 选择写入 selected VoiceModel，状态为 default_tts，并返回 PRD 要求的“当前使用系统默认声音，不是 TA 的真实声音”提示；语音合成通过 mock tts Provider Gateway 生成 deterministic mock audio_url，写入 succeeded synthesize_speech AI Job，并可在任务列表查看。该功能不包含音色样本提取、音色克隆成功/失败兜底、POST /api/conversations/{id}/voice-message、前端录音/播放、3D avatar、故事/导出、真实 TTS 或真实音色质量。",
+      "dependencies": [
+        "feat-009"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/voice.py; backend/app/services/voice.py; backend/app/schemas/voice.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_voice.py; docs/superpowers/plans/2026-07-04-milestone-6-voice-tts.md; python -m pytest backend/tests/test_voice.py -q; python -m pytest backend/tests -q"
+    },
+    {
+      "id": "feat-011",
+      "name": "Milestone 6 Task 2 后端音色样本与克隆兜底基础闭环",
+      "description": "实现当前 Milestone 6 已交付的后端音色样本和 mock 音色克隆范围：POST /api/personas/{id}/voice/samples 可从当前用户拥有的 audio SourceMaterial 创建 sample_ready VoiceModel，并写入 succeeded extract_voice_sample AI Job；POST /api/personas/{id}/voice/clone 通过 mock voice_clone Provider Gateway 发起 clone_voice AI Job，成功时把样本标记为 selected cloned_ready 并返回 mock model_artifact_url，失败时把样本标记为 clone_failed，创建或保留 selected default_tts 兜底并返回默认 TTS 提示。该功能不包含 POST /api/conversations/{id}/voice-message、前端录音/播放、真实 voice clone/TTS 质量、3D avatar、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-010"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/voice.py; backend/app/services/voice.py; backend/app/schemas/voice.py; backend/app/providers/gateway.py; backend/tests/test_voice.py; docs/superpowers/plans/2026-07-04-milestone-6-voice-tts.md; python -m pytest backend/tests/test_voice.py -q; python -m pytest backend/tests -q"
+    },
+    {
+      "id": "feat-012",
+      "name": "Milestone 6 Task 3 后端语音消息 ASR 到 TTS 闭环",
+      "description": "实现当前 Milestone 6 已交付的后端语音消息范围：POST /api/conversations/{id}/voice-message 接受当前用户当前 conversation 下的 audio SourceMaterial，创建 succeeded asr_audio AI Job，通过 mock ASR 得到 transcript，复用既有第一人称文本对话、记忆检索、引用来源和禁用表达过滤，再调用 mock TTS 生成 audio_url 并写入 succeeded synthesize_speech AI Job；persona message 保存 audio_url 和 voice metadata。同步修复 retrieval 在存在 confirmed/corrected 匹配时仍可能被 auto_generated 高重叠记忆超过的问题，确保 confirmed/corrected 优先。该功能不包含前端录音/播放 UI、真实 ASR/TTS/voice clone 质量、3D avatar、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-011"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/chat.py; backend/app/services/chat.py; backend/app/schemas/chat.py; backend/tests/test_chat.py; backend/tests/test_voice.py; python -m pytest backend/tests/test_chat.py backend/tests/test_voice.py -q; python -m pytest backend/tests -q"
+    },
+    {
+      "id": "feat-013",
+      "name": "中文沉浸式前端与免注册一键演示入口",
+      "description": "实现当前中文体验和本地一键演示范围：后端新增 POST /api/auth/demo，每次创建 plan_type=guest_demo 的本地演示用户、虚构人物「外婆」、用户称呼「小铭」、3 条手动资料、已确认记忆、人格档案和可信度，并返回 demo_persona_id；前端新增 startDemoSession helper 和 DemoEntry 组件，首页、登录/注册和 signed-out 状态提供免注册体验入口，进入演示人物工作台；layout、首页、Dashboard、创建人物、人物工作台、资料上传、任务、记忆审计、人格档案和文本对话页面完成中文化和交互重排。该功能仍使用 deterministic mock provider，不包含真实 OCR/ASR/LLM、语音播放、音色克隆、3D 数字人或导出。",
+      "dependencies": [
+        "feat-009"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/auth.py; backend/app/schemas/auth.py; backend/app/main.py; backend/tests/test_auth.py; backend/tests/test_health.py; frontend/src/lib/auth.ts; frontend/src/components/DemoEntry.tsx; frontend/app/page.tsx; frontend/app/login/page.tsx; frontend/app/register/page.tsx; frontend/app/dashboard/page.tsx; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/jobs/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/auth.test.mjs; frontend/tests/routes.test.mjs; frontend/tests/persona.test.mjs; frontend/tests/materials.test.mjs; frontend/tests/memories.test.mjs; frontend/tests/profile.test.mjs; frontend/tests/chat.test.mjs; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose up --build -d; browser smoke homepage/demo/chat/desktop/mobile"
+    },
+    {
+      "id": "feat-014",
+      "name": "Milestone 6 Task 4 前端声音设置与语音播放基础闭环",
+      "description": "实现当前 Milestone 6 前端声音控制基础范围：新增 /personas/{id}/voice 声音设置页，展示当前 voice_status、默认 TTS 原文提示、声音记录、音频资料样本选择、音色样本创建、mock 音色克隆和语音预览播放；人物工作台提供声音设置入口；聊天页提供浏览器录音上传和已上传音频资料两种语音消息入口，调用 POST /api/conversations/{id}/voice-message，并在返回的 persona message 存在 audio_url 时展示浏览器 audio 播放控件。该功能仍使用 deterministic mock provider，不包含真实 ASR/TTS/音色质量、3D 口型同步、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-012"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/lib/voice.ts; frontend/src/lib/chat.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/tests/voice.test.mjs; frontend/tests/chat.test.mjs; frontend/tests/routes.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+    },
+    {
+      "id": "feat-015",
+      "name": "Milestone 7 Task 1 后端 3D 数字人配置、默认形象与 mock 生成闭环",
+      "description": "实现当前 Milestone 7 后端 Avatar 基础范围：新增 GET /api/personas/{id}/avatar、POST /api/personas/{id}/avatar/default 和 POST /api/personas/{id}/avatar/generate；复用 avatar_models 表，初始返回 no_avatar，默认形象创建 selected default_avatar GLB mock 模型，图片资料生成创建 avatar_3d AI Job 并通过 mock avatar_3d Provider Gateway 返回 generated_ready GLB、预览图、表情、基础动作和 audio_envelope 口型配置；生成失败写入 generation_failed 模型和 failed job，并回退 selected default_avatar，同时返回 PRD 失败提示。该功能不包含前端 Three.js/GLB 加载、对话页 3D 展示、真实 3D provider 质量、影视级拟真、全身动作捕捉、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-014"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/schemas/avatar.py; backend/app/services/avatar.py; backend/app/api/routes/avatar.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_avatar.py; python -m pytest backend/tests/test_avatar.py -q; python -m pytest backend/tests -q"
+    }
+  ]
+}
