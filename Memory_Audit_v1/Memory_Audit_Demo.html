@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆审计 — 亲友纪念数字人</title>
+<style>
+  :root {
+    --bg: #f5f3f0;
+    --card: #ffffff;
+    --border: #e5e0d8;
+    --text: #2c2416;
+    --dim: #8b8376;
+    --warm: #d4a574;
+    --warm-light: #faf6f0;
+    --green: #5a9e6f;
+    --green-bg: #edf5ef;
+    --yellow: #d4943a;
+    --yellow-bg: #fdf6ed;
+    --red: #c5554a;
+    --red-bg: #fdf2f1;
+    --blue: #5b8cb8;
+    --blue-bg: #eef4f8;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+
+  /* ── Layout ─────────────────────────────────── */
+  .app-shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; background: #fff; border-right: 1px solid var(--border);
+    padding: 24px 0; flex-shrink: 0;
+  }
+  .sidebar-logo {
+    padding: 0 20px 20px; font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .sidebar-logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warm); }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; font-size: 14px; color: var(--dim); cursor: pointer;
+    transition: all .15s; border-left: 3px solid transparent; margin: 2px 0;
+  }
+  .nav-item:hover { color: var(--text); background: var(--warm-light); }
+  .nav-item.active { color: var(--warm); border-left-color: var(--warm); background: var(--warm-light); font-weight: 600; }
+  .nav-item .badge {
+    margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    font-weight: 600;
+  }
+  .badge.warn { background: var(--yellow-bg); color: var(--yellow); }
+  .badge.danger { background: var(--red-bg); color: var(--red); }
+
+  .main { flex: 1; overflow-y: auto; }
+
+  /* ── Top bar ─────────────────────────────────── */
+  .topbar {
+    background: #fff; border-bottom: 1px solid var(--border);
+    padding: 16px 28px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .topbar h2 { font-size: 18px; font-weight: 600; }
+  .topbar .persona-info { font-size: 13px; color: var(--dim); display: flex; align-items: center; gap: 8px; }
+  .persona-avatar {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--warm-light);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+
+  /* ── Content area ────────────────────────────── */
+  .content { padding: 28px; }
+
+  /* ── Health cards ────────────────────────────── */
+  .health-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+  .health-card {
+    background: var(--card); border-radius: var(--radius); padding: 20px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+  }
+  .health-card .hc-label { font-size: 12px; color: var(--dim); margin-bottom: 6px; }
+  .health-card .hc-value { font-size: 32px; font-weight: 700; }
+  .health-card .hc-desc { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  .health-card.good .hc-value { color: var(--green); }
+  .health-card.warn .hc-value { color: var(--yellow); }
+  .health-card.info .hc-value { color: var(--blue); }
+
+  /* ── Panel ───────────────────────────────────── */
+  .panel {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .panel-header {
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-header h3 { font-size: 16px; font-weight: 600; }
+  .panel-body { padding: 0; }
+
+  /* ── Filters ─────────────────────────────────── */
+  .filter-bar { display: flex; gap: 8px; padding: 14px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .filter-chip {
+    padding: 5px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border); background: #fff; color: var(--dim);
+    transition: all .15s; white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: var(--warm); color: var(--warm); }
+  .filter-chip.active { background: var(--warm); color: #fff; border-color: var(--warm); }
+  .search-input {
+    padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border);
+    font-size: 13px; outline: none; margin-left: auto; width: 200px;
+  }
+  .search-input:focus { border-color: var(--warm); }
+
+  /* ── Memory list ─────────────────────────────── */
+  .memory-row {
+    display: flex; align-items: flex-start; gap: 16px;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background .1s;
+  }
+  .memory-row:last-child { border-bottom: none; }
+  .memory-row:hover { background: var(--warm-light); }
+  .memory-row.expanded { background: var(--warm-light); }
+  .memory-index { font-size: 12px; color: var(--dim); min-width: 28px; padding-top: 2px; }
+  .memory-main { flex: 1; min-width: 0; }
+  .memory-content { font-size: 15px; line-height: 1.6; margin-bottom: 6px; }
+  .memory-meta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--dim); }
+  .meta-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  }
+  .tag-confirmed { background: var(--green-bg); color: var(--green); }
+  .tag-pending { background: var(--yellow-bg); color: var(--yellow); }
+  .tag-corrected { background: var(--blue-bg); color: var(--blue); }
+  .tag-rejected { background: var(--red-bg); color: var(--red); }
+  .memory-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-sm {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    border: 1px solid var(--border); background: #fff; color: var(--text);
+    transition: all .15s; white-space: nowrap;
+  }
+  .btn-sm:hover { border-color: var(--warm); }
+  .btn-sm.primary { background: var(--warm); color: #fff; border-color: var(--warm); }
+  .btn-sm.primary:hover { opacity: 0.9; }
+
+  /* ── Expanded trace view ─────────────────────── */
+  .trace-panel {
+    display: none; border-top: 1px solid var(--border);
+    background: #fdfcf9; padding: 20px 24px;
+  }
+  .memory-row.expanded + .trace-panel { display: block; }
+  .trace-chain {
+    display: flex; align-items: center; gap: 0; padding: 8px 0;
+    overflow-x: auto;
+  }
+  .trace-node {
+    background: #fff; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; min-width: 200px; max-width: 260px; flex-shrink: 0;
+    font-size: 13px;
+  }
+  .trace-node .tn-label { font-size: 11px; color: var(--dim); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .trace-node .tn-content { font-size: 14px; line-height: 1.5; }
+  .trace-arrow {
+    font-size: 20px; color: var(--warm); flex-shrink: 0;
+    padding: 0 6px; font-weight: 700;
+  }
+  .trace-node.source { border-left: 3px solid var(--blue); }
+  .trace-node.memory-card { border-left: 3px solid var(--warm); }
+  .trace-node.reply { border-left: 3px solid var(--green); }
+  .trace-node .tn-highlight { background: #fef9e7; padding: 2px 4px; border-radius: 3px; }
+
+  /* ── Change history list ─────────────────────── */
+  .change-list { margin-top: 16px; }
+  .change-list h4 { font-size: 13px; color: var(--dim); margin-bottom: 10px; }
+  .change-item {
+    display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px; align-items: flex-start;
+  }
+  .change-item:last-child { border-bottom: none; }
+  .change-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+  }
+  .change-dot.created { background: var(--green); }
+  .change-dot.edited { background: var(--yellow); }
+  .change-dot.used { background: var(--blue); }
+  .change-detail { flex: 1; }
+  .change-time { color: var(--dim); font-size: 11px; }
+  .change-desc { margin-top: 2px; }
+  .change-diff { font-size: 12px; color: var(--dim); margin-top: 4px; }
+  .change-diff .old { color: var(--red); text-decoration: line-through; }
+  .change-diff .new { color: var(--green); }
+
+  /* ── Conflict cards ──────────────────────────── */
+  .conflict-card {
+    border: 1px solid var(--border); border-radius: 10px;
+    margin: 12px 24px; overflow: hidden;
+  }
+  .conflict-header {
+    padding: 14px 18px; background: var(--yellow-bg);
+    display: flex; align-items: center; gap: 10px; font-size: 14px;
+  }
+  .conflict-header .conflict-badge {
+    background: var(--yellow); color: #fff; padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 700;
+  }
+  .conflict-body { padding: 18px; display: flex; gap: 24px; }
+  .conflict-side { flex: 1; }
+  .conflict-side h4 { font-size: 13px; color: var(--dim); margin-bottom: 8px; }
+  .conflict-memory {
+    background: #fff; border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px; font-size: 14px; line-height: 1.6;
+  }
+  .conflict-actions {
+    padding: 14px 18px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  /* ── Snapshot timeline ───────────────────────── */
+  .snapshot-tl { padding: 0 24px; }
+  .snapshot-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+  .snapshot-row:last-child { border-bottom: none; }
+  .snapshot-dot {
+    width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; flex-shrink: 0;
+  }
+  .snapshot-dot.manual { background: var(--blue-bg); }
+  .snapshot-dot.auto { background: var(--warm-light); }
+  .snapshot-dot.safety { background: var(--yellow-bg); }
+  .snapshot-info { flex: 1; }
+  .snapshot-label { font-weight: 600; }
+  .snapshot-meta { font-size: 12px; color: var(--dim); }
+
+  /* ── Compare mode ────────────────────────────── */
+  .compare-container { display: none; padding: 20px 24px; border-top: 1px solid var(--border); }
+  .compare-container.show { display: block; }
+  .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .compare-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 18px;
+    background: #fdfcf9;
+  }
+  .compare-card h4 { font-size: 14px; margin-bottom: 12px; }
+  .compare-field {
+    display: flex; justify-content: space-between; padding: 7px 0;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .compare-field .cf-label { color: var(--dim); }
+  .compare-field.changed { background: #fef9e7; margin: 0 -8px; padding: 7px 8px; border-radius: 4px; }
+  .compare-field .cf-delta { font-weight: 600; }
+
+  /* ── Rollback modal ──────────────────────────── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff; border-radius: var(--radius); padding: 28px;
+    max-width: 440px; width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  }
+  .modal h3 { font-size: 18px; margin-bottom: 8px; }
+  .modal p { font-size: 14px; color: var(--dim); margin-bottom: 20px; }
+  .modal .warning-box {
+    background: var(--yellow-bg); border-radius: 8px; padding: 14px;
+    font-size: 13px; margin-bottom: 20px;
+  }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  .btn {
+    padding: 9px 22px; border-radius: 8px; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border); background: #fff; color: var(--text);
+    transition: all .15s; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--warm); }
+  .btn.primary { background: var(--warm); color: #fff; border-color: var(--warm); }
+  .btn.primary:hover { opacity: 0.9; }
+  .btn.danger { background: var(--red); color: #fff; border-color: var(--red); }
+  .btn.danger:hover { opacity: 0.9; }
+
+  /* ── Toast ───────────────────────────────────── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 200;
+    background: #2c2416; color: #fff; padding: 12px 20px; border-radius: 8px;
+    font-size: 14px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .toast.show { display: block; animation: fadeInUp .3s; }
+  @keyframes fadeInUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+  /* ── Responsive ──────────────────────────────── */
+  @media (max-width: 900px) {
+    .sidebar { width: 60px; }
+    .sidebar .nav-item span { display: none; }
+    .sidebar .nav-item .badge { display: none; }
+    .sidebar-logo { font-size: 0; justify-content: center; padding: 20px 0; }
+    .health-cards { grid-template-columns: 1fr 1fr; }
+    .conflict-body { flex-direction: column; }
+  }
+  @media (max-width: 600px) {
+    .health-cards { grid-template-columns: 1fr; }
+    .trace-chain { flex-direction: column; align-items: flex-start; }
+    .trace-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <!-- ── Sidebar ─────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo"><span class="dot"></span> 记忆审计</div>
+    <nav>
+      <div class="nav-item active" data-panel="review">
+        📋 <span>记忆审查台</span>
+      </div>
+      <div class="nav-item" data-panel="conflicts">
+        ⚠️ <span>冲突中心</span>
+        <span class="badge warn">2</span>
+      </div>
+      <div class="nav-item" data-panel="snapshots">
+        🕐 <span>版本管理</span>
+      </div>
+      <div class="nav-item" data-panel="trace-search">
+        🔍 <span>追溯查询</span>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────── -->
+  <main class="main">
+    <div class="topbar">
+      <h2 id="panel-title">记忆审查台</h2>
+      <div class="persona-info">
+        <div class="persona-avatar">👵</div>
+        <span>外婆的数字人 · 最后更新: 2026-07-04 14:30</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <!-- ── Health Cards ──────────────────────── -->
+      <div class="health-cards">
+        <div class="health-card good">
+          <div class="hc-label">记忆健康度</div>
+          <div class="hc-value">82<span style="font-size:16px;font-weight:400;">/100</span></div>
+          <div class="hc-desc">良好 · 大部分记忆有据可查</div>
+        </div>
+        <div class="health-card info">
+          <div class="hc-label">活跃记忆</div>
+          <div class="hc-value">42</div>
+          <div class="hc-desc">31 已确认 · 8 待审核 · 3 未通过</div>
+        </div>
+        <div class="health-card warn">
+          <div class="hc-label">待处理</div>
+          <div class="hc-value">3</div>
+          <div class="hc-desc">2 冲突 · 1 漂移告警</div>
+        </div>
+        <div class="health-card info">
+          <div class="hc-label">来源覆盖率</div>
+          <div class="hc-value">85<span style="font-size:16px;font-weight:400;">%</span></div>
+          <div class="hc-desc">36/42 条记忆可追溯原始对话</div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- PANEL: 记忆审查台 (default)             -->
+      <!-- ═══════════════════════════════════════ -->
+      <div class="panel" id="panel-review">
+        <div class="panel-header">
+          <h3>全部记忆</h3>
+          <span style="font-size:13px;color:var(--dim);">共 42 条</span>
+        </div>
+        <div class="filter-bar">
+          <span style="font-size:12px;color:var(--dim);line-height:30px;">状态:</span>
+          <span class="filter-chip active" data-filter="all">全部</span>
+          <span class="filter-chip" data-filter="confirmed">已确认</span>
+          <span class="filter-chip" data-filter="pending">待审核</span>
+          <span class="filter-chip" data-filter="corrected">已修正</span>
+          <span class="filter-chip" data-filter="rejected">未通过</span>
+          <span style="font-size:12px;color:var(--dim);line-height:30px;margin-left:12px;">类别:</span>
+          <span class="filter-chip" data-filter="category-all">全部</span>
+          <span class="filter-chip" data-filter="preference">喜好</span>
+          <span class="filter-chip" data-filter="habit">习惯</span>
+          <span class="filter-chip" data-filter="relationship">关系</span>
+          <span class="filter-chip" data-filter="memory">回忆</span>
+          <input class="search-input" type="text" placeholder="搜索记忆内容..." oninput="filterMemories()" id="memory-search">
+        </div>
+        <div class="panel-body" id="memory-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- PANEL: 冲突中心                        -->
+      <!-- ═══════════════════════════════════════ -->
+      <div class="panel" id="panel-conflicts" style="display:none;">
+        <div class="panel-header">
+          <h3>冲突中心</h3>
+          <span style="font-size:13px;color:var(--yellow);">2 个待解决</span>
+        </div>
+        <div class="panel-body" id="conflicts-container">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- PANEL: 版本管理                        -->
+      <!-- ═══════════════════════════════════════ -->
+      <div class="panel" id="panel-snapshots" style="display:none;">
+        <div class="panel-header">
+          <h3>历史版本</h3>
+          <button class="btn-sm primary" onclick="createSnapshot()">+ 创建新快照</button>
+        </div>
+        <div class="snapshot-tl" id="snapshot-list">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════ -->
+      <!-- PANEL: 追溯查询                        -->
+      <!-- ═══════════════════════════════════════ -->
+      <div class="panel" id="panel-trace-search" style="display:none;">
+        <div class="panel-header">
+          <h3>追溯查询</h3>
+          <span style="font-size:13px;color:var(--dim);">输入记忆内容或 ID 查看完整来源链</span>
+        </div>
+        <div style="padding:20px 24px;">
+          <div style="display:flex;gap:8px;margin-bottom:20px;">
+            <input type="text" placeholder="输入记忆关键词或 ID，如'馄饨' 或 M042" style="flex:1;padding:8px 16px;border-radius:8px;border:1px solid var(--border);font-size:14px;outline:none;" id="trace-search-input" onkeydown="if(event.key==='Enter')doTraceSearch()">
+            <button class="btn primary" onclick="doTraceSearch()">追溯</button>
+          </div>
+          <div id="trace-result" style="display:none;">
+            <!-- Rendered by JS -->
+          </div>
+          <div id="trace-placeholder" style="text-align:center;padding:40px;color:var(--dim);">
+            <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+            <div>输入关键词查找记忆，查看它的完整来源链</div>
+            <div style="font-size:13px;margin-top:4px;">你可以追溯到原始聊天记录中的每一句话</div>
+          </div>
+        </div>
+      </div>
+    </div><!-- /content -->
+  </main>
+</div>
+
+<!-- ── Rollback Modal ────────────────────────── -->
+<div class="modal-overlay" id="rollback-modal">
+  <div class="modal">
+    <h3>确认回滚</h3>
+    <p id="rollback-target-label">将记忆库恢复到快照 "V3" 的状态</p>
+    <div class="warning-box">
+      ⚠️ 回滚后，当前 42 条记忆将恢复到快照时的 38 条。<br>
+      系统会在回滚前自动创建一个安全快照，你可以随时恢复。
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeRollbackModal()">取消</button>
+      <button class="btn danger" onclick="confirmRollback()">确认回滚</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════
+
+const memories = [
+  { id:'M042', content:'外婆喜欢包馄饨给小铭吃。', status:'confirmed', category:'preference', confidence:90, source:'微信聊天记录 · 2024-03-15', sourceQuote:'"小铭，外婆今天包了你最爱吃的馄饨，放学早点回来。"', lastUsed:'2026-07-04 14:32', changeHistory:[
+    {time:'2026-07-04 14:32', type:'used', desc:'在对话中被 AI 引用', detail:'用户问"你以前喜欢做什么给我吃？"→ AI 回复中引用此记忆'},
+    {time:'2026-07-03 10:00', type:'edited', desc:'用户在对话中修正内容', detail:'', diffOld:'外婆喜欢包饺子给小铭吃。', diffNew:'外婆喜欢包馄饨给小铭吃。'},
+    {time:'2026-07-01 09:15', type:'used', desc:'在故事《外婆的厨房》中被引用', detail:''},
+    {time:'2026-06-28 16:20', type:'edited', desc:'用户确认记忆', detail:'从"待审核"变为"已确认"'},
+    {time:'2026-06-28 14:00', type:'created', desc:'从微信聊天记录自动提取', detail:'源文件: 与小铭的聊天记录.txt · 第 42-45 行'},
+  ], repliesUsed:[
+    {reply:'"小铭，我记得，外婆喜欢包馄饨给你吃。"', time:'2026-07-04 14:32', conversation:'日常聊天'},
+    {reply:'"你外婆包的馄饨，馅里要放一点虾皮，这是她的秘方。"', time:'2026-07-01 09:15', conversation:'故事生成 — 外婆的厨房'},
+  ]},
+  { id:'M041', content:'外婆每天清晨五点起来做早饭。', status:'confirmed', category:'habit', confidence:85, source:'语音转文字 · 2024-02-08', sourceQuote:'"你外婆啊，每天早上五点就起来了，厨房里叮叮当当的，我们都说她是活闹钟。"', lastUsed:'2026-07-03 18:00', changeHistory:[
+    {time:'2026-07-03 18:00', type:'used', desc:'在对话中被 AI 引用', detail:''},
+    {time:'2026-06-25 11:30', type:'edited', desc:'用户确认记忆', detail:''},
+    {time:'2026-06-20 08:00', type:'created', desc:'从语音转录提取', detail:'源文件: 妈妈的口述回忆.m4a'},
+  ], repliesUsed:[]},
+  { id:'M040', content:'外婆最拿手的菜是红烧肉和小黄鱼。', status:'confirmed', category:'preference', confidence:88, source:'微信聊天记录 · 2024-01-20', sourceQuote:'"今天外婆做了红烧肉和小黄鱼，小铭吃了两碗饭！"', lastUsed:'2026-07-02 20:15', changeHistory:[
+    {time:'2026-07-02 20:15', type:'used', desc:'在对话中被 AI 引用', detail:''},
+    {time:'2026-06-15 14:00', type:'created', desc:'从微信聊天记录自动提取', detail:''},
+  ], repliesUsed:[]},
+  { id:'M039', content:'外婆最喜欢的颜色是藏蓝色。', status:'pending', category:'preference', confidence:55, source:'语音转文字 · 2024-03-01', sourceQuote:'"妈说她年轻时候最喜欢藏蓝色的旗袍。"', lastUsed:'—', changeHistory:[
+    {time:'2026-07-04 08:00', type:'created', desc:'从语音转录自动提取', detail:'待用户确认'},
+  ], repliesUsed:[]},
+  { id:'M038', content:'外婆不喜欢吃馄饨。', status:'pending', category:'preference', confidence:50, source:'语音转文字 · 2024-05-10', sourceQuote:'"其实外婆自己不太喜欢吃馄饨，但她看小铭喜欢就老包。"', lastUsed:'—', changeHistory:[
+    {time:'2026-07-04 14:12', type:'created', desc:'从语音转录自动提取', detail:'⚠ 与 M042 内容矛盾，已标记冲突'},
+  ], repliesUsed:[]},
+  { id:'M037', content:'外婆说做人要像树一样，根要深，叶要茂。', status:'confirmed', category:'memory', confidence:92, source:'微信聊天记录 · 2023-11-05', sourceQuote:'"外婆拉着我的手说，做人要像树一样，根要深，叶要茂。"', lastUsed:'2026-07-01 14:00', changeHistory:[
+    {time:'2026-07-01 14:00', type:'used', desc:'在故事《外婆的智慧》中被引用', detail:''},
+    {time:'2026-06-10 09:00', type:'edited', desc:'用户确认记忆', detail:''},
+    {time:'2026-06-08 16:00', type:'created', desc:'从微信聊天记录自动提取', detail:''},
+  ], repliesUsed:[]},
+  { id:'M036', content:'外婆的手一到冬天就裂口子。', status:'rejected', category:'memory', confidence:20, source:'语音转文字 · 2024-04-01', sourceQuote:'不清晰，疑为误识别', lastUsed:'—', changeHistory:[
+    {time:'2026-07-02 09:00', type:'edited', desc:'用户驳回记忆', detail:'理由: 语音识别错误，实际说的是"外婆的手一到冬天就抹护手霜"'},
+    {time:'2026-07-01 08:00', type:'created', desc:'从语音转录自动提取', detail:''},
+  ], repliesUsed:[]},
+];
+
+// Add IDs for M001-M035 (simplified, not shown in list)
+for (let i = 35; i >= 1; i--) {
+  // We won't render them but they exist for count
+}
+
+const conflicts = [
+  {
+    id:'C012', type:'factual_contradiction', status:'open',
+    memoryA: memories[0], // M042 喜欢馄饨
+    memoryB: memories[4], // M038 不喜欢馄饨
+    description:'两条记忆对"外婆是否喜欢馄饨"存在矛盾陈述。M042 说喜欢，M038 说不喜欢。',
+  },
+];
+
+const snapshots = [
+  { id:'S004', label:'自动快照 #4', type:'auto', time:'2026-07-04 10:30', memoryCount:42, trustScore:72, confirmedCount:31 },
+  { id:'S003', label:'手动快照 — 妈妈审核完毕', type:'manual', time:'2026-07-01 10:00', memoryCount:38, trustScore:68, confirmedCount:28 },
+  { id:'S002', label:'自动快照 #2', type:'auto', time:'2026-06-25 00:00', memoryCount:35, trustScore:63, confirmedCount:25 },
+  { id:'S001-safe', label:'安全快照 — 回滚前自动保存', type:'safety', time:'2026-06-20 15:30', memoryCount:30, trustScore:55, confirmedCount:20 },
+  { id:'S001', label:'初始快照', type:'manual', time:'2026-06-15 09:00', memoryCount:28, trustScore:52, confirmedCount:18 },
+];
+
+// ═══════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════
+
+function renderMemories(filter = 'all', category = 'category-all', search = '') {
+  const container = document.getElementById('memory-list');
+  let filtered = memories;
+
+  if (filter !== 'all') {
+    filtered = filtered.filter(m => m.status === filter);
+  }
+  if (category !== 'category-all') {
+    filtered = filtered.filter(m => m.category === category);
+  }
+  if (search) {
+    const s = search.toLowerCase();
+    filtered = filtered.filter(m => m.content.includes(s) || m.id.toLowerCase().includes(s) || m.source.includes(s));
+  }
+
+  container.innerHTML = filtered.map((m, i) => `
+    <div class="memory-row" id="mem-${m.id}" onclick="toggleMemoryExpand('${m.id}')">
+      <div class="memory-index">${i + 1}</div>
+      <div class="memory-main">
+        <div class="memory-content">${highlightText(m.content, search)}</div>
+        <div class="memory-meta">
+          <span class="meta-tag tag-${m.status}">${{confirmed:'✓ 已确认',pending:'⏳ 待审核',corrected:'✎ 已修正',rejected:'✗ 未通过'}[m.status]}</span>
+          <span>置信度 ${m.confidence}%</span>
+          <span>${m.category === 'preference' ? '喜好' : m.category === 'habit' ? '习惯' : m.category === 'relationship' ? '关系' : '回忆'}</span>
+          <span>最近使用: ${m.lastUsed}</span>
+        </div>
+      </div>
+      <div class="memory-actions" onclick="event.stopPropagation()">
+        <button class="btn-sm" onclick="quickTrace('${m.id}')">追溯</button>
+        ${m.status === 'pending' ? `<button class="btn-sm primary" onclick="quickConfirm('${m.id}')">确认</button>` : ''}
+      </div>
+    </div>
+    <div class="trace-panel" id="trace-${m.id}">
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:14px;margin-bottom:4px;">📎 来源材料</h4>
+        <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:14px;">
+          <div style="font-size:12px;color:var(--dim);margin-bottom:4px;">${m.source}</div>
+          <div style="line-height:1.7;">"${m.sourceQuote}"</div>
+        </div>
+      </div>
+
+      <!-- Trace chain -->
+      <div style="margin-bottom:16px;">
+        <h4 style="font-size:14px;margin-bottom:10px;">🔗 完整追溯链</h4>
+        <div class="trace-chain">
+          <div class="trace-node source">
+            <div class="tn-label">📁 源材料</div>
+            <div class="tn-content">${m.source.split('·')[0].trim()}<br><span style="font-size:12px;color:var(--dim);">${m.source.split('·')[1] ? m.source.split('·')[1].trim() : ''}</span></div>
+          </div>
+          <div class="trace-arrow">→</div>
+          <div class="trace-node memory-card">
+            <div class="tn-label">📋 记忆卡片 ${m.id}</div>
+            <div class="tn-content"><span class="tn-highlight">"${m.content}"</span><br><span style="font-size:12px;color:var(--dim);">置信度 ${m.confidence}% · ${m.status === 'confirmed' ? '已确认' : '待审核'}</span></div>
+          </div>
+          ${m.repliesUsed.length > 0 ? `
+          <div class="trace-arrow">→</div>
+          <div class="trace-node reply">
+            <div class="tn-label">💬 AI 使用了此记忆</div>
+            <div class="tn-content">
+              ${m.repliesUsed.map(r => `<div style="margin-bottom:6px;">"${r.reply}"<br><span style="font-size:11px;color:var(--dim);">${r.time} · ${r.conversation}</span></div>`).join('')}
+            </div>
+          </div>
+          ` : `
+          <div class="trace-arrow">→</div>
+          <div class="trace-node" style="border-left:3px solid var(--dim);">
+            <div class="tn-label">💤 暂未被 AI 使用</div>
+            <div class="tn-content" style="color:var(--dim);">此记忆尚未在任何对话或故事中被引用</div>
+          </div>
+          `}
+        </div>
+      </div>
+
+      <!-- Change history -->
+      <div class="change-list">
+        <h4>📝 变更记录</h4>
+        ${m.changeHistory.map(ch => `
+          <div class="change-item">
+            <div class="change-dot ${ch.type}"></div>
+            <div class="change-detail">
+              <div class="change-time">${ch.time}</div>
+              <div class="change-desc">${ch.desc}</div>
+              ${ch.detail ? `<div style="font-size:12px;color:var(--dim);">${ch.detail}</div>` : ''}
+              ${ch.diffOld ? `<div class="change-diff"><span class="old">${ch.diffOld}</span> → <span class="new">${ch.diffNew}</span></div>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="text-align:center;padding:60px;color:var(--dim);">没有匹配的记忆</div>`;
+  }
+}
+
+function highlightText(text, search) {
+  if (!search) return text;
+  const regex = new RegExp(`(${search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return text.replace(regex, '<mark style="background:#fef08a;padding:0 2px;border-radius:2px;">$1</mark>');
+}
+
+function toggleMemoryExpand(id) {
+  const row = document.getElementById('mem-' + id);
+  const trace = document.getElementById('trace-' + id);
+  const isExpanded = row.classList.contains('expanded');
+
+  // Close all expanded
+  document.querySelectorAll('.memory-row.expanded').forEach(r => r.classList.remove('expanded'));
+
+  if (!isExpanded) {
+    row.classList.add('expanded');
+    trace.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function quickTrace(id) {
+  toggleMemoryExpand(id);
+}
+
+function quickConfirm(id) {
+  const mem = memories.find(m => m.id === id);
+  if (mem) {
+    mem.status = 'confirmed';
+    mem.confidence = Math.min(mem.confidence + 20, 100);
+    mem.lastUsed = '—';
+    mem.changeHistory.unshift({
+      time: new Date().toISOString().replace('T',' ').substring(0,19),
+      type: 'edited', desc: '用户确认记忆', detail: '从"待审核"变为"已确认"',
+    });
+    renderMemories(currentFilter, currentCategory, document.getElementById('memory-search')?.value || '');
+    showToast('✓ 记忆 ' + id + ' 已确认');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// CONFLICTS
+// ═══════════════════════════════════════════════
+
+function renderConflicts() {
+  const container = document.getElementById('conflicts-container');
+  container.innerHTML = conflicts.map(c => `
+    <div class="conflict-card" id="conflict-${c.id}">
+      <div class="conflict-header">
+        <span class="conflict-badge">冲突</span>
+        <span>${c.id} · 事实矛盾</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--dim);">检测时间: 2026-07-04 14:15</span>
+      </div>
+      <div style="padding:14px 18px;font-size:13px;color:var(--dim);">
+        ${c.description}
+      </div>
+      <div class="conflict-body">
+        <div class="conflict-side">
+          <h4>记忆 A — ${c.memoryA.id} <span class="meta-tag tag-${c.memoryA.status}">${{confirmed:'已确认',pending:'待审核'}[c.memoryA.status]}</span></h4>
+          <div class="conflict-memory">
+            <div style="margin-bottom:8px;">${c.memoryA.content}</div>
+            <div style="font-size:12px;color:var(--dim);">来源: ${c.memoryA.source}</div>
+            <div style="font-size:12px;color:var(--dim);">原文: "${c.memoryA.sourceQuote}"</div>
+            <div style="font-size:12px;color:var(--dim);">置信度: ${c.memoryA.confidence}%</div>
+          </div>
+        </div>
+        <div class="conflict-side">
+          <h4>记忆 B — ${c.memoryB.id} <span class="meta-tag tag-${c.memoryB.status}">${{pending:'待审核'}[c.memoryB.status]}</span></h4>
+          <div class="conflict-memory">
+            <div style="margin-bottom:8px;">${c.memoryB.content}</div>
+            <div style="font-size:12px;color:var(--dim);">来源: ${c.memoryB.source}</div>
+            <div style="font-size:12px;color:var(--dim);">原文: "${c.memoryB.sourceQuote}"</div>
+            <div style="font-size:12px;color:var(--dim);">置信度: ${c.memoryB.confidence}%</div>
+          </div>
+        </div>
+      </div>
+      <div class="conflict-actions">
+        <span style="font-size:13px;color:var(--dim);">处理方式:</span>
+        <button class="btn-sm primary" onclick="resolveConflict('${c.id}', 'a')">以记忆 A 为准</button>
+        <button class="btn-sm" onclick="resolveConflict('${c.id}', 'b')">以记忆 B 为准</button>
+        <button class="btn-sm" onclick="resolveConflict('${c.id}', 'dismiss')">暂不处理</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function resolveConflict(conflictId, choice) {
+  const card = document.getElementById('conflict-' + conflictId);
+  if (choice === 'a') {
+    // Accept A, disable B
+    const memB = conflicts[0].memoryB;
+    memB.status = 'rejected';
+    memB.changeHistory.unshift({
+      time: new Date().toISOString().replace('T',' ').substring(0,19),
+      type: 'edited', desc: '因冲突解决被驳回 — 以 M042 为准', detail: '',
+    });
+    card.style.opacity = '0.5';
+    card.querySelector('.conflict-actions').innerHTML = '<span style="color:var(--green);font-size:14px;">✓ 已解决 — 以记忆 A (M042) 为准，记忆 B (M038) 已驳回</span>';
+    showToast('✓ 冲突已解决 · 以记忆 A 为准');
+  } else if (choice === 'b') {
+    const memA = conflicts[0].memoryA;
+    memA.status = 'corrected';
+    memA.content = '外婆虽然自己不太喜欢吃馄饨，但喜欢包给小铭吃。';
+    memA.changeHistory.unshift({
+      time: new Date().toISOString().replace('T',' ').substring(0,19),
+      type: 'edited', desc: '因冲突解决被修正 — 合并了 B 的信息', detail: '',
+    });
+    card.style.opacity = '0.5';
+    card.querySelector('.conflict-actions').innerHTML = '<span style="color:var(--green);font-size:14px;">✓ 已解决 — 记忆 A 已修正为合并版本</span>';
+    showToast('✓ 冲突已解决 · 记忆 A 已修正');
+  } else {
+    card.style.opacity = '0.5';
+    card.querySelector('.conflict-actions').innerHTML = '<span style="color:var(--dim);font-size:14px;">已暂缓 · 可稍后处理</span>';
+    showToast('冲突已标记为暂缓');
+  }
+  document.querySelector('#panel-conflicts .panel-header span:last-child').textContent = '0 个待解决';
+  document.querySelector('.nav-item[data-panel="conflicts"] .badge').textContent = '0';
+}
+
+// ═══════════════════════════════════════════════
+// SNAPSHOTS
+// ═══════════════════════════════════════════════
+
+function renderSnapshots() {
+  const container = document.getElementById('snapshot-list');
+  container.innerHTML = snapshots.map((s, i) => `
+    <div class="snapshot-row">
+      <div class="snapshot-dot ${s.type}">${{manual:'📸',auto:'🕐',safety:'🛡️'}[s.type]}</div>
+      <div class="snapshot-info">
+        <div class="snapshot-label">${s.label}</div>
+        <div class="snapshot-meta">${s.time} · ${s.memoryCount} 条记忆 · 信任分 ${s.trustScore} · ${s.confirmedCount} 条已确认</div>
+      </div>
+      ${i < snapshots.length - 1 ? `<button class="btn-sm" onclick="compareSnapshots('${s.id}', '${snapshots[i+1].id}')">对比上一版本</button>` : ''}
+      ${s.type !== 'safety' ? `<button class="btn-sm" onclick="openRollbackModal('${s.id}', '${s.label}')" style="color:var(--red);">回滚到此</button>` : ''}
+    </div>
+    <div class="compare-container" id="compare-${s.id}"></div>
+  `).join('');
+}
+
+function compareSnapshots(idA, idB) {
+  const container = document.getElementById('compare-' + idA);
+  const sA = snapshots.find(s => s.id === idA);
+  const sB = snapshots.find(s => s.id === idB);
+
+  if (container.classList.contains('show')) {
+    container.classList.remove('show');
+    return;
+  }
+
+  const memDelta = sB.memoryCount - sA.memoryCount;
+  const trustDelta = sB.trustScore - sA.trustScore;
+  const confDelta = sB.confirmedCount - sA.confirmedCount;
+
+  container.innerHTML = `
+    <div class="compare-grid">
+      <div class="compare-card">
+        <h4>📸 ${sA.label}</h4>
+        <div class="compare-field"><span class="cf-label">时间</span><span>${sA.time}</span></div>
+        <div class="compare-field"><span class="cf-label">记忆数</span><span>${sA.memoryCount}</span></div>
+        <div class="compare-field"><span class="cf-label">信任分</span><span>${sA.trustScore}</span></div>
+        <div class="compare-field"><span class="cf-label">已确认</span><span>${sA.confirmedCount}</span></div>
+      </div>
+      <div class="compare-card">
+        <h4>📸 ${sB.label}</h4>
+        <div class="compare-field"><span class="cf-label">时间</span><span>${sB.time}</span></div>
+        <div class="compare-field changed"><span class="cf-label">记忆数</span><span>${sB.memoryCount} <span class="cf-delta" style="color:${memDelta>0?'var(--green)':'var(--red)'};">${memDelta>=0?'+':''}${memDelta}</span></span></div>
+        <div class="compare-field changed"><span class="cf-label">信任分</span><span>${sB.trustScore} <span class="cf-delta" style="color:${trustDelta>0?'var(--green)':'var(--red)'};">${trustDelta>=0?'+':''}${trustDelta}</span></span></div>
+        <div class="compare-field changed"><span class="cf-label">已确认</span><span>${sB.confirmedCount} <span class="cf-delta" style="color:${confDelta>0?'var(--green)':'var(--red)'};">${confDelta>=0?'+':''}${confDelta}</span></span></div>
+      </div>
+    </div>
+  `;
+  container.classList.add('show');
+  container.scrollIntoView({ behavior: 'smooth' });
+}
+
+function createSnapshot() {
+  const now = new Date().toISOString().replace('T',' ').substring(0,19);
+  snapshots.unshift({
+    id: 'S' + String(snapshots.length + 1).padStart(3,'0'),
+    label: '手动快照 — ' + now,
+    type: 'manual',
+    time: now,
+    memoryCount: 42,
+    trustScore: 82,
+    confirmedCount: 32,
+  });
+  renderSnapshots();
+  showToast('✓ 新快照已创建 · 当前 42 条记忆已存档');
+}
+
+function openRollbackModal(id, label) {
+  document.getElementById('rollback-target-label').textContent = `将记忆库恢复到快照 "${label}" 的状态`;
+  document.getElementById('rollback-modal').classList.add('show');
+  document.getElementById('rollback-modal').dataset.snapshotId = id;
+}
+
+function closeRollbackModal() {
+  document.getElementById('rollback-modal').classList.remove('show');
+}
+
+function confirmRollback() {
+  const id = document.getElementById('rollback-modal').dataset.snapshotId;
+  const s = snapshots.find(s => s.id === id);
+  // Create safety snapshot first
+  snapshots.unshift({
+    id: 'S' + String(snapshots.length + 1).padStart(3,'0') + '-safe',
+    label: '安全快照 — 回滚前自动保存',
+    type: 'safety',
+    time: new Date().toISOString().replace('T',' ').substring(0,19),
+    memoryCount: 42,
+    trustScore: 82,
+    confirmedCount: 31,
+  });
+  closeRollbackModal();
+  renderSnapshots();
+  showToast('✓ 已回滚到 ' + s.label + ' · 回滚前已自动创建安全快照');
+}
+
+// ═══════════════════════════════════════════════
+// TRACE SEARCH
+// ═══════════════════════════════════════════════
+
+function doTraceSearch() {
+  const query = document.getElementById('trace-search-input').value.trim();
+  if (!query) return;
+
+  const result = document.getElementById('trace-result');
+  const placeholder = document.getElementById('trace-placeholder');
+
+  // Find matching memory
+  let mem = memories.find(m => m.id.toLowerCase() === query.toLowerCase());
+  if (!mem) {
+    mem = memories.find(m => m.content.includes(query));
+  }
+
+  if (!mem) {
+    placeholder.style.display = 'block';
+    result.style.display = 'none';
+    showToast('未找到匹配的记忆，请尝试其他关键词');
+    return;
+  }
+
+  placeholder.style.display = 'none';
+  result.style.display = 'block';
+
+  result.innerHTML = `
+    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:16px;">
+      <div style="font-size:12px;color:var(--dim);margin-bottom:4px;">📋 记忆卡片 ${mem.id}</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">"${mem.content}"</div>
+      <div class="memory-meta">
+        <span class="meta-tag tag-${mem.status}">${{confirmed:'✓ 已确认',pending:'⏳ 待审核',corrected:'✎ 已修正',rejected:'✗ 未通过'}[mem.status]}</span>
+        <span>置信度 ${mem.confidence}%</span>
+        <span>最近使用: ${mem.lastUsed}</span>
+      </div>
+    </div>
+
+    <h4 style="font-size:14px;margin-bottom:12px;">🔗 完整追溯链</h4>
+    <div class="trace-chain" style="margin-bottom:20px;">
+      <div class="trace-node source">
+        <div class="tn-label">📁 源材料</div>
+        <div class="tn-content">${mem.source}</div>
+      </div>
+      <div class="trace-arrow">→</div>
+      <div class="trace-node memory-card">
+        <div class="tn-label">📋 记忆卡片 ${mem.id}</div>
+        <div class="tn-content"><span class="tn-highlight">"${mem.content}"</span></div>
+      </div>
+      <div class="trace-arrow">→</div>
+      ${mem.repliesUsed.length > 0 ? `
+      <div class="trace-node reply">
+        <div class="tn-label">💬 被 AI 引用 ${mem.repliesUsed.length} 次</div>
+        <div class="tn-content">
+          ${mem.repliesUsed.map(r => `<div style="margin-bottom:6px;">"${r.reply}"<br><span style="font-size:11px;color:var(--dim);">${r.time}</span></div>`).join('')}
+        </div>
+      </div>
+      ` : `
+      <div class="trace-node" style="border-left:3px solid var(--dim);">
+        <div class="tn-label">💤 暂未被引用</div>
+        <div class="tn-content" style="color:var(--dim);">此记忆尚未在对话中被动用</div>
+      </div>
+      `}
+    </div>
+
+    <h4 style="font-size:14px;margin-bottom:12px;margin-top:20px;">📝 变更历史</h4>
+    ${mem.changeHistory.map(ch => `
+      <div class="change-item">
+        <div class="change-dot ${ch.type}"></div>
+        <div class="change-detail">
+          <div class="change-time">${ch.time}</div>
+          <div class="change-desc">${ch.desc}</div>
+          ${ch.detail ? `<div style="font-size:12px;color:var(--dim);">${ch.detail}</div>` : ''}
+          ${ch.diffOld ? `<div class="change-diff"><span class="old">${ch.diffOld}</span> → <span class="new">${ch.diffNew}</span></div>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  `;
+
+  result.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ═══════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════
+
+let currentFilter = 'all';
+let currentCategory = 'category-all';
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    this.classList.add('active');
+    const panel = this.dataset.panel;
+
+    document.getElementById('panel-review').style.display = panel === 'review' ? '' : 'none';
+    document.getElementById('panel-conflicts').style.display = panel === 'conflicts' ? '' : 'none';
+    document.getElementById('panel-snapshots').style.display = panel === 'snapshots' ? '' : 'none';
+    document.getElementById('panel-trace-search').style.display = panel === 'trace-search' ? '' : 'none';
+
+    const titles = { review: '记忆审查台', conflicts: '冲突中心', snapshots: '版本管理', 'trace-search': '追溯查询' };
+    document.getElementById('panel-title').textContent = titles[panel];
+  });
+});
+
+// Filter chips
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    const filterVal = this.dataset.filter;
+    if (filterVal === 'all' || filterVal === 'confirmed' || filterVal === 'pending' || filterVal === 'corrected' || filterVal === 'rejected') {
+      currentFilter = filterVal;
+      // Deactivate other status chips
+      document.querySelectorAll('.filter-chip[data-filter="all"], .filter-chip[data-filter="confirmed"], .filter-chip[data-filter="pending"], .filter-chip[data-filter="corrected"], .filter-chip[data-filter="rejected"]').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    } else if (filterVal === 'category-all' || filterVal === 'preference' || filterVal === 'habit' || filterVal === 'relationship' || filterVal === 'memory') {
+      currentCategory = filterVal;
+      document.querySelectorAll('.filter-chip[data-filter="category-all"], .filter-chip[data-filter="preference"], .filter-chip[data-filter="habit"], .filter-chip[data-filter="relationship"], .filter-chip[data-filter="memory"]').forEach(c => c.classList.remove('active'));
+      this.classList.add('active');
+    }
+    filterMemories();
+  });
+});
+
+function filterMemories() {
+  const search = document.getElementById('memory-search')?.value || '';
+  renderMemories(currentFilter, currentCategory, search);
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+
+renderMemories();
+renderConflicts();
+renderSnapshots();
+</script>
+
+</body>
+</html>
