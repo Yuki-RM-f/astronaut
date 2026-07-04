@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆档案馆 · Memory Archive</title>
+<style>
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-night: #0d1228;
+    --bg-indigo: #1a1a3e;
+    --bg-purple: #1f1535;
+    --gold-warm: #d4a853;
+    --gold-peach: #e8c87a;
+    --gold-light: #f0d89c;
+    --lavender: #b8a9d4;
+    --pink-cloud: #d4b8c8;
+    --text-warm: #f0ece4;
+    --text-soft: #c8c4d0;
+    --text-muted: #8a8698;
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-hover: rgba(255, 255, 255, 0.07);
+    --card-bg: rgba(20, 18, 40, 0.55);
+    --card-border: rgba(255, 255, 255, 0.06);
+    --radius-xl: 32px;
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
+    --spacing-xs: 8px;
+    --spacing-sm: 16px;
+    --spacing-md: 24px;
+    --spacing-lg: 40px;
+    --spacing-xl: 64px;
+    --spacing-2xl: 96px;
+    --font-display: 'Georgia', 'Songti SC', 'Noto Serif SC', serif;
+    --font-body: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+    --font-ui: 'SF Pro Display', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --transition-slow: 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    --transition-med: 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    --shadow-card: 0 2px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    --shadow-glow: 0 0 60px rgba(212, 168, 83, 0.12), 0 0 120px rgba(180, 140, 200, 0.06);
+    --shadow-elevated: 0 8px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-deep);
+    color: var(--text-warm);
+    overflow-x: hidden;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Canvas Background ─────────────────────────────────────────── */
+  #bg-canvas {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── Gradient overlays ─────────────────────────────────────────── */
+  .bg-gradient {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .bg-gradient-1 {
+    width: 900px; height: 900px;
+    background: radial-gradient(circle, rgba(100, 80, 180, 0.5) 0%, transparent 70%);
+    top: -300px; right: -200px;
+    animation: floatGradient 20s ease-in-out infinite;
+  }
+  .bg-gradient-2 {
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(200, 160, 80, 0.3) 0%, transparent 70%);
+    bottom: -200px; left: -150px;
+    animation: floatGradient 24s ease-in-out infinite reverse;
+  }
+  .bg-gradient-3 {
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(160, 120, 200, 0.35) 0%, transparent 70%);
+    top: 40%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: floatGradient 28s ease-in-out infinite;
+  }
+
+  @keyframes floatGradient {
+    0%, 100% { transform: translate(0, 0); }
+    33% { transform: translate(40px, -30px); }
+    66% { transform: translate(-30px, 20px); }
+  }
+
+  /* ── Main layout ───────────────────────────────────────────────── */
+  .app-container {
+    position: relative;
+    z-index: 1;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--spacing-md);
+    min-height: 100vh;
+  }
+
+  /* ── Navigation ────────────────────────────────────────────────── */
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) 0;
+    margin-bottom: var(--spacing-lg);
+  }
+  .nav-logo {
+    font-family: var(--font-display);
+    font-size: 20px;
+    color: var(--gold-light);
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-logo-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--gold-warm);
+    box-shadow: 0 0 12px var(--gold-warm), 0 0 24px rgba(212, 168, 83, 0.4);
+    animation: pulse 3s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 12px var(--gold-warm), 0 0 24px rgba(212, 168, 83, 0.4); }
+    50% { box-shadow: 0 0 20px var(--gold-warm), 0 0 40px rgba(212, 168, 83, 0.6); }
+  }
+  .nav-links {
+    display: flex;
+    gap: var(--spacing-md);
+    list-style: none;
+  }
+  .nav-links a {
+    color: var(--text-soft);
+    text-decoration: none;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    transition: color var(--transition-med);
+    padding: 6px 0;
+    border-bottom: 1px solid transparent;
+  }
+  .nav-links a:hover, .nav-links a.active {
+    color: var(--gold-light);
+    border-bottom-color: var(--gold-warm);
+  }
+
+  /* ── Hero Section ──────────────────────────────────────────────── */
+  .hero {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2xl);
+    margin-bottom: var(--spacing-2xl);
+    min-height: 520px;
+  }
+  .hero-text {
+    flex: 0 0 420px;
+  }
+  .hero-eyebrow {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--gold-warm);
+    margin-bottom: var(--spacing-sm);
+  }
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: 48px;
+    font-weight: 400;
+    line-height: 1.2;
+    color: var(--text-warm);
+    margin-bottom: var(--spacing-md);
+    letter-spacing: 0.02em;
+  }
+  .hero-title em {
+    font-style: italic;
+    color: var(--gold-light);
+    text-shadow: 0 0 40px rgba(212, 168, 83, 0.3);
+  }
+  .hero-desc {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-soft);
+    margin-bottom: var(--spacing-lg);
+    max-width: 380px;
+  }
+
+  /* ── Search Bar ────────────────────────────────────────────────── */
+  .search-container {
+    position: relative;
+    max-width: 440px;
+  }
+  .search-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 100px;
+    padding: 6px 6px 6px 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    transition: all var(--transition-med);
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+  }
+  .search-wrapper:focus-within {
+    border-color: rgba(212, 168, 83, 0.3);
+    box-shadow: var(--shadow-glow), 0 2px 16px rgba(0, 0, 0, 0.2);
+    background: var(--glass-hover);
+  }
+  .search-icon {
+    width: 18px; height: 18px;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+  .search-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text-warm);
+    font-family: var(--font-body);
+    font-size: 15px;
+    padding: 14px 12px;
+    outline: none;
+  }
+  .search-input::placeholder { color: var(--text-muted); }
+  .search-btn {
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #c8964a 0%, #d4a853 40%, #e0bc6a 100%);
+    color: #1a1220;
+    border: none;
+    border-radius: 100px;
+    padding: 12px 28px;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all var(--transition-med);
+    box-shadow: 0 0 20px rgba(200, 150, 70, 0.25), 0 0 0 1px rgba(255, 220, 160, 0.2) inset;
+  }
+  .search-btn:hover {
+    box-shadow: 0 0 32px rgba(212, 168, 83, 0.4), 0 0 0 1px rgba(255, 220, 160, 0.3) inset;
+    transform: translateY(-1px);
+  }
+
+  /* ── Hero Visual ───────────────────────────────────────────────── */
+  .hero-visual {
+    flex: 1;
+    position: relative;
+    height: 480px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .illustration-scene {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-xl);
+  }
+  .illustration-scene canvas {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-xl);
+  }
+  .illustration-glow {
+    position: absolute;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(212, 168, 83, 0.12) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  /* ── Section headers ───────────────────────────────────────────── */
+  .section {
+    margin-bottom: var(--spacing-2xl);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-lg);
+  }
+  .section-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--text-warm);
+    letter-spacing: 0.03em;
+  }
+  .section-count {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--text-muted);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 100px;
+    padding: 6px 18px;
+    backdrop-filter: blur(10px);
+  }
+
+  /* ── Memory Cards ──────────────────────────────────────────────── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: var(--spacing-md);
+  }
+  .memory-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: all var(--transition-med);
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+  .memory-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  }
+  .memory-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: var(--shadow-elevated);
+  }
+  .memory-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+  }
+  .memory-card-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--text-warm);
+    letter-spacing: 0.02em;
+    flex: 1;
+    margin-right: var(--spacing-sm);
+  }
+  .memory-relevance {
+    flex-shrink: 0;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--gold-warm);
+    background: rgba(212, 168, 83, 0.1);
+    border-radius: 100px;
+    padding: 4px 10px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .memory-card-content {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-soft);
+    margin-bottom: var(--spacing-sm);
+  }
+  .memory-card-source {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .memory-card-source::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--gold-warm);
+    opacity: 0.5;
+  }
+  .memory-card-footer {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .memory-badge {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+  }
+  .badge-confirmed { background: rgba(100, 200, 140, 0.12); color: #8cd4a8; }
+  .badge-pending { background: rgba(200, 170, 100, 0.12); color: #d4b870; }
+  .badge-corrected { background: rgba(140, 140, 200, 0.12); color: #b0b0d8; }
+  .badge-confidence { background: rgba(180, 160, 200, 0.08); color: var(--lavender); }
+
+  /* ── Empty State ────────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: var(--spacing-2xl) var(--spacing-md);
+  }
+  .empty-icon {
+    font-size: 56px;
+    margin-bottom: var(--spacing-md);
+    opacity: 0.5;
+  }
+  .empty-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--text-soft);
+    margin-bottom: var(--spacing-xs);
+  }
+  .empty-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    max-width: 320px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  /* ── Dashboard Panel ───────────────────────────────────────────── */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+  }
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-md);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  }
+  .stat-label {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: var(--spacing-xs);
+  }
+  .stat-value {
+    font-family: var(--font-display);
+    font-size: 36px;
+    color: var(--text-warm);
+    line-height: 1;
+  }
+  .stat-value.gold { color: var(--gold-light); }
+  .stat-subtitle {
+    font-family: var(--font-ui);
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* ── Health Score Ring ─────────────────────────────────────────── */
+  .health-ring {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+  .ring-container {
+    position: relative;
+    width: 72px; height: 72px;
+    flex-shrink: 0;
+  }
+  .ring-container svg {
+    transform: rotate(-90deg);
+  }
+  .ring-bg {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.06);
+    stroke-width: 4;
+  }
+  .ring-fill {
+    fill: none;
+    stroke: var(--gold-warm);
+    stroke-width: 4;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 6px rgba(212, 168, 83, 0.4));
+    transition: stroke-dashoffset 1s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .ring-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-display);
+    font-size: 20px;
+    color: var(--gold-light);
+  }
+
+  /* ── Conflicts list ────────────────────────────────────────────── */
+  .conflicts-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  .conflict-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    backdrop-filter: blur(10px);
+    transition: all var(--transition-med);
+  }
+  .conflict-item:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--glass-hover);
+  }
+  .conflict-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .conflict-dot.high { background: #e07060; box-shadow: 0 0 8px rgba(224, 112, 96, 0.4); }
+  .conflict-dot.medium { background: #d4a853; box-shadow: 0 0 8px rgba(212, 168, 83, 0.4); }
+  .conflict-dot.low { background: #8a8698; }
+  .conflict-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-soft);
+    line-height: 1.5;
+  }
+  .conflict-status {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .status-open { background: rgba(200, 140, 100, 0.12); color: #d4a080; }
+  .status-resolved { background: rgba(100, 180, 130, 0.1); color: #8cc8a0; }
+
+  /* ── Audit Timeline ────────────────────────────────────────────── */
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 4px; bottom: 4px;
+    width: 1px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  }
+  .timeline-item {
+    position: relative;
+    padding-bottom: var(--spacing-md);
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -24px; top: 8px;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--bg-indigo);
+    border: 2px solid rgba(255, 255, 255, 0.15);
+  }
+  .timeline-item.warning::before { border-color: rgba(212, 168, 83, 0.6); box-shadow: 0 0 8px rgba(212, 168, 83, 0.3); }
+  .timeline-item.critical::before { border-color: rgba(224, 112, 96, 0.6); box-shadow: 0 0 8px rgba(224, 112, 96, 0.3); }
+  .timeline-time {
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+    letter-spacing: 0.04em;
+  }
+  .timeline-action {
+    font-size: 13px;
+    color: var(--text-soft);
+  }
+
+  /* ── Tabs ───────────────────────────────────────────────────────── */
+  .tabs {
+    display: flex;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-lg);
+  }
+  .tab {
+    font-family: var(--font-ui);
+    font-size: 14px;
+    color: var(--text-muted);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 100px;
+    padding: 10px 24px;
+    cursor: pointer;
+    transition: all var(--transition-med);
+    letter-spacing: 0.03em;
+  }
+  .tab:hover { color: var(--text-soft); border-color: var(--glass-border); }
+  .tab.active {
+    color: var(--text-warm);
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    backdrop-filter: blur(10px);
+  }
+
+  /* ── Toast ──────────────────────────────────────────────────────── */
+  .toast {
+    position: fixed;
+    bottom: var(--spacing-lg);
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 100px;
+    padding: 12px 28px;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--text-warm);
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    opacity: 0;
+    transition: all var(--transition-med);
+    box-shadow: var(--shadow-elevated);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ── Responsive ─────────────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .hero {
+      flex-direction: column;
+      gap: var(--spacing-lg);
+      min-height: auto;
+    }
+    .hero-text { flex: 0 0 auto; max-width: 100%; }
+    .hero-visual { height: 320px; width: 100%; }
+    .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+    .cards-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .hero-title { font-size: 32px; }
+    .dashboard-grid { grid-template-columns: 1fr; }
+    .nav-links { display: none; }
+    .search-wrapper { padding: 4px 4px 4px 16px; }
+    .search-btn { padding: 10px 20px; font-size: 13px; }
+    .section-title { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="bg-gradient bg-gradient-1"></div>
+<div class="bg-gradient bg-gradient-2"></div>
+<div class="bg-gradient bg-gradient-3"></div>
+
+<div class="app-container">
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="nav-logo-dot"></div>
+      记忆档案馆
+    </div>
+    <ul class="nav-links">
+      <li><a href="#" class="active" data-tab="archive">档案馆</a></li>
+      <li><a href="#" data-tab="dashboard">仪表盘</a></li>
+      <li><a href="#" data-tab="conflicts">冲突中心</a></li>
+      <li><a href="#" data-tab="timeline">审计追溯</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-text">
+      <p class="hero-eyebrow">Memory Archive</p>
+      <h1 class="hero-title">在时光里<br>找到 <em>属于你们</em> 的故事</h1>
+      <p class="hero-desc">
+        输入一个词，找到记忆档案中最真实的片段。<br>
+        每一次回忆都标注来源、每一次讲述都有据可查。
+      </p>
+      <div class="search-container">
+        <div class="search-wrapper">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input class="search-input" id="searchInput" type="text"
+                 placeholder="试试输入「馄饨」「海边」「生日」…"
+                 onkeydown="if(event.key==='Enter')doSearch()">
+          <button class="search-btn" onclick="doSearch()">寻找记忆</button>
+        </div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="illustration-scene">
+        <canvas id="illustration-canvas"></canvas>
+        <div class="illustration-glow"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: Archive (default) -->
+  <section class="section" id="tab-archive">
+    <div class="section-header">
+      <h2 class="section-title" id="resultsTitle">记忆馆藏</h2>
+      <span class="section-count" id="resultsCount">12 条记忆</span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="filterByCategory('all', this)">全部</button>
+      <button class="tab" onclick="filterByCategory('preference', this)">喜好</button>
+      <button class="tab" onclick="filterByCategory('shared_event', this)">共同经历</button>
+      <button class="tab" onclick="filterByCategory('habit', this)">习惯</button>
+      <button class="tab" onclick="filterByCategory('basic_fact', this)">基本信息</button>
+    </div>
+    <div class="cards-grid" id="cardsGrid">
+      <!-- Dynamically filled -->
+    </div>
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="empty-icon">&#10024;</div>
+      <div class="empty-title">输入一个词，唤醒一段记忆</div>
+      <div class="empty-desc">在搜索框中输入你想回忆的关键词，我们会在记忆档案中找到最匹配的故事片段</div>
+    </div>
+  </section>
+
+  <!-- Tab: Dashboard -->
+  <section class="section" id="tab-dashboard" style="display:none">
+    <div class="section-header">
+      <h2 class="section-title">记忆健康度</h2>
+    </div>
+    <div class="dashboard-grid">
+      <div class="stat-card">
+        <div class="stat-label">记忆健康度</div>
+        <div class="health-ring">
+          <div class="ring-container">
+            <svg width="72" height="72" viewBox="0 0 72 72">
+              <circle class="ring-bg" cx="36" cy="36" r="30"/>
+              <circle class="ring-fill" id="healthRing" cx="36" cy="36" r="30"
+                      stroke-dasharray="188.5" stroke-dashoffset="37.7"/>
+            </svg>
+            <div class="ring-text" id="healthScore">80</div>
+          </div>
+          <div class="stat-subtitle">良好 — 记忆库处于健康状态</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">活跃记忆</div>
+        <div class="stat-value" id="totalMemories">12</div>
+        <div class="stat-subtitle">条已归档</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">待审核</div>
+        <div class="stat-value gold" id="pendingReview">3</div>
+        <div class="stat-subtitle">条需要确认</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">未解决冲突</div>
+        <div class="stat-value" id="openConflicts">1</div>
+        <div class="stat-subtitle">条待处理</div>
+      </div>
+    </div>
+    <div class="cards-grid" id="sourceGrid">
+      <!-- Source coverage cards -->
+    </div>
+  </section>
+
+  <!-- Tab: Conflicts -->
+  <section class="section" id="tab-conflicts" style="display:none">
+    <div class="section-header">
+      <h2 class="section-title">冲突中心</h2>
+      <span class="section-count" id="conflictsCount">1 个待解决</span>
+    </div>
+    <div class="conflicts-list" id="conflictsList">
+      <!-- Dynamically filled -->
+    </div>
+  </section>
+
+  <!-- Tab: Timeline -->
+  <section class="section" id="tab-timeline" style="display:none">
+    <div class="section-header">
+      <h2 class="section-title">审计追溯</h2>
+      <span class="section-count" id="timelineCount">最近记录</span>
+    </div>
+    <div class="timeline" id="timelineList">
+      <!-- Dynamically filled -->
+    </div>
+  </section>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// Mock Data
+// ═══════════════════════════════════════════════════════════════════
+const mockMemories = [
+  {
+    id: "M001", title: "外婆的馄饨", category: "preference", status: "confirmed",
+    content: "外婆喜欢包馄饨给小铭吃，每次都会在馅里多加一点虾仁。",
+    source_quote: "小铭，外婆今天包了你最爱吃的馄饨，快来吃。",
+    source_location: "微信聊天记录 · 2024年3月15日",
+    confidence_score: 92, confidence_level: "high",
+  },
+  {
+    id: "M002", title: "不爱吃辣", category: "preference", status: "confirmed",
+    content: "外婆不喜欢吃辣的，总是说辣的对胃不好。",
+    source_quote: "这个菜太辣了，外婆吃不了，胃会不舒服的。",
+    source_location: "家庭聚餐录音 · 2023年11月8日",
+    confidence_score: 88, confidence_level: "high",
+  },
+  {
+    id: "M003", title: "海边旅行", category: "shared_event", status: "confirmed",
+    content: "2019年夏天，外婆和小铭一起去了青岛海边，外婆在沙滩上坐了一下午看海。",
+    source_quote: "小铭你看，这海水真蓝，外婆好久没看过海了。",
+    source_location: "微信聊天记录 · 2019年8月2日",
+    confidence_score: 95, confidence_level: "high",
+  },
+  {
+    id: "M004", title: "每周三买菜", category: "habit", status: "confirmed",
+    content: "外婆每周三早上都会去菜市场买菜，风雨无阻，已经坚持了三十多年。",
+    source_quote: "礼拜三的菜最新鲜，外婆都是礼拜三去的。",
+    source_location: "电话录音 · 2024年1月10日",
+    confidence_score: 85, confidence_level: "high",
+  },
+  {
+    id: "M005", title: "外婆的生日", category: "basic_fact", status: "confirmed",
+    content: "外婆的生日是农历七月初八，每年都会在家做一顿丰盛的晚餐。",
+    source_quote: "七月初八是外婆生日，你们要记得回来吃饭。",
+    source_location: "家庭群聊 · 2023年6月20日",
+    confidence_score: 98, confidence_level: "high",
+  },
+  {
+    id: "M006", title: "喜欢种花", category: "preference", status: "confirmed",
+    content: "外婆在阳台上种了很多花，最喜欢的是茉莉花。",
+    source_quote: "你看这茉莉开得多好，外婆最喜欢这个香味了。",
+    source_location: "语音消息 · 2024年5月2日",
+    confidence_score: 90, confidence_level: "high",
+  },
+  {
+    id: "M007", title: "教你写毛笔字", category: "shared_event", status: "confirmed",
+    content: "外婆在小铭小时候教他写毛笔字，每次都要先磨墨，说这是传统。",
+    source_quote: "小铭，写字要先静心，墨要磨得均匀。",
+    source_location: "家庭录像 · 2010年寒假",
+    confidence_score: 87, confidence_level: "high",
+  },
+  {
+    id: "M008", title: "喜欢听越剧", category: "preference", status: "pending_review",
+    content: "外婆喜欢听越剧，尤其是《红楼梦》的唱段。",
+    source_quote: "这个林妹妹唱得好，外婆年轻时候就听这个。",
+    source_location: "语音消息 · 2024年2月14日",
+    confidence_score: 72, confidence_level: "medium",
+  },
+  {
+    id: "M009", title: "冬天织毛衣", category: "habit", status: "corrected",
+    content: "外婆每年冬天都会给小铭织毛衣，说自己织的比外面买的暖和。",
+    source_quote: "这件毛衣外婆织了一个月，你穿穿看合不合身。",
+    source_location: "微信聊天记录 · 2023年12月5日",
+    confidence_score: 89, confidence_level: "high",
+  },
+  {
+    id: "M010", title: "外婆说过的老话", category: "expression_style", status: "confirmed",
+    content: "外婆常说'慢慢来，不要急'，这是她的口头禅。",
+    source_quote: "慢慢来，不要急，事情要一件一件做。",
+    source_location: "多处聊天记录汇总",
+    confidence_score: 82, confidence_level: "medium",
+  },
+  {
+    id: "M011", title: "过年包饺子", category: "shared_event", status: "confirmed",
+    content: "每年除夕外婆都会带着全家人一起包饺子，还会在其中一个饺子里放硬币。",
+    source_quote: "谁吃到硬币，新的一年就有好运气。",
+    source_location: "家庭录像 · 2024年除夕",
+    confidence_score: 94, confidence_level: "high",
+  },
+  {
+    id: "M012", title: "外婆做的红烧肉", category: "preference", status: "pending_review",
+    content: "外婆做的红烧肉特别好吃，小铭每次回家都要吃。",
+    source_quote: "小铭回来了？外婆给你做红烧肉。",
+    source_location: "语音消息 · 2024年4月3日",
+    confidence_score: 76, confidence_level: "medium",
+  },
+];
+
+const mockConflicts = [
+  {
+    id: "C001", severity: "medium",
+    conflict_description: "「外婆的馄饨」中记录外婆喜欢包馄饨，但「不爱吃辣」中暗示外婆口味偏清淡，可能存在偏好不一致。",
+    resolution_status: "open",
+    memory_id_a: "M001", memory_id_b: "M002",
+  },
+];
+
+const mockTimeline = [
+  { time: "2026-07-04 14:32", event_type: "memory.confirmed", action: "确认记忆「外婆的馄饨」", severity: "info" },
+  { time: "2026-07-04 14:30", event_type: "memory.searched", action: "搜索: '海边' → 1 条结果", severity: "debug" },
+  { time: "2026-07-04 10:15", event_type: "memory.corrected", action: "修正记忆「冬天织毛衣」内容", severity: "warning" },
+  { time: "2026-07-03 18:00", event_type: "memory.created", action: "创建记忆「外婆做的红烧肉」", severity: "info" },
+  { time: "2026-07-03 16:20", event_type: "conflict.detected", action: "检测到潜在冲突 #C001", severity: "warning" },
+  { time: "2026-07-02 09:45", event_type: "memory.created", action: "创建记忆「喜欢听越剧」", severity: "info" },
+  { time: "2026-07-01 20:30", event_type: "memory.confirmed", action: "批量确认 3 条记忆", severity: "info" },
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// Background Canvas — Stars + Particles
+// ═══════════════════════════════════════════════════════════════════
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+let stars = [], particles = [];
+
+function resizeBg() {
+  bgCanvas.width = window.innerWidth;
+  bgCanvas.height = window.innerHeight;
+}
+resizeBg();
+window.addEventListener('resize', resizeBg);
+
+// Generate stars
+for (let i = 0; i < 180; i++) {
+  stars.push({
+    x: Math.random() * bgCanvas.width,
+    y: Math.random() * bgCanvas.height,
+    r: Math.random() * 1.4 + 0.3,
+    opacity: Math.random() * 0.7 + 0.2,
+    twinkle: Math.random() * Math.PI * 2,
+    speed: Math.random() * 0.015 + 0.005,
+  });
+}
+
+// Generate floating particles
+for (let i = 0; i < 40; i++) {
+  particles.push({
+    x: Math.random() * bgCanvas.width,
+    y: Math.random() * bgCanvas.height,
+    r: Math.random() * 2 + 0.8,
+    vx: (Math.random() - 0.5) * 0.25,
+    vy: -(Math.random() * 0.3 + 0.1),
+    opacity: Math.random() * 0.35 + 0.1,
+    life: Math.random() * 400 + 200,
+    age: Math.random() * 400,
+  });
+}
+
+function drawBg() {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+  // Stars
+  for (const s of stars) {
+    s.twinkle += s.speed;
+    const alpha = s.opacity * (0.6 + 0.4 * Math.sin(s.twinkle));
+    bgCtx.beginPath();
+    bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(255,245,230,${alpha})`;
+    bgCtx.fill();
+
+    // Glow around brighter stars
+    if (s.r > 0.9) {
+      bgCtx.beginPath();
+      bgCtx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
+      bgCtx.fillStyle = `rgba(212,168,83,${alpha * 0.15})`;
+      bgCtx.fill();
+    }
+  }
+
+  // Floating particles
+  for (const p of particles) {
+    p.age++;
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.age > p.life || p.y < -20) {
+      p.x = Math.random() * bgCanvas.width;
+      p.y = bgCanvas.height + 20;
+      p.age = 0;
+    }
+    const fadeIn = Math.min(1, p.age / 60);
+    const fadeOut = Math.min(1, (p.life - p.age) / 60);
+    const alpha = p.opacity * fadeIn * fadeOut;
+    bgCtx.beginPath();
+    bgCtx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(220,200,240,${alpha})`;
+    bgCtx.fill();
+  }
+
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+
+// ═══════════════════════════════════════════════════════════════════
+// Illustration Canvas — Dreamy Scene
+// ═══════════════════════════════════════════════════════════════════
+const illCanvas = document.getElementById('illustration-canvas');
+const illCtx = illCanvas.getContext('2d');
+let illParticles = [];
+
+function resizeIll() {
+  const rect = illCanvas.parentElement.getBoundingClientRect();
+  illCanvas.width = rect.width;
+  illCanvas.height = rect.height;
+}
+resizeIll();
+window.addEventListener('resize', resizeIll);
+
+for (let i = 0; i < 25; i++) {
+  illParticles.push({
+    x: Math.random(), y: Math.random(),
+    r: Math.random() * 1.6 + 0.4,
+    vy: -(Math.random() * 0.0003 + 0.00015),
+    opacity: Math.random() * 0.5 + 0.15,
+    phase: Math.random() * Math.PI * 2,
+  });
+}
+
+function drawIllustration() {
+  const W = illCanvas.width;
+  const H = illCanvas.height;
+  illCtx.clearRect(0, 0, W, H);
+
+  // Sky gradient
+  const skyGrad = illCtx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#0d1228');
+  skyGrad.addColorStop(0.35, '#1a1a3e');
+  skyGrad.addColorStop(0.65, '#1f1535');
+  skyGrad.addColorStop(1, '#0a0e1a');
+  illCtx.fillStyle = skyGrad;
+  illCtx.fillRect(0, 0, W, H);
+
+  // Moon / large glowing orb
+  const moonX = W * 0.68, moonY = H * 0.28, moonR = Math.min(W, H) * 0.16;
+  const moonGrad = illCtx.createRadialGradient(moonX, moonY, moonR * 0.3, moonX, moonY, moonR * 2.5);
+  moonGrad.addColorStop(0, 'rgba(240,225,200,0.25)');
+  moonGrad.addColorStop(0.3, 'rgba(220,200,170,0.12)');
+  moonGrad.addColorStop(0.6, 'rgba(180,150,200,0.04)');
+  moonGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  illCtx.fillStyle = moonGrad;
+  illCtx.beginPath();
+  illCtx.arc(moonX, moonY, moonR * 2.5, 0, Math.PI * 2);
+  illCtx.fill();
+
+  // Moon crescent
+  illCtx.fillStyle = 'rgba(245,238,220,0.7)';
+  illCtx.beginPath();
+  illCtx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+  illCtx.fill();
+  illCtx.fillStyle = 'rgba(20,18,45,0.85)';
+  illCtx.beginPath();
+  illCtx.arc(moonX + moonR * 0.35, moonY - moonR * 0.1, moonR * 0.85, 0, Math.PI * 2);
+  illCtx.fill();
+
+  // Distant mountains / horizon
+  illCtx.beginPath();
+  illCtx.moveTo(0, H * 0.72);
+  illCtx.quadraticCurveTo(W * 0.3, H * 0.62, W * 0.5, H * 0.68);
+  illCtx.quadraticCurveTo(W * 0.7, H * 0.72, W, H * 0.64);
+  illCtx.lineTo(W, H);
+  illCtx.lineTo(0, H);
+  illCtx.closePath();
+  const mountGrad = illCtx.createLinearGradient(0, H * 0.62, 0, H);
+  mountGrad.addColorStop(0, 'rgba(30,25,55,0.8)');
+  mountGrad.addColorStop(1, 'rgba(15,12,30,0.95)');
+  illCtx.fillStyle = mountGrad;
+  illCtx.fill();
+
+  // Mist layer
+  for (let i = 0; i < 3; i++) {
+    const mistY = H * (0.58 + i * 0.06);
+    const mistGrad = illCtx.createLinearGradient(0, mistY - 20, 0, mistY + 30);
+    mistGrad.addColorStop(0, 'rgba(180,160,210,0)');
+    mistGrad.addColorStop(0.5, 'rgba(150,130,190,0.06)');
+    mistGrad.addColorStop(1, 'rgba(180,160,210,0)');
+    illCtx.fillStyle = mistGrad;
+    illCtx.fillRect(0, mistY - 20, W, 50);
+  }
+
+  // Small figure silhouette (back view, looking at moon)
+  const figX = W * 0.38, figY = H * 0.68;
+  const figScale = Math.min(W, H) / 500;
+
+  // Body
+  illCtx.fillStyle = 'rgba(40,35,60,0.7)';
+  illCtx.beginPath();
+  illCtx.ellipse(figX, figY - 22 * figScale, 8 * figScale, 20 * figScale, 0, 0, Math.PI * 2);
+  illCtx.fill();
+
+  // Head
+  illCtx.beginPath();
+  illCtx.arc(figX, figY - 46 * figScale, 7 * figScale, 0, Math.PI * 2);
+  illCtx.fill();
+
+  // Small figure 2 (further away)
+  const fig2X = W * 0.44, fig2Y = H * 0.71;
+  illCtx.fillStyle = 'rgba(35,30,55,0.5)';
+  illCtx.beginPath();
+  illCtx.ellipse(fig2X, fig2Y - 16 * figScale, 6 * figScale, 14 * figScale, 0, 0, Math.PI * 2);
+  illCtx.fill();
+  illCtx.beginPath();
+  illCtx.arc(fig2X, fig2Y - 34 * figScale, 5 * figScale, 0, Math.PI * 2);
+  illCtx.fill();
+
+  // Ground reflection / water
+  const waterGrad = illCtx.createLinearGradient(0, H * 0.74, 0, H);
+  waterGrad.addColorStop(0, 'rgba(30,25,55,0.85)');
+  waterGrad.addColorStop(0.5, 'rgba(20,18,40,0.92)');
+  waterGrad.addColorStop(1, 'rgba(10,12,25,0.98)');
+  illCtx.fillStyle = waterGrad;
+  illCtx.fillRect(0, H * 0.74, W, H * 0.26);
+
+  // Floating particles in illustration
+  const now = Date.now() / 1000;
+  for (const p of illParticles) {
+    p.y += p.vy;
+    if (p.y < -0.05) p.y = 1.05;
+    const px = p.x * W;
+    const py = p.y * H;
+    const flicker = 0.6 + 0.4 * Math.sin(now * 1.5 + p.phase);
+    const alpha = p.opacity * flicker;
+    illCtx.beginPath();
+    illCtx.arc(px, py, p.r, 0, Math.PI * 2);
+    illCtx.fillStyle = `rgba(240,230,210,${alpha})`;
+    illCtx.fill();
+    illCtx.beginPath();
+    illCtx.arc(px, py, p.r * 2.5, 0, Math.PI * 2);
+    illCtx.fillStyle = `rgba(200,180,220,${alpha * 0.12})`;
+    illCtx.fill();
+  }
+
+  requestAnimationFrame(drawIllustration);
+}
+drawIllustration();
+
+// ═══════════════════════════════════════════════════════════════════
+// App Logic
+// ═══════════════════════════════════════════════════════════════════
+let currentTab = 'archive';
+let currentCategory = 'all';
+let searchResults = null;
+
+function filterByCategory(cat, el) {
+  currentCategory = cat;
+  document.querySelectorAll('#tab-archive .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderCards();
+}
+
+function doSearch() {
+  const query = document.getElementById('searchInput').value.trim();
+  if (!query) { searchResults = null; renderCards(); return; }
+
+  // Simple TF-IDF-like scoring
+  const queryTokens = query.toLowerCase().split(/\s+/);
+  const scored = mockMemories.map(m => {
+    const text = (m.title + ' ' + m.content + ' ' + (m.source_quote || '')).toLowerCase();
+    let score = 0;
+    for (const token of queryTokens) {
+      if (text.includes(token)) {
+        // Boost title match
+        if (m.title.toLowerCase().includes(token)) score += 3;
+        // Boost content match
+        const count = (text.match(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+        score += count;
+        // Boost source_quote match
+        if (m.source_quote && m.source_quote.toLowerCase().includes(token)) score += 2;
+      }
+    }
+    return { ...m, relevance_score: score };
+  }).filter(m => m.relevance_score > 0);
+
+  scored.sort((a, b) => b.relevance_score - a.relevance_score);
+  searchResults = scored;
+  renderCards();
+  showToast(`找到 ${scored.length} 条相关记忆`);
+}
+
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  const empty = document.getElementById('emptyState');
+  const title = document.getElementById('resultsTitle');
+  const count = document.getElementById('resultsCount');
+
+  let memories = searchResults || mockMemories;
+  if (currentCategory !== 'all') {
+    memories = memories.filter(m => m.category === currentCategory);
+  }
+
+  if (memories.length === 0 && searchResults !== null && searchResults.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    title.textContent = '未找到匹配记忆';
+    count.textContent = '0 条';
+    return;
+  }
+
+  empty.style.display = 'none';
+
+  if (searchResults) {
+    title.textContent = '检索结果';
+    count.textContent = `${memories.length} 条匹配`;
+  } else {
+    title.textContent = '记忆馆藏';
+    count.textContent = `${memories.length} 条记忆`;
+  }
+
+  const maxScore = searchResults ? Math.max(...memories.map(m => m.relevance_score || 0), 1) : 1;
+
+  grid.innerHTML = memories.map(m => {
+    const relScore = m.relevance_score ? Math.round(m.relevance_score / maxScore * 100) : null;
+    const badgeClass = m.status === 'confirmed' ? 'badge-confirmed' :
+                       m.status === 'pending_review' ? 'badge-pending' : 'badge-corrected';
+    const statusLabel = m.status === 'confirmed' ? '已确认' :
+                        m.status === 'pending_review' ? '待审核' : '已修正';
+    return `
+      <div class="memory-card">
+        <div class="memory-card-header">
+          <span class="memory-card-title">${m.title}</span>
+          ${relScore !== null ? `<span class="memory-relevance">${relScore}% 相关</span>` : ''}
+        </div>
+        <div class="memory-card-content">${m.content}</div>
+        ${m.source_quote ? `<div class="memory-card-source">「${m.source_quote}」</div>` : ''}
+        <div class="memory-card-footer">
+          <span class="memory-badge ${badgeClass}">${statusLabel}</span>
+          <span class="memory-badge badge-confidence">置信度 ${m.confidence_score}%</span>
+          <span style="flex:1"></span>
+          <span style="font-size:11px;color:var(--text-muted)">${m.id}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-archive').style.display = tab === 'archive' ? '' : 'none';
+  document.getElementById('tab-dashboard').style.display = tab === 'dashboard' ? '' : 'none';
+  document.getElementById('tab-conflicts').style.display = tab === 'conflicts' ? '' : 'none';
+  document.getElementById('tab-timeline').style.display = tab === 'timeline' ? '' : 'none';
+
+  document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+  document.querySelector(`[data-tab="${tab}"]`)?.classList.add('active');
+
+  if (tab === 'dashboard') renderDashboard();
+  if (tab === 'conflicts') renderConflicts();
+  if (tab === 'timeline') renderTimeline();
+}
+
+function renderDashboard() {
+  const confirmed = mockMemories.filter(m => m.status === 'confirmed').length;
+  const pending = mockMemories.filter(m => m.status === 'pending_review').length;
+  const health = Math.round(
+    (confirmed / mockMemories.length) * 40 +
+    (mockMemories.filter(m => (m.confidence_score || 0) >= 80).length / mockMemories.length) * 30 +
+    (mockMemories.filter(m => m.source_quote).length / mockMemories.length) * 30
+  );
+  const clamped = Math.max(0, Math.min(100, health));
+
+  document.getElementById('healthScore').textContent = clamped;
+  document.getElementById('totalMemories').textContent = mockMemories.length;
+  document.getElementById('pendingReview').textContent = pending;
+  document.getElementById('openConflicts').textContent = mockConflicts.filter(c => c.resolution_status === 'open').length;
+
+  const ring = document.getElementById('healthRing');
+  const circumference = 188.5;
+  ring.style.strokeDasharray = circumference;
+  ring.style.strokeDashoffset = circumference * (1 - clamped / 100);
+
+  const sourceTypes = {};
+  const categories = {};
+  mockMemories.forEach(m => {
+    categories[m.category] = (categories[m.category] || 0) + 1;
+  });
+  mockMemories.forEach(m => {
+    const t = m.source_location ? m.source_location.split('·')[0].trim() : '未知来源';
+    sourceTypes[t] = (sourceTypes[t] || 0) + 1;
+  });
+
+  document.getElementById('sourceGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">来源分布</div>
+      ${Object.entries(sourceTypes).map(([k, v]) =>
+        `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--text-soft))">
+          <span>${k}</span><span style="color:var(--gold-light)">${v}</span>
+        </div>`
+      ).join('')}
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">类别分布</div>
+      ${Object.entries(categories).map(([k, v]) =>
+        `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--text-soft))">
+          <span>${{preference:'喜好', shared_event:'共同经历', habit:'习惯', basic_fact:'基本信息', expression_style:'表达风格'}[k] || k}</span>
+          <span style="color:var(--gold-light)">${v}</span>
+        </div>`
+      ).join('')}
+    </div>
+  `;
+}
+
+function renderConflicts() {
+  document.getElementById('conflictsCount').textContent =
+    `${mockConflicts.filter(c => c.resolution_status === 'open').length} 个待解决`;
+
+  document.getElementById('conflictsList').innerHTML = mockConflicts.map(c => `
+    <div class="conflict-item">
+      <div class="conflict-dot ${c.severity}"></div>
+      <div class="conflict-text">${c.conflict_description}</div>
+      <span class="conflict-status ${c.resolution_status === 'open' ? 'status-open' : 'status-resolved'}">
+        ${c.resolution_status === 'open' ? '待解决' : '已解决'}
+      </span>
+      ${c.resolution_status === 'open' ? '<button class="search-btn" style="padding:8px 18px;font-size:12px" onclick="resolveConflict(\'' + c.id + '\')">解决</button>' : ''}
+    </div>
+  `).join('');
+}
+
+function resolveConflict(id) {
+  const c = mockConflicts.find(c => c.id === id);
+  if (c) c.resolution_status = 'resolved_by_user';
+  renderConflicts();
+  showToast('冲突已解决');
+}
+
+function renderTimeline() {
+  document.getElementById('timelineList').innerHTML = mockTimeline.map(e => `
+    <div class="timeline-item ${e.severity}">
+      <div class="timeline-time">${e.time}</div>
+      <div class="timeline-action">${e.action}</div>
+    </div>
+  `).join('');
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+// Nav click handlers
+document.querySelectorAll('.nav-links a').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    switchTab(link.dataset.tab);
+  });
+});
+
+// ── Initialize ────────────────────────────────────────────────────
+renderCards();
+renderConflicts();
+renderTimeline();
+</script>
+</body>
+</html>
