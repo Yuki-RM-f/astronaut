@@ -1,0 +1,36 @@
+{
+  "name": "persona-memory-agent-frontend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --import tsx --test tests/*.test.mjs",
+    "lint": "eslint --ext .js,.mjs,.ts,.tsx app src tests --max-warnings=0",
+    "build": "next build"
+  },
+  "dependencies": {
+    "@types/three": "^0.185.0",
+    "lucide-react": "^1.23.0",
+    "next": "15.5.20",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.29",
+    "@types/react": "19.0.12",
+    "@types/react-dom": "19.0.4",
+    "autoprefixer": "10.4.21",
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.5.20",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17",
+    "tsx": "4.19.4",
+    "typescript": "5.8.3"
+  },
+  "eslintConfig": {
+    "extends": [
+      "next/core-web-vitals"
+    ]
+  }
+}

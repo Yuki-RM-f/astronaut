@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  background: #fff7ec;
+  color: #3b241b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255, 213, 172, 0.45), transparent 34%),
+    linear-gradient(180deg, rgba(255, 249, 239, 0.98), rgba(255, 238, 219, 0.95)),
+    #fff7ec;
+  color: #3b241b;
+  font-family:
+    Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", ui-sans-serif,
+    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+::selection {
+  background: #ffd7a8;
+}
+
+.memory-shell::before {
+  background-image: var(--memory-bg);
+  background-position: center;
+  background-size: cover;
+  content: "";
+  filter: saturate(0.98) sepia(0.1);
+  inset: 0;
+  opacity: 0.34;
+  position: absolute;
+  transform: scale(1.02);
+}
+
+.memory-shell::after {
+  background:
+    linear-gradient(180deg, rgba(255, 249, 239, 0.25), rgba(98, 50, 24, 0.14)),
+    radial-gradient(circle at 82% 18%, rgba(255, 228, 202, 0.5), transparent 35%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.memory-glass {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 246, 234, 0.72));
+  backdrop-filter: blur(18px);
+}
+
+.paper-note {
+  background-image:
+    linear-gradient(rgba(138, 86, 55, 0.07) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.68), rgba(255, 240, 214, 0.92));
+  background-size: 100% 28px, 100% 100%;
+}
+
+.memory-card {
+  transform-style: preserve-3d;
+}
+
+.memory-card:hover {
+  transform: translateY(-6px) rotateX(1deg);
+}
+
+.memory-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.memory-button::after {
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  content: "";
+  height: 100%;
+  left: -80%;
+  position: absolute;
+  top: 0;
+  transform: skewX(-18deg);
+  width: 55%;
+}
+
+.memory-button:hover::after {
+  animation: memory-shine 900ms ease;
+}
+
+.memory-float {
+  animation: memory-float 6s ease-in-out infinite;
+}
+
+.memory-float-delayed {
+  animation: memory-float 7s ease-in-out 0.8s infinite;
+}
+
+.chat-pop {
+  animation: chat-pop 360ms ease both;
+}
+
+@keyframes memory-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--memory-rotate, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--memory-rotate, 0deg));
+  }
+}
+
+@keyframes memory-shine {
+  from {
+    left: -80%;
+  }
+  to {
+    left: 130%;
+  }
+}
+
+@keyframes chat-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

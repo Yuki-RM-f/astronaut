@@ -3,25 +3,45 @@
 ## Current State
 
 - 项目：可信人格记忆Agent
-- 当前阶段：中文沉浸式前端与免注册一键演示入口已接入；Milestone 6 Task 1/2/3/4 后端默认 TTS、语音合成、音色样本、音色克隆兜底、语音消息 ASR 到 TTS、前端录音、声音设置和 mock 语音播放基础闭环已接入；Milestone 7 Task 1 后端 3D 数字人配置、默认形象和 mock 生成基础闭环已接入，Milestone 0 到 Milestone 5 保持可验证
-- 当前活跃功能：免注册 `POST /api/auth/demo` 本地演示会话、中文首页和 DemoEntry 演示入口；Milestone 1 人物 CRUD、认证表单接入、人物列表、四步创建人物和人物详情/工作台页；Milestone 2 SourceMaterial 资料记录、AI Job、资料上传页和任务状态页；Milestone 3 deterministic mock parsing、ParsedChunk、MemoryCard、记忆审计 API 和记忆审计页；Milestone 4 `PersonaProfile` 聚合/编辑/重生成、可信度重算、上传建议和 profile/trust 页面；Milestone 5 conversation/message/citation/correct-memory API、mock `chat_llm` Provider Gateway、deterministic retrieval 和 `/personas/{id}/chat` 文本对话页；Milestone 6 voice config/default TTS/samples/clone/synthesize/voice-message API、mock `asr`/`tts`/`extract_voice_sample`/`voice_clone` Provider Gateway、voice AI Jobs、`/personas/{id}/voice` 声音设置页、聊天页浏览器录音/已上传音频语音消息和 audio playback；Milestone 7 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、`avatar_3d` AI Job 和 default/generated/failure fallback AvatarModel
-- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证、免注册本地演示、人物创建/工作台基础闭环、资料上传/任务队列基础闭环、mock 解析/记忆审计基础闭环、deterministic local 人格档案/可信度基础闭环、deterministic mock 文本对话基础闭环、deterministic mock 默认 TTS/语音合成/音色样本/音色克隆兜底/语音消息/前端录音播放基础闭环和后端 mock 3D 形象基础闭环
-- 当前技术栈：Next.js 15、React 19、FastAPI、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis、MinIO、Docker Compose
+- 当前阶段：全站温馨沉浸式「记忆空间」前端改造与免注册一键演示入口已接入；Milestone 6 Task 1/2/3/4 后端默认 TTS、语音合成、音色样本、音色克隆兜底、语音消息 ASR 到 TTS、前端录音、声音设置和 mock 语音播放基础闭环已接入；Milestone 7 Task 1/2/3 后端 3D 数字人配置、默认形象、mock 生成、前端 Three.js mock 预览、对话页 3D 数字人展示和播放状态口型联动基础闭环已接入，Milestone 0 到 Milestone 5 保持可验证
+- 当前活跃功能：免注册 `POST /api/auth/demo` 本地演示会话、中文首页和 DemoEntry 演示入口；全站「记忆空间」暖色视觉系统、Pexels 本地素材和共享组件；Milestone 1 人物 CRUD、认证表单接入、人物列表、四步创建人物和人物记忆空间页；Milestone 2 SourceMaterial 资料记录、AI Job、资料上传页和任务状态页；Milestone 3 deterministic mock parsing、ParsedChunk、MemoryCard、记忆审计 API 和记忆审计页；Milestone 4 `PersonaProfile` 聚合/编辑/重生成、可信度重算、上传建议和 profile/trust 页面；Milestone 5 conversation/message/citation/correct-memory API、mock `chat_llm` Provider Gateway、deterministic retrieval 和 `/personas/{id}/chat` 文本对话页；Milestone 6 voice config/default TTS/samples/clone/synthesize/voice-message API、mock `asr`/`tts`/`extract_voice_sample`/`voice_clone` Provider Gateway、voice AI Jobs、`/personas/{id}/voice` 声音设置页、聊天页浏览器录音/已上传音频语音消息和 audio playback；Milestone 7 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、`avatar_3d` AI Job、default/generated/failure fallback AvatarModel、`/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动
+- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证、免注册本地演示、人物创建/记忆空间基础闭环、资料上传/任务队列基础闭环、mock 解析/记忆审计基础闭环、deterministic local 人格档案/可信度基础闭环、deterministic mock 文本对话基础闭环、deterministic mock 默认 TTS/语音合成/音色样本/音色克隆兜底/语音消息/前端录音播放基础闭环和 mock 3D 形象配置/生成/前端预览/对话页播放状态口型联动基础闭环
+- 当前技术栈：Next.js 15、React 19、Three.js、FastAPI、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis、MinIO、Docker Compose
 - 当前统一验证入口：`docs/init.sh`
 
-## Latest Session Update - 2026-07-04 Milestone 7 Task 1 Backend Avatar API
+## Latest Session Update - 2026-07-04 Milestone 7 Task 3 Chat Avatar Mouth Linkage
+
+- 抽取共享 `frontend/src/components/AvatarPreview.tsx`，复用 Task 2 的 Three.js mock 头像/半身渲染，避免 `/personas/{id}/avatar` 和 `/personas/{id}/chat` 维护两份场景代码。
+- 聊天页加载 `getAvatarConfig(personaId)`；当 selected avatar model 具备 `model_url` 和 `format` 时，在对话侧展示 mock 3D 数字人。
+- persona 语音回复的 `<audio>` `onPlay`/`onPause`/`onEnded` 事件更新当前播放消息 ID；只有当前播放中的 persona audio message 会驱动 `mouthActive`，暂停/结束后回到微笑。
+- 新增 `shouldShowChatAvatar` 与 `shouldDriveAvatarMouth` helper 测试，覆盖 selected model 显示条件和口型驱动条件。
+- 保持范围边界：当前是播放状态驱动的 mock 口型，不加载真实 GLB，不实现真实音频音量包络、viseme、真实 3D provider、影视级拟真或全身动作捕捉。
+
+## Previous Session Update - 2026-07-04 Full-Site Memory Space Frontend
+
+- 将前端产品心智从后台管理切换为温馨沉浸式「记忆空间」：首页、登录/注册、Dashboard、四步创建人物、人物详情、资料上传、任务、记忆审计、人格档案、文本对话、声音设置和形象预览页均已使用暖色生活场景背景、半透明面板、纸质卡片、照片叠层、便签、语音波形和记忆行动卡。
+- 新增共享视觉组件与展示常量：`frontend/src/components/MemorySpace.tsx`、`frontend/src/lib/memory-space.ts`、Tailwind 暖色主题和 `prefers-reduced-motion` 降级。
+- 使用 Pexels 免费素材并下载到 `frontend/public/memory-space/`：`grandmother-tea.jpg`、`family-album.jpg`、`family-living-room.jpg`、`memory-string-lights.jpg`；来源 URL、用途和 alt 文案记录在 `MEMORY_SPACE_ASSETS`，并由 `frontend/tests/memory-space.test.mjs` 校验。
+- 首页首屏保留主入口「立即体验示例」和次入口「登录已有账号」；所有 signed-out 状态保留免注册演示入口。
+- 本机重建 Compose 时发现宿主机 `5432` 绑定失败；已将 PostgreSQL 宿主机端口改为 `${POSTGRES_HOST_PORT:-15432}:5432`，容器内服务仍使用 `postgres:5432`，不改变应用数据库连接。
+- 保持范围边界：本次不新增后端 API、不改数据库；仍使用 deterministic mock provider，不实现真实 OCR/ASR/LLM、真实音色、真实 3D 数字人或导出。
+- 浏览器复验已完成：1280x720 与 390x844 首页均显示中文沉浸式首屏，主/次入口在首屏内，Pexels 本地图片正常加载，无横向溢出或按钮重叠；点击「立即体验示例」无需注册进入「外婆的记忆空间」；文本对话发送「外婆，我今天很想你」返回中文第一人称回复、包含「小铭」并展示「回复依据」。
+- 二级页面复验已完成：资料上传、任务、记忆审计、人格档案、声音设置和 3D 形象页均无「工作台」前端文案残留、无横向溢出；3D 形象页 canvas 桌面像素检查 `sampled=6600`、`colorBuckets=50`、`nonblank=True`，移动像素检查 `sampled=6030`、`colorBuckets=38`、`nonblank=True`。
+- 最终验证通过：`python -m json.tool docs/feature-list.json`、`python -m pytest backend/tests -q`（116 passed）、`npm.cmd --prefix frontend run test`（44 passed）、`npm.cmd --prefix frontend run lint`、`npm.cmd --prefix frontend run build`、`docker compose config` 和 `& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 均退出码 0。
+
+## Previous Session Update - 2026-07-04 Milestone 7 Task 1 Backend Avatar API
 
 - 新增后端 Avatar API：`GET /api/personas/{id}/avatar`、`POST /api/personas/{id}/avatar/default`、`POST /api/personas/{id}/avatar/generate`。
 - 复用既有 `avatar_models` 表，新增 `backend/app/schemas/avatar.py`、`backend/app/services/avatar.py`、`backend/app/api/routes/avatar.py`，并在 `backend/app/main.py` 注册。
 - `default` 会创建 selected `default_avatar`，返回 mock GLB、预览图、基础表情、待机/眨眼/微笑/点头动作配置和 `audio_envelope` 口型配置。
 - `generate` 只接受当前用户当前人物的 image `SourceMaterial`，创建 `avatar_3d` AI Job，通过 mock `avatar_3d` Provider Gateway 写入 selected `generated_ready` AvatarModel。
 - 生成失败会写入 `generation_failed` AvatarModel 和 failed job，并回退 selected `default_avatar`，返回 PRD 原文失败提示。
-- 保持范围边界：本次不实现前端 Three.js/GLB 加载、对话页 3D 展示、口型同步可视化、真实 3D provider、全身动作捕捉、影视级拟真、故事/导出。
+- 保持范围边界：Task 1 不实现前端 Three.js/GLB 加载、对话页 3D 展示、口型同步可视化、真实 3D provider、全身动作捕捉、影视级拟真、故事/导出；Task 2 已补齐前端 Three.js mock 预览，但仍不做真实 GLB/provider 或对话页联动。
 
 ## Previous Session Update - 2026-07-04 Milestone 6 Task 4 Frontend Voice Settings And Playback
 
 - 新增 `/personas/{id}/voice` 声音设置页：展示 voice status、默认 TTS 原文提示、已创建声音记录、音频资料选择、创建音色样本、发起 mock 音色克隆和文本转语音预览播放。
-- 人物工作台新增「声音设置」入口；`ROUTES.personaVoice`、`API_PATHS.voice` 和 `frontend/src/lib/voice.ts` 统一前端路径与 API helper。
+- 人物记忆空间新增「声音设置」入口；`ROUTES.personaVoice`、`API_PATHS.voice` 和 `frontend/src/lib/voice.ts` 统一前端路径与 API helper。
 - 文本对话页新增语音消息区：支持浏览器 `MediaRecorder` 录音上传，也支持选择已上传音频资料，调用 `POST /api/conversations/{id}/voice-message`。
 - persona 回复存在 `audio_url` 时展示浏览器 `<audio controls>` 播放控件；默认 TTS 仍展示“当前使用系统默认声音，不是 TA 的真实声音...”提示。
 - 保持范围边界：当前仍是 deterministic mock ASR/TTS/voice clone，不代表真实音质；本次不实现 3D 口型同步、故事/导出或真实 provider 质量。
@@ -29,11 +49,11 @@
 ## Previous Session Update - 2026-07-04 中文沉浸式前端与免注册演示入口
 
 - 新增 `POST /api/auth/demo`：每次创建本地 `guest_demo` 用户、虚构人物「外婆」、称呼「小铭」、3 条手动资料、confirmed 记忆、人格档案和可信度，并返回 `demo_persona_id`。
-- 新增前端 `startDemoSession()` helper 和 `DemoEntry` 组件；首页主按钮「立即体验示例」、登录/注册和 signed-out 状态均可免注册进入外婆工作台。
-- 将 `layout` 改为 `lang="zh-CN"`，并中文化首页、导航、登录/注册、Dashboard、四步创建人物、人物工作台、资料上传、任务、记忆审计、人格档案和文本对话页。
-- 工作台按用户下一步重排为开始对话、上传资料、审核记忆、查看档案；文本对话页中文展示发送、依据和纠正记忆。
+- 新增前端 `startDemoSession()` helper 和 `DemoEntry` 组件；首页主按钮「立即体验示例」、登录/注册和 signed-out 状态均可免注册进入外婆记忆空间。
+- 将 `layout` 改为 `lang="zh-CN"`，并中文化首页、导航、登录/注册、Dashboard、四步创建人物、人物记忆空间、资料上传、任务、记忆审计、人格档案和文本对话页。
+- 人物记忆空间按用户下一步重排为开始对话、上传资料、审核记忆、查看档案；文本对话页中文展示发送、依据和纠正记忆。
 - 为本地前端调用后端补充 FastAPI CORS 配置，允许 `FRONTEND_URL` 对应的浏览器来源访问 API，并用后端测试覆盖预检请求。
-- 真实浏览器烟测已覆盖首页中文首屏、免注册进入「外婆」工作台、文本对话发送「外婆，我今天很想你」并返回中文第一人称回复；桌面和移动视口均确认首屏入口可见且无横向溢出。
+- 真实浏览器烟测已覆盖首页中文首屏、免注册进入「外婆」记忆空间、文本对话发送「外婆，我今天很想你」并返回中文第一人称回复；桌面和移动视口均确认首屏入口可见且无横向溢出。
 - 保持范围边界：当前仍使用 deterministic mock provider；不实现真实 OCR/ASR/LLM、前端语音播放、音色克隆、3D 数字人或导出。
 
 ## Previous Session Update - 2026-07-04 Milestone 6 Task 3 Voice Message API
@@ -155,19 +175,21 @@
 - Milestone 4 前端 profile/trust 页已接入：人物详情入口、`/personas/{id}/profile`、trust score/level/components/suggestions、profile dimensions/source memory ids、save/regenerate/recalculate 操作；Milestone 5 文本对话现在读取当前 profile summary。
 - Milestone 5 后端文本对话 API 已接入：`GET/POST /api/personas/{id}/conversations`、`GET/POST /api/conversations/{id}/messages`、`GET /api/messages/{id}/citations`、`POST /api/messages/{id}/correct-memory`、mock `chat_llm` Provider Gateway、deterministic retrieval、first-person/nickname response、citation persistence、correct-memory immediate effect 和 user isolation。
 - Milestone 5 前端文本对话页已接入：人物详情入口、`/personas/{id}/chat`、conversation 加载/创建、消息流、文本输入、依据展示和记忆纠正操作。
-- 免注册本地演示已接入：`POST /api/auth/demo` 创建 `guest_demo` 用户、示例人物「外婆」、3 条手动资料、confirmed 记忆、profile/trust 和 `demo_persona_id`；前端中文首页、登录/注册和 signed-out 状态可通过「无需注册，体验示例」进入人物工作台。
-- 当前前端主体验已中文化：`lang="zh-CN"`、中文导航、中文首页、四步创建人物、人物工作台、资料上传、任务、记忆审计、人格档案和文本对话页。
+- 免注册本地演示已接入：`POST /api/auth/demo` 创建 `guest_demo` 用户、示例人物「外婆」、3 条手动资料、confirmed 记忆、profile/trust 和 `demo_persona_id`；前端中文首页、登录/注册和 signed-out 状态可通过「无需注册，体验示例」进入人物记忆空间。
+- 当前前端主体验已中文化：`lang="zh-CN"`、中文导航、中文首页、四步创建人物、人物记忆空间、资料上传、任务、记忆审计、人格档案和文本对话页。
+- Milestone 6 voice 前后端基础闭环已接入：后端 voice config/default TTS/samples/clone/synthesize/voice-message API，前端声音设置页、聊天页录音/已上传音频语音消息和 audio playback。
+- Milestone 7 avatar 前端/后端基础闭环已接入：后端 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、avatar_3d AI Job、default/generated/failure fallback AvatarModel，前端 `/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动。
 - Task 3 已接入 Dockerfile、Compose 拓扑、统一 harness 和 Milestone 0 文档说明。
 - Task 3 review fix 已补齐 tracked PRD、自启动迁移 entrypoint、Docker context 忽略文件和 PRD checklist 清理。
 - Compose 中只包含变量名、空白 provider 配置和开发默认值，不包含真实密钥。
 
 ### What's In Progress
 
-- Milestone 7 Task 1：后端 Avatar API 已接入；正在完成 docs-driven harness 复验与提交整理。
+- Milestone 8 下一步：回忆讲述与导出/删除关键数据仍待实现；真实 GLB/3D provider 质量不作为当前 mock MVP 阻塞。
 
 ### What's Next
 
-1. Milestone 7 Task 2：实现前端 `/personas/{id}/avatar` 形象设置页和 avatar helper/test。
+1. Milestone 8 后续验收：实现回忆讲述与导出/删除关键数据。
 2. 后续接入真实 AI Provider 或 embedding 检索时，先扩展 provider gateway 和 mock/真实 provider 测试，不直接在业务代码中散落模型调用。
 3. 跟进当前前端依赖树中的 2 个 moderate severity npm audit findings，避免使用 `npm audit fix --force` 进行破坏性升级。
 
@@ -175,25 +197,32 @@
 
 | 项目 | 状态 | 说明 |
 | --- | --- | --- |
-| 是否改变产品行为 | 是 | 本次会话新增 Milestone 7 后端 3D 数字人配置、默认形象、mock 生成和失败兜底 API。 |
-| 是否改变代码逻辑 | 是 | 新增 avatar schemas/services/routes、mock `avatar_3d` Provider Gateway、main route 注册和后端 API 测试；Compose 拓扑未改。 |
+| 是否改变产品行为 | 是 | 本次会话新增 Milestone 7 对话页 selected mock 3D 数字人展示和语音播放状态口型联动。 |
+| 是否改变代码逻辑 | 是 | 抽取共享 `AvatarPreview`，聊天页读取 avatar config 并将 persona audio 播放状态传入口型动画；Compose 拓扑未改。 |
 | 是否改变启动命令 | 否 | 本地拓扑仍使用 `docker compose up --build`；统一验证入口仍为 `docs/init.sh`。 |
-| 是否更新功能范围账本 | 是 | 新增 `feat-015` 记录 Milestone 7 Task 1 后端 Avatar 基础闭环。 |
-| 是否更新交接记录 | 是 | 本文件记录 Milestone 7 Task 1 实现、验证证据和残余风险。 |
+| 是否更新功能范围账本 | 是 | 新增 `feat-018` 记录 Milestone 7 Task 3 对话页数字人与播放状态口型联动闭环。 |
+| 是否更新交接记录 | 是 | 本文件记录 Milestone 7 Task 3 实现、验证证据和残余风险。 |
 
 ## Blockers / Risks
 
-- 本次已运行首页、免注册进入外婆工作台和文本对话的真实浏览器烟测；Milestone 2 上传页、任务页、Milestone 3 记忆审计页、Milestone 4 profile/trust 页和 Milestone 6 voice 前端仍主要依赖自动化测试、lint、build、Compose 配置和 harness 证据。
-- 2026-07-04 本地已完成一次 `docker compose up --build -d` 服务级烟测；后续如重启服务，仍应确认本机端口 3000、8000、5432、6379、9000、9001 未被占用。
+- 本次已运行首页、免注册进入外婆记忆空间和文本对话的真实浏览器烟测；Milestone 7 形象设置页与聊天页数字人区域已运行临时 mock API 浏览器烟测和桌面/移动 canvas 区域像素检查；Milestone 2 上传页、任务页、Milestone 3 记忆审计页、Milestone 4 profile/trust 页和 Milestone 6 voice 前端仍主要依赖自动化测试、lint、build、Compose 配置和 harness 证据。
+- 2026-07-04 本地已完成一次 `docker compose up --build -d` 服务级烟测；后续如重启服务，仍应确认本机端口 3000、8000、15432（或 `POSTGRES_HOST_PORT` 指定端口）、6379、9000、9001 未被占用。
 - 当前前端依赖树存在 2 个 moderate severity npm audit findings；本任务未改依赖版本，未执行破坏性 `npm audit fix --force`。
 - 已新增 `.gitignore` 忽略常见本地生成物和 `.env/`；仍需注意不要手动强制 staging 真实密钥或生成目录。
 - 当前资料解析、OCR、ASR、图片理解、视频分析、记忆抽取和文本 chat 只使用 deterministic mock Provider Gateway/local retrieval 输出，不代表真实模型质量。
 - 当前人格档案聚合和可信度重算只使用 deterministic local 规则，不代表真实 provider profile quality。
 - Milestone 6 已接入前端录音、声音设置页和 mock 语音播放；仍未运行真实浏览器连接后端的完整语音端到端 smoke。
-- Milestone 7 目前仅完成后端 avatar API；前端 Three.js/GLB 展示、对话页数字人联动和口型同步可视化仍未实现。
-- 本地一键演示入口已实现；真实 LLM/embedding 检索质量、真实 TTS/音色质量、前端 3D/GLB 展示、故事/导出尚未实现。
+- Milestone 7 目前完成后端 avatar API、前端 Three.js mock 头像/半身预览和聊天页播放状态口型联动；真实 GLB 加载、真实音频音量包络/viseme 口型同步和真实 3D provider 质量仍未实现。
+- 本地一键演示入口已实现；真实 LLM/embedding 检索质量、真实 TTS/音色质量、故事/导出尚未实现。
 
 ## Evidence of Completion
+
+- Milestone 7 Task 3 RED：`npm.cmd --prefix frontend run test -- avatar.test.mjs` 退出码 1，缺少 `shouldDriveAvatarMouth` export，按预期暴露对话页口型 helper 尚未实现。
+- Milestone 7 Task 3 focused GREEN：`npm.cmd --prefix frontend run test -- avatar.test.mjs` 退出码 0，44 passed。
+- Milestone 7 Task 3 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，44 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，`/personas/[id]/chat` 构建通过。
+- Milestone 7 Task 3 unified harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 7 Task 2 banner（随后已更新为 Task 3）、required files、JSON、116 backend tests、44 frontend tests、frontend lint/build、Compose config 均通过。
+- Milestone 7 Task 3 browser smoke：临时 mock API + 当前工作树 Next dev server，1280x720 聊天页截图可见对话侧 Three.js mock 数字人和 audio 回复；截图 avatar 区域像素统计 `sampledPixels=9483`、`nonWhiteSamples=9483`、`colorBuckets=82`、`skinToneSamples=5861`、`darkSamples=176`。
+- Milestone 7 Task 3 browser smoke：390x844 移动视口滚动到聊天页 canvas，截图可见 mock 数字人；截图 avatar 区域像素统计 `sampledPixels=9492`、`nonWhiteSamples=9492`、`colorBuckets=132`、`skinToneSamples=4774`、`darkSamples=139`。
 
 - 中文体验 CORS focused RED：`python -m pytest backend/tests/test_health.py -q` 退出码 1，`OPTIONS /api/auth/demo` 从 `http://localhost:3000` 来源返回 405。
 - 中文体验 CORS focused GREEN：`python -m pytest backend/tests/test_health.py -q` 退出码 0，2 passed。
@@ -204,7 +233,7 @@
 - 中文体验 frontend build：`npm.cmd --prefix frontend run build` 退出码 0，Next.js build succeeded。
 - 中文体验 Compose config：`docker compose config` 退出码 0。
 - 中文体验服务启动：`docker compose up --build -d` 退出码 0，backend healthy，frontend started；Compose 报告既有 orphan containers warning，未阻塞服务启动。
-- 中文体验真实浏览器烟测：首页中文首屏展示「立即体验示例」和「登录已有账号」；点击主入口无需注册进入「外婆」人物工作台；进入文本对话发送「外婆，我今天很想你」后返回中文第一人称回复、包含「小铭」并展示回复依据。
+- 中文体验真实浏览器烟测：首页中文首屏展示「立即体验示例」和「登录已有账号」；点击主入口无需注册进入「外婆」人物记忆空间；进入文本对话发送「外婆，我今天很想你」后返回中文第一人称回复、包含「小铭」并展示回复依据。
 - 中文体验响应式检查：in-app browser 以 1280x720 和 390x844 视口检查首页，主/次入口均在首屏内，未发现横向溢出或按钮重叠。
 - 中文体验统一 harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，required files、JSON、110 backend tests、32 frontend tests、frontend lint/build、Compose config 均通过。
 - Pre-change baseline `python -m json.tool docs/feature-list.json`：退出码 0。
@@ -356,6 +385,70 @@
 - `frontend/app/personas/[id]/chat/page.tsx`
 - `frontend/tests/auth.test.mjs`
 - `frontend/tests/routes.test.mjs`
+
+## Milestone 7 Task 2 Update - 2026-07-04
+
+### 本次完成内容
+
+- 完成前端 `/personas/{id}/avatar` 3D 形象设置页：读取人物、avatar config 和图片资料；支持选择默认纪念形象、从图片资料发起 mock 3D 生成、展示 PRD 失败提示、状态、模型记录和 model_url。
+- 接入 Three.js 头像/半身 mock 预览：包含待机、眨眼、微笑、点头和简化口型测试，保持 MVP 范围为头像/半身和 mock 预览。
+- 人物记忆空间与对话页新增「3D 形象」入口，并清理旧的“3D 展示尚未实现”前端文案。
+- 新增 `frontend/src/lib/avatar.ts` 与 `frontend/tests/avatar.test.mjs`，补齐 routes/API 路径测试；为当前前端 lint 覆盖到的 `MemorySpace` 图片组件切换到 `next/image`，避免 `<img>` 警告阻断 `--max-warnings=0`。
+- 同步 `docs/README.md`、`docs/feature-list.json`、`docs/prd-checklist.md`、`docs/平台说明.md`、`docs/init.sh` 和 SDD 账本。
+
+### 修改文件
+
+- `frontend/src/lib/avatar.ts`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/routes.ts`
+- `frontend/src/lib/memory-space.ts`
+- `frontend/src/components/MemorySpace.tsx`
+- `frontend/app/page.tsx`
+- `frontend/app/personas/[id]/avatar/page.tsx`
+- `frontend/app/personas/[id]/page.tsx`
+- `frontend/app/personas/[id]/chat/page.tsx`
+- `frontend/tests/avatar.test.mjs`
+- `frontend/tests/routes.test.mjs`
+- `frontend/public/memory-space/grandmother-tea.jpg`
+- `frontend/public/memory-space/family-album.jpg`
+- `frontend/public/memory-space/family-living-room.jpg`
+- `frontend/public/memory-space/memory-string-lights.jpg`
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `docs/README.md`
+- `docs/feature-list.json`
+- `docs/prd-checklist.md`
+- `docs/progress.md`
+- `docs/平台说明.md`
+- `docs/init.sh`
+
+### 验证记录
+
+- Milestone 7 Task 2 RED：`npm.cmd --prefix frontend run test` 退出码 1，缺少 `frontend/src/lib/avatar.ts`；同时当前测试通配符覆盖到既有未跟踪 `frontend/tests/memory-space.test.mjs`，提示缺少 `frontend/src/lib/memory-space.ts`。
+- Milestone 7 Task 2 helper GREEN：`npm.cmd --prefix frontend run test` 退出码 0，40 passed。
+- Milestone 7 Task 2 frontend verification：`npm.cmd --prefix frontend run test` 退出码 0，42 passed。
+- Milestone 7 Task 2 frontend lint：`npm.cmd --prefix frontend run lint` 退出码 0。
+- Milestone 7 Task 2 frontend build：`npm.cmd --prefix frontend run build` 退出码 0，Next.js build succeeded with `/personas/[id]/avatar` route。
+- Milestone 7 Task 2 browser smoke：临时 mock API + 当前工作树 Next dev server，1280x720 截图可见 Three.js 头像；canvas 区域截图像素统计 `sampledPixels=6624`、`colorBuckets=57`、`darkSamples=11`、`skinToneSamples=345`。
+- Milestone 7 Task 2 browser smoke：390x844 移动视口滚动到 canvas，截图可见头像/半身；canvas 区域截图像素统计 `sampledPixels=5655`、`colorBuckets=113`、`darkSamples=27`、`skinToneSamples=1069`。
+- Milestone 7 Task 2 unified harness：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，Milestone 7 Task 2 banner、required files、JSON、116 backend tests、42 frontend tests、frontend lint/build、Compose config 均通过。
+- Milestone 7 Task 2 diff check：`git diff --check` 退出码 0，仅输出 LF-to-CRLF working-copy warnings。
+- Milestone 7 Task 2 review fix：复审发现沉浸式人物记忆空间未暴露 `/personas/{id}/avatar` 入口，且范围提示仍写“3D 数字人尚未实现”；已在 `MemoryActionCard` 网格新增「设置 3D 形象」入口，补充 `MEMORY_SPACE_ACTIONS.avatar`，并把范围提示改为 mock 3D 已接入、真实 provider/对话页联动/导出未实现。
+- Milestone 7 Task 2 review fix verification：`npm.cmd --prefix frontend run test` 退出码 0，42 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0，`/personas/[id]` 和 `/personas/[id]/avatar` 构建通过。
+- Milestone 7 Task 2 final unified harness after review fix：`& "C:\Program Files\Git\bin\bash.exe" ./docs/init.sh` 退出码 0，116 backend tests、42 frontend tests、frontend lint/build、Compose config 均通过。
+- Milestone 7 Task 2 final diff check after review fix：`git diff --check` 退出码 0，仅输出 LF-to-CRLF working-copy warnings。
+
+### 当前残余风险
+
+- `/personas/{id}/avatar` 当前渲染的是 Three.js mock 头像/半身，不加载真实 GLB，不代表真实 3D provider 质量。
+- Task 2 收尾时对话页仅提供 3D 形象入口；Task 3 已补齐 selected mock 数字人展示和语音播放状态口型联动。
+- 浏览器烟测使用临时 mock API 绕开本地 3101 与 Docker 后端 CORS 端口差异；后续如需完整服务级浏览器验收，应重建 Docker 前端镜像或更新本地 CORS/端口配置后再测。
+- `frontend/public/memory-space/*.jpg` 是为当前未跟踪 memory-space 测试提供的占位本地文件，只用于文件存在性测试，不代表最终视觉素材质量。
+- 前端依赖树仍有 2 个 moderate severity npm audit findings，未在本任务处理。
+
+### 下一步
+
+- Milestone 7 对话页 mock 数字人展示和播放状态口型联动已由 Task 3 补齐；当前下一步转入 Milestone 8 回忆讲述与导出/删除关键数据。
 - `frontend/tests/persona.test.mjs`
 - `frontend/tests/materials.test.mjs`
 - `frontend/tests/memories.test.mjs`

@@ -41,8 +41,8 @@
     },
     {
       "id": "feat-005",
-      "name": "Milestone 1 人物创建与工作台基础闭环",
-      "description": "实现当前 Milestone 1 已交付范围：注册/登录表单接入后端认证并保存 JWT；Dashboard 拉取用户隔离的人物列表；创建人物表单包含 PRD 必填关系、称呼、说话风格、情绪边界和禁用表达并在前端阻止缺失字段提交；人物详情/工作台页展示关系、称呼、风格、禁用表达、可信度和基础统计；后端提供用户隔离的人物 CRUD、保留四类 MVP 人物类型、拒绝预留 expert_role，并返回可供后续对话读取的 prompt_context。该功能不包含资料上传、材料解析、记忆抽取/审计、对话、语音/TTS、头像/3D、导出或完整 Demo flow。",
+      "name": "Milestone 1 人物创建与记忆空间基础闭环",
+      "description": "实现当前 Milestone 1 已交付范围：注册/登录表单接入后端认证并保存 JWT；Dashboard 拉取用户隔离的人物列表；创建人物表单包含 PRD 必填关系、称呼、说话风格、情绪边界和禁用表达并在前端阻止缺失字段提交；人物详情/记忆空间页展示关系、称呼、风格、禁用表达、可信度和基础统计；后端提供用户隔离的人物 CRUD、保留四类 MVP 人物类型、拒绝预留 expert_role，并返回可供后续对话读取的 prompt_context。该功能不包含资料上传、材料解析、记忆抽取/审计、对话、语音/TTS、头像/3D、导出或完整 Demo flow。",
       "dependencies": [
         "feat-004"
       ],
@@ -72,7 +72,7 @@
     {
       "id": "feat-008",
       "name": "Milestone 4 人格档案与可信度基础闭环",
-      "description": "实现当前 Milestone 4 已交付范围：后端提供用户隔离的 GET/PATCH /api/personas/{id}/profile、POST /api/personas/{id}/profile/regenerate 和 POST /api/personas/{id}/recalculate-trust；PersonaProfile 从 confirmed/corrected active memories 聚合，保留 source memory IDs，排除 rejected/disabled/deleted memories，并保留用户手动档案覆盖；记忆审计动作会刷新 profile/trust，后续 profile/persona 读取可看到更新后的档案和 personas.trust_score；可信度为 0..100 deterministic/explainable local 指标，使用 PRD 权重 material coverage 25%、memory review rate 25%、source traceability 20%、expression habit completeness 15%、multimodal completeness 15%，trust level 为 0-30 initial、31-60 usable、61-80 trusted、81-100 high_trust；显式重生成/重算会创建 succeeded update_profile 和 calculate_trust_score AI jobs；前端提供 /personas/{id}/profile 页面展示并编辑 trust score、level、components、suggestions、profile dimensions 和 source memory ids，人物工作台链接到该页并显示 trust level/上传建议。该功能不包含真实 provider profile quality、真实 LLM/embedding retrieval quality、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
+      "description": "实现当前 Milestone 4 已交付范围：后端提供用户隔离的 GET/PATCH /api/personas/{id}/profile、POST /api/personas/{id}/profile/regenerate 和 POST /api/personas/{id}/recalculate-trust；PersonaProfile 从 confirmed/corrected active memories 聚合，保留 source memory IDs，排除 rejected/disabled/deleted memories，并保留用户手动档案覆盖；记忆审计动作会刷新 profile/trust，后续 profile/persona 读取可看到更新后的档案和 personas.trust_score；可信度为 0..100 deterministic/explainable local 指标，使用 PRD 权重 material coverage 25%、memory review rate 25%、source traceability 20%、expression habit completeness 15%、multimodal completeness 15%，trust level 为 0-30 initial、31-60 usable、61-80 trusted、81-100 high_trust；显式重生成/重算会创建 succeeded update_profile 和 calculate_trust_score AI jobs；前端提供 /personas/{id}/profile 页面展示并编辑 trust score、level、components、suggestions、profile dimensions 和 source memory ids，人物记忆空间链接到该页并显示 trust level/上传建议。该功能不包含真实 provider profile quality、真实 LLM/embedding retrieval quality、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
       "dependencies": [
         "feat-007"
       ],
@@ -82,7 +82,7 @@
     {
       "id": "feat-009",
       "name": "Milestone 5 第一人称文本对话基础闭环",
-      "description": "实现当前 Milestone 5 已交付范围：后端提供用户隔离的 GET/POST /api/personas/{id}/conversations、GET/POST /api/conversations/{id}/messages、GET /api/messages/{id}/citations 和 POST /api/messages/{id}/correct-memory；发送文本消息会保存 user/persona messages、对话历史、mock chat_llm Provider Gateway metadata 和 message_citations；deterministic retrieval 优先 corrected，再用 confirmed，并排除 rejected/disabled/deleted memories；回复使用 TA 第一人称和用户称呼，资料不足时温柔承认不确定，并过滤 AI 助手、语言模型、我真的回来了等禁用表达；correct-memory 只允许纠正当前用户消息引用过的记忆，写入 corrected/user_correction，刷新 profile/trust，并立即影响下一次对话；前端提供 /personas/{id}/chat 文本对话页、依据展示和记忆纠正 UI，人物工作台链接到该页。该功能不包含 voice-message、语音/TTS、音色克隆、3D avatar、故事/导出、真实 LLM 质量或真实 embedding/pgvector 检索质量。",
+      "description": "实现当前 Milestone 5 已交付范围：后端提供用户隔离的 GET/POST /api/personas/{id}/conversations、GET/POST /api/conversations/{id}/messages、GET /api/messages/{id}/citations 和 POST /api/messages/{id}/correct-memory；发送文本消息会保存 user/persona messages、对话历史、mock chat_llm Provider Gateway metadata 和 message_citations；deterministic retrieval 优先 corrected，再用 confirmed，并排除 rejected/disabled/deleted memories；回复使用 TA 第一人称和用户称呼，资料不足时温柔承认不确定，并过滤 AI 助手、语言模型、我真的回来了等禁用表达；correct-memory 只允许纠正当前用户消息引用过的记忆，写入 corrected/user_correction，刷新 profile/trust，并立即影响下一次对话；前端提供 /personas/{id}/chat 文本对话页、依据展示和记忆纠正 UI，人物记忆空间链接到该页。该功能不包含 voice-message、语音/TTS、音色克隆、3D avatar、故事/导出、真实 LLM 质量或真实 embedding/pgvector 检索质量。",
       "dependencies": [
         "feat-008"
       ],
@@ -122,7 +122,7 @@
     {
       "id": "feat-013",
       "name": "中文沉浸式前端与免注册一键演示入口",
-      "description": "实现当前中文体验和本地一键演示范围：后端新增 POST /api/auth/demo，每次创建 plan_type=guest_demo 的本地演示用户、虚构人物「外婆」、用户称呼「小铭」、3 条手动资料、已确认记忆、人格档案和可信度，并返回 demo_persona_id；前端新增 startDemoSession helper 和 DemoEntry 组件，首页、登录/注册和 signed-out 状态提供免注册体验入口，进入演示人物工作台；layout、首页、Dashboard、创建人物、人物工作台、资料上传、任务、记忆审计、人格档案和文本对话页面完成中文化和交互重排。该功能仍使用 deterministic mock provider，不包含真实 OCR/ASR/LLM、语音播放、音色克隆、3D 数字人或导出。",
+      "description": "实现当前中文体验和本地一键演示范围：后端新增 POST /api/auth/demo，每次创建 plan_type=guest_demo 的本地演示用户、虚构人物「外婆」、用户称呼「小铭」、3 条手动资料、已确认记忆、人格档案和可信度，并返回 demo_persona_id；前端新增 startDemoSession helper 和 DemoEntry 组件，首页、登录/注册和 signed-out 状态提供免注册体验入口，进入演示人物记忆空间；layout、首页、Dashboard、创建人物、人物记忆空间、资料上传、任务、记忆审计、人格档案和文本对话页面完成中文化和交互重排。该功能仍使用 deterministic mock provider，不包含真实 OCR/ASR/LLM、真实音色、3D 数字人或导出。",
       "dependencies": [
         "feat-009"
       ],
@@ -132,7 +132,7 @@
     {
       "id": "feat-014",
       "name": "Milestone 6 Task 4 前端声音设置与语音播放基础闭环",
-      "description": "实现当前 Milestone 6 前端声音控制基础范围：新增 /personas/{id}/voice 声音设置页，展示当前 voice_status、默认 TTS 原文提示、声音记录、音频资料样本选择、音色样本创建、mock 音色克隆和语音预览播放；人物工作台提供声音设置入口；聊天页提供浏览器录音上传和已上传音频资料两种语音消息入口，调用 POST /api/conversations/{id}/voice-message，并在返回的 persona message 存在 audio_url 时展示浏览器 audio 播放控件。该功能仍使用 deterministic mock provider，不包含真实 ASR/TTS/音色质量、3D 口型同步、故事/导出或完整 Demo flow。",
+      "description": "实现当前 Milestone 6 前端声音控制基础范围：新增 /personas/{id}/voice 声音设置页，展示当前 voice_status、默认 TTS 原文提示、声音记录、音频资料样本选择、音色样本创建、mock 音色克隆和语音预览播放；人物记忆空间提供声音设置入口；聊天页提供浏览器录音上传和已上传音频资料两种语音消息入口，调用 POST /api/conversations/{id}/voice-message，并在返回的 persona message 存在 audio_url 时展示浏览器 audio 播放控件。该功能仍使用 deterministic mock provider，不包含真实 ASR/TTS/音色质量、3D 口型同步、故事/导出或完整 Demo flow。",
       "dependencies": [
         "feat-012"
       ],
@@ -148,6 +148,48 @@
       ],
       "status": "completed",
       "evidence": "backend/app/schemas/avatar.py; backend/app/services/avatar.py; backend/app/api/routes/avatar.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_avatar.py; python -m pytest backend/tests/test_avatar.py -q; python -m pytest backend/tests -q"
+    },
+    {
+      "id": "feat-016",
+      "name": "Milestone 7 Task 2 前端 3D 形象设置与 Three.js mock 预览闭环",
+      "description": "实现当前 Milestone 7 前端 Avatar 基础范围：新增 /personas/{id}/avatar 形象设置页，读取 avatar config、图片资料和人物信息；支持选择默认纪念形象、从图片资料发起 mock 3D 生成、展示 PRD 失败提示、当前形象状态和模型记录；使用 Three.js 渲染头像/半身 mock 预览，包含待机、眨眼、微笑、点头和简化口型测试；人物记忆空间和对话页提供 3D 形象入口。该功能不包含真实 GLB 文件加载、真实 3D provider 质量、对话语音实时驱动数字人、影视级拟真、全身动作捕捉、故事/导出或完整 Demo flow。",
+      "dependencies": [
+        "feat-015"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/lib/avatar.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/avatar/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/avatar.test.mjs; frontend/tests/routes.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; browser smoke 1280x720 and 390x844 canvas pixel checks"
+    },
+    {
+      "id": "feat-017",
+      "name": "全站温馨沉浸式记忆空间前端改造",
+      "description": "将现有偏后台的前端页面统一改为温馨沉浸式「记忆空间」体验：新增暖色视觉系统、共享记忆空间组件、Pexels 免费素材本地化到 frontend/public/memory-space、素材元数据常量和 reduced-motion 降级；首页保留「立即体验示例」和「登录已有账号」首屏入口；登录/注册、Dashboard、创建人物、人物详情、资料上传、任务、记忆审计、人格档案、文本对话、声音设置和形象预览页均采用暖色生活场景背景、半透明面板、照片/便签/语音波形/记忆卡等物件，并把产品心智从后台管理替换为记忆空间。该功能不新增后端 API、不改数据库，不实现真实 OCR/ASR/LLM、真实音色、真实 3D 数字人或导出。",
+      "dependencies": [
+        "feat-013",
+        "feat-016"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/lib/memory-space.ts; frontend/src/components/MemorySpace.tsx; frontend/public/memory-space/grandmother-tea.jpg; frontend/public/memory-space/family-album.jpg; frontend/public/memory-space/family-living-room.jpg; frontend/public/memory-space/memory-string-lights.jpg; frontend/app/globals.css; frontend/tailwind.config.ts; frontend/app/page.tsx; frontend/app/layout.tsx; frontend/app/dashboard/page.tsx; frontend/app/login/page.tsx; frontend/app/register/page.tsx; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/jobs/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/avatar/page.tsx; frontend/tests/memory-space.test.mjs; npm.cmd --prefix frontend install lucide-react; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+    },
+    {
+      "id": "feat-018",
+      "name": "Milestone 7 Task 3 对话页 3D 数字人与语音播放口型联动闭环",
+      "description": "实现当前 Milestone 7 对话页数字人基础范围：抽取共享 AvatarPreview Three.js mock 头像/半身组件；聊天页读取 avatar config，存在 selected 可渲染模型时在对话侧展示同一 mock 3D 数字人；persona 语音回复的浏览器 audio 播放、暂停和结束事件会驱动口型开合状态；新增 helper 测试覆盖 selected model 显示条件和仅当前播放中的 persona audio message 才驱动口型。该功能不加载真实 GLB 文件，不实现真实音频音量包络、真实 3D provider 质量、影视级拟真或全身动作捕捉。",
+      "dependencies": [
+        "feat-014",
+        "feat-016"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/components/AvatarPreview.tsx; frontend/src/lib/avatar.ts; frontend/app/personas/[id]/avatar/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/avatar.test.mjs; npm.cmd --prefix frontend run test -- avatar.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docs/init.sh; browser smoke 1280x720 and 390x844 chat canvas screenshot pixel checks"
+    },
+    {
+      "id": "feat-019",
+      "name": "Milestone 8 Task 1 后端回忆讲述生成与收藏基础闭环",
+      "description": "实现当前 Milestone 8 后端故事生成基础范围：新增 memory_stories 表、SQLAlchemy 模型、Alembic 迁移、故事 schema/service/routes；GET/POST /api/personas/{id}/stories 支持用户隔离的故事列表和生成，POST /api/stories/{id}/favorite 支持收藏状态更新；故事生成只使用 confirmed/corrected 且未删除记忆，返回第一人称、用户称呼、source memory IDs、来源摘录、mock TTS audio_url，并写入 succeeded generate_story 与 synthesize_speech AI Jobs。该功能不包含前端 /personas/{id}/stories 页面、故事文本/音频导出、删除关键数据、真实 LLM/TTS 质量或完整 Demo flow。",
+      "dependencies": [
+        "feat-018"
+      ],
+      "status": "completed",
+      "evidence": "backend/alembic/versions/0002_memory_stories.py; backend/app/models/memory_story.py; backend/app/schemas/story.py; backend/app/services/stories.py; backend/app/api/routes/stories.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_stories.py; python -m pytest backend/tests/test_stories.py -q; python -m pytest backend/tests -q"
     }
   ]
 }
