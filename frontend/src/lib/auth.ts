@@ -1,6 +1,7 @@
 import { API_PATHS, buildApiUrl, readApiJson } from "./api";
 
 const AUTH_TOKEN_STORAGE_KEY = "persona_memory_agent_token";
+const LOCAL_GUEST_TOKEN = "local-guest-session";
 
 type AuthUser = {
   id: string;
@@ -19,22 +20,13 @@ type DemoAuthSession = AuthSession & {
   demo_persona_id: string;
 };
 
-type LoginPayload = {
-  email: string;
-  password: string;
-};
-
-type RegisterPayload = LoginPayload & {
-  display_name?: string;
-};
-
 export function getAuthToken(): string | null {
   if (!canUseStorage()) {
-    return null;
+    return LOCAL_GUEST_TOKEN;
   }
 
   const token = window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)?.trim();
-  return token || null;
+  return token || LOCAL_GUEST_TOKEN;
 }
 
 export function setAuthToken(token: string): void {
@@ -58,14 +50,6 @@ export function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function loginWithPassword(payload: LoginPayload): Promise<AuthSession> {
-  return submitAuth(API_PATHS.auth.login, payload, "登录失败。");
-}
-
-export async function registerAccount(payload: RegisterPayload): Promise<AuthSession> {
-  return submitAuth(API_PATHS.auth.register, payload, "注册失败。");
-}
-
 export async function startDemoSession(): Promise<DemoAuthSession> {
   const response = await fetch(buildApiUrl(API_PATHS.auth.demo), {
     method: "POST"
@@ -78,21 +62,12 @@ export async function startDemoSession(): Promise<DemoAuthSession> {
   return session;
 }
 
-async function submitAuth(
-  path: string,
-  payload: LoginPayload | RegisterPayload,
-  fallbackMessage: string
-): Promise<AuthSession> {
-  const response = await fetch(buildApiUrl(path), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-  const session = await readApiJson<AuthSession>(response, fallbackMessage);
-  setAuthToken(session.access_token);
-  return session;
+export async function ensureDemoSession(): Promise<DemoAuthSession | null> {
+  if (getAuthToken()) {
+    return null;
+  }
+
+  return startDemoSession();
 }
 
 function canUseStorage(): boolean {

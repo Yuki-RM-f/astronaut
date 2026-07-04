@@ -3,14 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, hash_password
 from app.db.session import get_db
 from app.models.memory_card import MemoryCard
 from app.models.persona import Persona
 from app.models.user import User, uuid_str
 from app.schemas.auth import (
     DemoTokenResponse,
-    LoginRequest,
     RegisterRequest,
     TokenResponse,
     UserRead,
@@ -81,18 +80,6 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
-    return _token_for_user(user)
-
-
-@router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
-    email = _normalize_email(payload.email)
-    user = db.scalar(select(User).where(User.email == email, User.deleted_at.is_(None)))
-    if user is None or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
     return _token_for_user(user)
 
 

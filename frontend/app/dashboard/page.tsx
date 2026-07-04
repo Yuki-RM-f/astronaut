@@ -10,14 +10,12 @@ import {
   MemoryShell,
   MemoryTitle,
   PrimaryMemoryLink,
-  SecondaryMemoryLink,
   StatPill
 } from "@/src/components/MemorySpace";
-import { getAuthToken } from "@/src/lib/auth";
 import { listPersonas, personaTypeLabel, PersonaRead } from "@/src/lib/persona";
 import { ROUTES } from "@/src/lib/routes";
 
-type DashboardState = "checking" | "signedOut" | "loading" | "ready" | "error";
+type DashboardState = "checking" | "loading" | "ready" | "error";
 
 export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>("checking");
@@ -25,11 +23,6 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      setState("signedOut");
-      return;
-    }
-
     let isCurrent = true;
     setState("loading");
     setError(null);
@@ -69,7 +62,6 @@ export default function DashboardPage() {
           </PrimaryMemoryLink>
         </div>
 
-        {state === "signedOut" ? <SignedOutState /> : null}
         {state === "loading" || state === "checking" ? (
           <DashboardNotice text="正在点亮你的记忆空间..." />
         ) : null}
@@ -78,21 +70,6 @@ export default function DashboardPage() {
         {state === "ready" && personas.length > 0 ? <PersonaGrid personas={personas} /> : null}
       </MemoryContainer>
     </MemoryShell>
-  );
-}
-
-function SignedOutState() {
-  return (
-    <GlassPanel className="mt-8 max-w-3xl">
-      <h2 className="font-serif text-3xl font-semibold text-memoryText">先从一个示例开始</h2>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-memoryText/70">
-        你可以免注册进入外婆示例，也可以登录已有账号查看自己的私有人物。
-      </p>
-      <div className="mt-6 flex flex-wrap gap-3">
-        <DemoEntry label="立即体验示例" />
-        <SecondaryMemoryLink href={ROUTES.login}>登录已有账号</SecondaryMemoryLink>
-      </div>
-    </GlassPanel>
   );
 }
 

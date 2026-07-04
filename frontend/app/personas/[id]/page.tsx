@@ -116,16 +116,10 @@ function SignedOutState() {
         需要一个可访问的记忆空间
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-7 text-memoryText/70">
-        你可以免注册打开外婆示例，或登录已有账号查看私有人物。
+        当前会以本地访客身份打开记忆空间，也可以先体验外婆示例。
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
         <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
       </div>
     </GlassPanel>
   );

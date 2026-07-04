@@ -16,10 +16,17 @@ from app.core.config import get_settings
 
 app = FastAPI(title="可信人格记忆Agent Backend")
 settings = get_settings()
+frontend_origins = sorted(
+    {
+        settings.frontend_url,
+        settings.frontend_url.replace("localhost", "127.0.0.1"),
+        settings.frontend_url.replace("127.0.0.1", "localhost"),
+    }
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

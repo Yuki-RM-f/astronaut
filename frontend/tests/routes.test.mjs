@@ -5,8 +5,6 @@ import { API_PATHS, getApiBaseUrl } from "../src/lib/api.js";
 
 test("PRD P0 routes are exposed for the current shell", () => {
   assert.equal(ROUTES.home, "/");
-  assert.equal(ROUTES.login, "/login");
-  assert.equal(ROUTES.register, "/register");
   assert.equal(ROUTES.dashboard, "/dashboard");
 });
 
@@ -92,6 +90,11 @@ test("Milestone 7 avatar API paths are exposed", () => {
   assert.equal(API_PATHS.avatar.config("p1"), "/api/personas/p1/avatar");
   assert.equal(API_PATHS.avatar.defaultAvatar("p1"), "/api/personas/p1/avatar/default");
   assert.equal(API_PATHS.avatar.generate("p1"), "/api/personas/p1/avatar/generate");
+});
+
+test("Milestone 8 story API paths are exposed", () => {
+  assert.equal(API_PATHS.stories.list("p1"), "/api/personas/p1/stories");
+  assert.equal(API_PATHS.stories.favorite("s1"), "/api/stories/s1/favorite");
 });
 
 test("API base URL defaults to local FastAPI backend", () => {

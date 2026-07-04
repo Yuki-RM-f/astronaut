@@ -1,4 +1,4 @@
-def test_register_login_and_current_user(client):
+def test_register_and_current_user(client):
     register = client.post(
         "/api/auth/register",
         json={
@@ -11,33 +11,18 @@ def test_register_login_and_current_user(client):
     token = register.json()["access_token"]
     assert register.json()["token_type"] == "bearer"
 
-    login = client.post(
-        "/api/auth/login",
-        json={"email": "demo@example.com", "password": "passw0rd"},
-    )
-    assert login.status_code == 200
-
     me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert me.status_code == 200
     assert me.json()["email"] == "demo@example.com"
 
 
-def test_login_rejects_wrong_password(client):
-    client.post(
-        "/api/auth/register",
-        json={
-            "email": "demo@example.com",
-            "password": "passw0rd",
-            "display_name": "Demo",
-        },
-    )
-
+def test_login_endpoint_is_not_exposed(client):
     response = client.post(
         "/api/auth/login",
         json={"email": "demo@example.com", "password": "wrong-pass"},
     )
 
-    assert response.status_code == 401
+    assert response.status_code == 404
 
 
 def test_demo_session_returns_token_and_seeded_persona(client):

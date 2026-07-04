@@ -1,15 +1,33 @@
 # Session Progress Log
 
+## Latest Session Update - 2026-07-04 Frontend Star Interaction Polish
+
+- 确认当前 Next.js 前端没有独立 `.html` 文件；本次用户所指“最新前端代码 html 文件”对应页面入口是 `frontend/app/personas/[id]/chat/page.tsx`，审核跳转入口是 `frontend/app/personas/[id]/memories/page.tsx`。
+- 保留记忆审核页“完成审核，点亮星星”后的 `router.push(ROUTES.personaChat(personaId))` 跳转，目标仍为 `/personas/{id}/chat`。
+- 微调星空互动页文案与模式：将“文字互动”明确为“文字对话”，将“语音互动”明确为“语音对话”，并把页面说明改为“文字对话 / 视频手势互动 -> 语音对话”的用户流程。
+- 视频手势互动模式新增“进入语音对话”按钮，保持当前不新增后端范围，只在前端完成从手势入口切换到语音对话入口。
+- 右侧 TA 陪伴区新增 `star-companion-*` 星空人物剪影与轨道光环 CSS，使页面更贴近参考图中的星空人物陪伴主视觉；底部三张卡片继续保留“记忆档案馆”“遗憾对话室”“心愿延续系统”。
+- 本次仅修改前端页面与样式、进度文档；后端不作为本次强制跑通项。
+- 已通过 `npm.cmd --prefix frontend run test`、`npm.cmd --prefix frontend run lint`、`npm.cmd --prefix frontend run build`。
+
 ## Current State
 
 - 项目：可信人格记忆Agent
-- 当前阶段：全站温馨沉浸式「记忆空间」前端改造与免注册一键演示入口已接入；Milestone 6 Task 1/2/3/4 后端默认 TTS、语音合成、音色样本、音色克隆兜底、语音消息 ASR 到 TTS、前端录音、声音设置和 mock 语音播放基础闭环已接入；Milestone 7 Task 1/2/3 后端 3D 数字人配置、默认形象、mock 生成、前端 Three.js mock 预览、对话页 3D 数字人展示和播放状态口型联动基础闭环已接入，Milestone 0 到 Milestone 5 保持可验证
-- 当前活跃功能：免注册 `POST /api/auth/demo` 本地演示会话、中文首页和 DemoEntry 演示入口；全站「记忆空间」暖色视觉系统、Pexels 本地素材和共享组件；Milestone 1 人物 CRUD、认证表单接入、人物列表、四步创建人物和人物记忆空间页；Milestone 2 SourceMaterial 资料记录、AI Job、资料上传页和任务状态页；Milestone 3 deterministic mock parsing、ParsedChunk、MemoryCard、记忆审计 API 和记忆审计页；Milestone 4 `PersonaProfile` 聚合/编辑/重生成、可信度重算、上传建议和 profile/trust 页面；Milestone 5 conversation/message/citation/correct-memory API、mock `chat_llm` Provider Gateway、deterministic retrieval 和 `/personas/{id}/chat` 文本对话页；Milestone 6 voice config/default TTS/samples/clone/synthesize/voice-message API、mock `asr`/`tts`/`extract_voice_sample`/`voice_clone` Provider Gateway、voice AI Jobs、`/personas/{id}/voice` 声音设置页、聊天页浏览器录音/已上传音频语音消息和 audio playback；Milestone 7 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、`avatar_3d` AI Job、default/generated/failure fallback AvatarModel、`/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动
-- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证、免注册本地演示、人物创建/记忆空间基础闭环、资料上传/任务队列基础闭环、mock 解析/记忆审计基础闭环、deterministic local 人格档案/可信度基础闭环、deterministic mock 文本对话基础闭环、deterministic mock 默认 TTS/语音合成/音色样本/音色克隆兜底/语音消息/前端录音播放基础闭环和 mock 3D 形象配置/生成/前端预览/对话页播放状态口型联动基础闭环
+- 当前阶段：全站温馨沉浸式「记忆空间」前端改造与免注册一键演示入口已接入；Milestone 6 Task 1/2/3/4 后端默认 TTS、语音合成、音色样本、音色克隆兜底、语音消息 ASR 到 TTS、前端录音、声音设置和 mock 语音播放基础闭环已接入；Milestone 7 Task 1/2/3 后端 3D 数字人配置、默认形象、mock 生成、前端 Three.js mock 预览、对话页 3D 数字人展示和播放状态口型联动基础闭环已接入；Milestone 8 后端回忆讲述生成与聊天页星空互动主界面/记忆档案馆入口已接入，Milestone 0 到 Milestone 5 保持可验证
+- 当前活跃功能：免注册 `POST /api/auth/demo` 本地演示会话、中文首页和 DemoEntry 演示入口；全站「记忆空间」暖色视觉系统、Pexels 本地素材和共享组件；Milestone 1 人物 CRUD、认证表单接入、人物列表、四步创建人物和人物记忆空间页；Milestone 2 SourceMaterial 资料记录、AI Job、资料上传页和任务状态页；Milestone 3 deterministic mock parsing、ParsedChunk、MemoryCard、记忆审计 API 和记忆审计页；Milestone 4 `PersonaProfile` 聚合/编辑/重生成、可信度重算、上传建议和 profile/trust 页面；Milestone 5 conversation/message/citation/correct-memory API、mock `chat_llm` Provider Gateway、deterministic retrieval 和 `/personas/{id}/chat` 文本对话页；Milestone 6 voice config/default TTS/samples/clone/synthesize/voice-message API、mock `asr`/`tts`/`extract_voice_sample`/`voice_clone` Provider Gateway、voice AI Jobs、`/personas/{id}/voice` 声音设置页、聊天页浏览器录音/已上传音频语音消息和 audio playback；Milestone 7 avatar config/default/generate API、mock `avatar_3d` Provider Gateway、`avatar_3d` AI Job、default/generated/failure fallback AvatarModel、`/personas/{id}/avatar` 3D 形象设置页、共享 Three.js mock 头像/半身预览和聊天页 selected mock 数字人播放状态口型联动；Milestone 8 memory_stories API、`frontend/src/lib/stories.ts` 和聊天页内记忆档案馆故事生成入口
+- 当前产品目标：按 PRD 建设可信人格记忆数字人；当前代码覆盖项目初始化、基础连通、账号认证、免注册本地演示、人物创建/记忆空间基础闭环、资料上传/任务队列基础闭环、mock 解析/记忆审计基础闭环、deterministic local 人格档案/可信度基础闭环、deterministic mock 文本对话基础闭环、deterministic mock 默认 TTS/语音合成/音色样本/音色克隆兜底/语音消息/前端录音播放基础闭环、mock 3D 形象配置/生成/前端预览/对话页播放状态口型联动基础闭环，以及基于已审核记忆的 mock 回忆讲述生成入口
 - 当前技术栈：Next.js 15、React 19、Three.js、FastAPI、SQLAlchemy、Alembic、PostgreSQL/pgvector、Redis、MinIO、Docker Compose
 - 当前统一验证入口：`docs/init.sh`
 
-## Latest Session Update - 2026-07-04 Milestone 7 Task 3 Chat Avatar Mouth Linkage
+## Latest Session Update - 2026-07-04 Milestone 8 Task 2 Star Interaction Page
+
+- 保留记忆审计页「完成审核，点亮星星」后的跳转目标为 `/personas/{id}/chat`，并将目标页重排为星空互动主界面。
+- `/personas/{id}/chat` 现在包含文字互动、视频手势互动和语音互动三种模式，右侧展示 TA、当前记忆焦点和共同回忆摘要，底部提供「记忆档案馆」「遗憾对话室」「心愿延续系统」三张行动卡。
+- 新增 `frontend/src/lib/stories.ts` 和 `API_PATHS.stories`；「记忆档案馆」会调用既有 `POST /api/personas/{id}/stories`，基于已审核记忆生成回忆讲述文本，并在互动页内展示标题、正文、来源摘要和 mock audio 标识。
+- 「遗憾对话室」与「心愿延续系统」当前作为对话 prompt 入口，不新增后端范围；视频手势与语音模式保留入口说明，真实手势识别和真实语音质量仍待后续 provider/前端能力补齐。
+- 新增 `frontend/tests/stories.test.mjs` 并扩展 routes 测试覆盖 stories API path；当前已通过 `python -m json.tool docs/feature-list.json`、`npm.cmd --prefix frontend run test` 和 `npm.cmd --prefix frontend run lint`；`npm.cmd --prefix frontend run build` 首次 120s 超时，正在用更长超时复跑。
+
+## Previous Session Update - 2026-07-04 Milestone 7 Task 3 Chat Avatar Mouth Linkage
 
 - 抽取共享 `frontend/src/components/AvatarPreview.tsx`，复用 Task 2 的 Three.js mock 头像/半身渲染，避免 `/personas/{id}/avatar` 和 `/personas/{id}/chat` 维护两份场景代码。
 - 聊天页加载 `getAvatarConfig(personaId)`；当 selected avatar model 具备 `model_url` 和 `format` 时，在对话侧展示 mock 3D 数字人。

@@ -180,16 +180,10 @@ function SignedOutState() {
     <GlassPanel className="mt-8 max-w-3xl">
       <h2 className="font-serif text-2xl font-semibold text-memoryText">需要先进入记忆空间</h2>
       <p className="mt-2 max-w-2xl text-sm leading-7 text-memoryText/70">
-        可以免注册体验外婆示例，或登录已有账号查看私有任务。
+        当前会以本地访客身份查看任务，也可以先体验外婆示例。
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
       </div>
     </GlassPanel>
   );

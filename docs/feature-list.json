@@ -190,6 +190,17 @@
       ],
       "status": "completed",
       "evidence": "backend/alembic/versions/0002_memory_stories.py; backend/app/models/memory_story.py; backend/app/schemas/story.py; backend/app/services/stories.py; backend/app/api/routes/stories.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_stories.py; python -m pytest backend/tests/test_stories.py -q; python -m pytest backend/tests -q"
+    },
+    {
+      "id": "feat-020",
+      "name": "Milestone 8 Task 2 星空互动主界面与回忆讲述前端入口",
+      "description": "实现当前 Milestone 8 前端互动入口范围：记忆审计完成点亮星星后继续跳转 /personas/{id}/chat；对话页重排为星空互动主界面，包含文字互动、视频手势互动和语音互动三种模式，右侧展示 TA 与当前记忆焦点，底部提供记忆档案馆、遗憾对话室和心愿延续系统三张行动卡；新增 stories API helper，记忆档案馆可调用 GET/POST /api/personas/{id}/stories 生成并展示基于已审核记忆的回忆讲述文本、来源摘要和 mock audio 标识；遗憾对话室与心愿延续系统保留为对话 prompt 入口。该功能不新增后端接口或数据库，不实现独立 /stories 页面、真实 LLM/TTS 质量、真实视频手势识别、真实语音质量、导出或删除关键数据。",
+      "dependencies": [
+        "feat-014",
+        "feat-019"
+      ],
+      "status": "completed",
+      "evidence": "frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/src/lib/api.ts; frontend/src/lib/stories.ts; frontend/tests/routes.test.mjs; frontend/tests/stories.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint"
     }
   ]
 }

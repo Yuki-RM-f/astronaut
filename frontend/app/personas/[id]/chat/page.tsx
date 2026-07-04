@@ -1,47 +1,96 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { AvatarPreview } from "@/src/components/AvatarPreview";
+import {
+  Archive,
+  BookOpen,
+  Hand,
+  Heart,
+  HeartHandshake,
+  Image as ImageIcon,
+  MessageCircle,
+  Mic2,
+  Send,
+  Sparkles,
+  Star,
+  Video,
+  Volume2
+} from "lucide-react";
 import { DemoEntry } from "@/src/components/DemoEntry";
 import {
-  AiReminder,
-  GlassPanel,
-  MemoryContainer,
-  MemoryShell,
-  PaperNote,
-  VoiceWave
-} from "@/src/components/MemorySpace";
+  PlanetStar,
+  StarButton,
+  StarNav,
+  StarPanel,
+  StarShell
+} from "@/src/components/StarSite";
+import { getAuthToken } from "@/src/lib/auth";
 import {
-  buildCorrectionPayload,
-  citationSummary,
-  correctMessageMemory,
   ConversationRead,
   createConversation,
-  hasPlayableAudio,
   isBlankChatText,
   listConversations,
   listMessages,
-  MessageCitationRead,
   MessageRead,
-  messageRoleLabel,
-  sendMessage,
-  sendVoiceMessage
+  sendMessage
 } from "@/src/lib/chat";
-import {
-  AvatarConfigResponse,
-  getAvatarConfig,
-  shouldDriveAvatarMouth,
-  shouldShowChatAvatar
-} from "@/src/lib/avatar";
-import { getAuthToken } from "@/src/lib/auth";
-import { listMaterials, SourceMaterialRead, uploadMaterials } from "@/src/lib/materials";
 import { getPersona, PersonaRead } from "@/src/lib/persona";
-import { ROUTES } from "@/src/lib/routes";
+import {
+  createStory,
+  listStories,
+  MemoryStoryRead,
+  storySourceSummary
+} from "@/src/lib/stories";
 
 type PageState = "checking" | "signedOut" | "loading" | "ready" | "error";
-type RecordingState = "idle" | "recording" | "uploading";
+type InteractionMode = "text" | "gesture" | "voice";
+type ExperienceKind = "archive" | "regret" | "wish";
+
+const INTERACTION_MODES: Array<{
+  id: InteractionMode;
+  label: string;
+  icon: typeof MessageCircle;
+}> = [
+  { id: "text", label: "文字对话", icon: MessageCircle },
+  { id: "gesture", label: "视频手势互动", icon: Hand },
+  { id: "voice", label: "语音对话", icon: Mic2 }
+];
+
+const EXPERIENCE_CARDS: Array<{
+  kind: ExperienceKind;
+  title: string;
+  description: string;
+  icon: typeof Archive;
+  prompt: string;
+  actionLabel: string;
+}> = [
+  {
+    kind: "archive",
+    title: "记忆档案馆",
+    description:
+      "让TA回忆你们的某个故事，模型识别用户上传的信息，找到特别的几段故事来生成回忆型文本进行讲述。",
+    icon: Archive,
+    prompt: "共同回忆",
+    actionLabel: "生成一段回忆"
+  },
+  {
+    kind: "regret",
+    title: "遗憾对话室",
+    description: "对TA说出你来不及说的话，让未完成的心意被温柔接住。",
+    icon: MessageCircle,
+    prompt: "我有一些来不及说的话，想现在慢慢告诉你。",
+    actionLabel: "开始说给TA听"
+  },
+  {
+    kind: "wish",
+    title: "心愿延续系统",
+    description: "完成TA未完成的愿望，把思念落成下一步可以继续做的事。",
+    icon: HeartHandshake,
+    prompt: "你还有没有未完成的心愿？我想替你继续完成一点。",
+    actionLabel: "记录一个心愿"
+  }
+];
 
 export default function PersonaChatPage() {
   const params = useParams();
@@ -53,19 +102,13 @@ export default function PersonaChatPage() {
   const [persona, setPersona] = useState<PersonaRead | null>(null);
   const [conversation, setConversation] = useState<ConversationRead | null>(null);
   const [messages, setMessages] = useState<MessageRead[]>([]);
-  const [audioMaterials, setAudioMaterials] = useState<SourceMaterialRead[]>([]);
-  const [avatarConfig, setAvatarConfig] = useState<AvatarConfigResponse | null>(null);
-  const [selectedAudioMaterialId, setSelectedAudioMaterialId] = useState("");
-  const [playingAudioMessageId, setPlayingAudioMessageId] = useState<string | null>(null);
+  const [stories, setStories] = useState<MemoryStoryRead[]>([]);
+  const [featuredStory, setFeaturedStory] = useState<MemoryStoryRead | null>(null);
+  const [mode, setMode] = useState<InteractionMode>("text");
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [sendingVoice, setSendingVoice] = useState(false);
-  const [recordingState, setRecordingState] = useState<RecordingState>("idle");
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
+  const [storyBusy, setStoryBusy] = useState(false);
 
   useEffect(() => {
     if (!getAuthToken()) {
@@ -81,8 +124,6 @@ export default function PersonaChatPage() {
 
     let isCurrent = true;
     setState("loading");
-    setError(null);
-
     loadChat(personaId)
       .then((loaded) => {
         if (!isCurrent) {
@@ -91,10 +132,8 @@ export default function PersonaChatPage() {
         setPersona(loaded.persona);
         setConversation(loaded.conversation);
         setMessages(loaded.messages);
-        setAudioMaterials(loaded.audioMaterials);
-        setAvatarConfig(loaded.avatarConfig);
-        setSelectedAudioMaterialId(loaded.audioMaterials[0]?.id ?? "");
-        setPlayingAudioMessageId(null);
+        setStories(loaded.stories);
+        setFeaturedStory(loaded.stories[0] ?? null);
         setState("ready");
       })
       .catch((caught) => {
@@ -107,12 +146,10 @@ export default function PersonaChatPage() {
 
     return () => {
       isCurrent = false;
-      stopRecordingTracks();
     };
   }, [personaId]);
 
   async function refreshMessages(currentConversation: ConversationRead) {
-    setPlayingAudioMessageId(null);
     setMessages(await listMessages(currentConversation.id));
   }
 
@@ -122,9 +159,8 @@ export default function PersonaChatPage() {
       return;
     }
 
-    setError(null);
-    setNotice(null);
     setSending(true);
+    setError(null);
     try {
       await sendMessage(conversation.id, draft);
       setDraft("");
@@ -136,361 +172,133 @@ export default function PersonaChatPage() {
     }
   }
 
-  async function handleSendVoice() {
-    if (!conversation || !selectedAudioMaterialId) {
-      setError("需要先选择已上传的音频资料。");
-      return;
-    }
-
+  async function handleExperience(kind: ExperienceKind, prompt: string) {
     setError(null);
-    setNotice(null);
-    setSendingVoice(true);
-    try {
-      await sendVoiceMessage(conversation.id, {
-        source_material_id: selectedAudioMaterialId
-      });
-      setNotice("已发送语音消息，并生成一条带语音播放的回复。");
-      await refreshMessages(conversation);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "无法发送语音消息。");
-    } finally {
-      setSendingVoice(false);
-    }
-  }
-
-  async function handleStartRecording() {
-    if (!persona || recordingState !== "idle") {
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setError("当前浏览器不支持录音。可以先上传音频资料后发送语音消息。");
-      return;
-    }
-
-    setError(null);
-    setNotice(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      mediaStreamRef.current = stream;
-      mediaRecorderRef.current = recorder;
-      recordedChunksRef.current = [];
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          recordedChunksRef.current.push(event.data);
-        }
-      };
-      recorder.onerror = () => {
-        setError("录音失败。可以改用上传音频资料。");
-        setRecordingState("idle");
-        stopRecordingTracks();
-      };
-      recorder.onstop = () => {
-        void uploadRecordedVoice(persona.id);
-      };
-
-      recorder.start();
-      setRecordingState("recording");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "无法开始录音。");
-      setRecordingState("idle");
-      stopRecordingTracks();
-    }
-  }
-
-  function handleStopRecording() {
-    const recorder = mediaRecorderRef.current;
-    if (recorder?.state === "recording") {
-      setRecordingState("uploading");
-      recorder.stop();
-      return;
-    }
-
-    stopRecordingTracks();
-    setRecordingState("idle");
-  }
-
-  async function uploadRecordedVoice(currentPersonaId: string) {
-    try {
-      const chunks = recordedChunksRef.current;
-      if (chunks.length === 0) {
-        throw new Error("没有录到可上传的音频。");
+    if (kind === "archive" && personaId) {
+      setStoryBusy(true);
+      try {
+        const story = await createStory(personaId, prompt);
+        setFeaturedStory(story);
+        setStories((currentStories) => [story, ...currentStories.filter((item) => item.id !== story.id)]);
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "无法生成回忆故事。");
+      } finally {
+        setStoryBusy(false);
       }
-      const mimeType = chunks[0]?.type || "audio/webm";
-      const fileExtension = mimeType.includes("ogg") ? "ogg" : "webm";
-      const audioBlob = new Blob(chunks, { type: mimeType });
-      const audioFile = new File([audioBlob], `voice-message-${Date.now()}.${fileExtension}`, {
-        type: mimeType
-      });
-      const uploaded = await uploadMaterials(currentPersonaId, {
-        files: [audioFile],
-        importance: "normal",
-        user_description: "聊天页录音"
-      });
-      const audioMaterial =
-        uploaded.find((material) => material.file_type === "audio") ?? uploaded[0];
-      if (!audioMaterial) {
-        throw new Error("录音上传后没有生成音频资料。");
-      }
-      setAudioMaterials((current) => [
-        ...current.filter((material) => material.id !== audioMaterial.id),
-        audioMaterial
-      ]);
-      setSelectedAudioMaterialId(audioMaterial.id);
-      setNotice("录音已上传，可点击发送语音消息。");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "无法上传录音。");
-    } finally {
-      recordedChunksRef.current = [];
-      mediaRecorderRef.current = null;
-      stopRecordingTracks();
-      setRecordingState("idle");
-    }
-  }
-
-  function stopRecordingTracks() {
-    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-    mediaStreamRef.current = null;
-  }
-
-  async function handleCorrection(
-    message: MessageRead,
-    citation: MessageCitationRead,
-    content: string
-  ) {
-    if (!citation.memory_card_id) {
-      setError("这条依据没有关联记忆卡片。");
-      return;
-    }
-    if (!conversation) {
-      setError("缺少当前对话。");
       return;
     }
 
-    setError(null);
-    setNotice(null);
-    try {
-      const result = await correctMessageMemory(
-        message.id,
-        buildCorrectionPayload(citation.memory_card_id, content)
-      );
-      setNotice(result.message);
-      await refreshMessages(conversation);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "无法纠正记忆。");
-    }
+    setMode("text");
+    setDraft(prompt);
   }
-
-  const selectedAvatarModel = avatarConfig?.selected_avatar_model ?? null;
-  const showChatAvatar = shouldShowChatAvatar(avatarConfig);
-  const isAvatarMouthActive = messages.some((message) =>
-    shouldDriveAvatarMouth(message, playingAudioMessageId)
-  );
 
   return (
-    <MemoryShell background="grandmotherTea">
-      <MemoryContainer>
-      <div className="flex flex-wrap items-center gap-3 text-sm font-semibold text-memoryAccent">
-        <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
-          返回记忆空间
-        </Link>
-        {personaId ? <Link href={ROUTES.personaMemories(personaId)}>审核记忆</Link> : null}
-        {personaId ? <Link href={ROUTES.personaProfile(personaId)}>人格档案</Link> : null}
-        {personaId ? <Link href={ROUTES.personaVoice(personaId)}>声音设置</Link> : null}
-        {personaId ? <Link href={ROUTES.personaAvatar(personaId)}>3D 形象</Link> : null}
-      </div>
+    <StarShell>
+      <StarNav />
+      <main className="mx-auto w-full max-w-7xl px-5 pb-10 sm:px-8 lg:px-10">
+        <section className="relative overflow-hidden pt-1">
+          <div className="pointer-events-none absolute -right-16 -top-20 hidden opacity-90 lg:block">
+            <PlanetStar />
+          </div>
+          <div className="relative z-10 max-w-3xl">
+            <p className="inline-flex items-center gap-2 text-sm font-bold text-starGold">
+              <Star className="h-4 w-4 fill-current" aria-hidden="true" />
+              审核完成，星星已点亮
+            </p>
+            <h1 className="mt-2 font-serif text-4xl font-bold leading-tight text-starGold sm:text-5xl">
+              与TA的星星对话
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-starMist/72">
+              在这片星空里，听TA继续说话。你可以文字对话，也可以从视频手势互动进入语音对话。
+            </p>
+          </div>
+        </section>
 
-      <header className="mt-6 grid gap-4">
-        <p className="inline-flex w-fit rounded-full border border-memoryLine/70 bg-white/68 px-4 py-2 text-sm font-semibold tracking-[0.08em] text-memoryAccent shadow-soft backdrop-blur">
-          文本对话
-        </p>
-        <h1 className="font-serif text-4xl font-semibold leading-tight text-memoryText sm:text-5xl">
-          {persona ? `和${persona.name}说说话` : "和 TA 说说话"}
-        </h1>
-        <p className="max-w-3xl text-sm leading-7 text-memoryText/72">
-          回复会使用人物设定、已审核记忆和人格档案，并在消息下方展示来源依据。当前仍是 deterministic mock 对话。
-        </p>
-        <AiReminder />
-      </header>
+        {state === "signedOut" ? <SignedOut /> : null}
+        {state === "loading" || state === "checking" ? <Notice text="正在连接这颗星星..." /> : null}
+        {state === "error" ? <Notice text={error ?? "无法加载对话。"} /> : null}
 
-      {state === "signedOut" ? <SignedOutState /> : null}
-      {state === "loading" || state === "checking" ? <Notice text="正在加载对话..." /> : null}
-      {state === "error" ? <Notice text={error ?? "无法加载对话。"} /> : null}
-
-      {state === "ready" && persona && conversation ? (
-        <div className="mt-8 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
-          <aside className="grid content-between gap-5">
-            {showChatAvatar ? (
-              <div className="grid gap-2">
-                <AvatarPreview
-                  model={selectedAvatarModel}
-                  mouthActive={isAvatarMouthActive}
-                  className="min-h-[18rem] rounded-[1.5rem]"
-                  canvasClassName="h-[18rem]"
-                />
-                <p className="text-xs leading-6 text-memoryText/60">
-                  播放 TA 的语音回复时，mock 口型会跟随播放状态开合。
-                </p>
-              </div>
-            ) : null}
-            <GlassPanel>
-              <h2 className="font-serif text-3xl font-semibold text-memoryText">{persona.name}</h2>
-              <p className="mt-4 text-sm leading-7 text-memoryText/72">
-                她记得你小时候的模样，也记得那些一起走过的日子。现在，轮到你来听她说心里话。
-              </p>
-              <div className="mt-5">
-                <VoiceWave label={`${persona.name}的声音`} />
-              </div>
-            </GlassPanel>
-            <PaperNote className="rotate-[-2deg]">
-              <p className="font-serif text-lg leading-8">
-                可以从一句：
-                <br />
-                「外婆，我今天很想你」
-                <br />
-                开始。
-              </p>
-            </PaperNote>
-            <GlassPanel>
-              <h2 className="text-lg font-semibold text-memoryText">当前设定</h2>
-            <dl className="mt-5 grid gap-4 text-sm">
-              <Detail label="TA 对你的称呼" value={persona.user_nickname_by_persona} />
-              <Detail label="你们的关系" value={persona.relationship_to_user} />
-              <Detail label="说话风格" value={persona.speaking_style} />
-              <Detail label="情绪方式" value={persona.emotional_style} />
-              <Detail label="语音" value="可用已上传音频发送 mock 语音消息" />
-              <Detail
-                label="数字人"
-                value={
-                  showChatAvatar
-                    ? "已接入对话侧 mock 预览，播放语音回复时口型跟随音频状态开合"
-                    : "可在 3D 形象页选择默认/mock 头像或生成任务"
-                }
-              />
-            </dl>
-            </GlassPanel>
-          </aside>
-
-          <GlassPanel className="p-4 sm:p-5">
-            {error ? <Alert tone="error" text={error} /> : null}
-            {notice ? <Alert tone="success" text={notice} /> : null}
-
-            {messages.length === 0 ? (
-              <p className="rounded-2xl bg-memoryPaper/75 p-4 text-sm text-memoryText/70">
-                现在可以和 TA 说话了。可以从一句「外婆，我今天很想你」开始。
-              </p>
-            ) : (
-              <div className="grid max-h-[36rem] gap-4 overflow-y-auto pr-1">
-                {messages.map((message) => (
-                  <MessageCard
-                    key={message.id}
-                    message={message}
-                    onCorrect={handleCorrection}
-                    onAudioPlay={setPlayingAudioMessageId}
-                    onAudioStop={(messageId) =>
-                      setPlayingAudioMessageId((current) =>
-                        current === messageId ? null : current
-                      )
-                    }
-                  />
-                ))}
-              </div>
-            )}
-
-            <form onSubmit={handleSend} className="mt-5 grid gap-3">
-              <label className="text-sm font-semibold text-memoryText" htmlFor="chat-message">
-                想说的话
-              </label>
-              <textarea
-                id="chat-message"
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                rows={4}
-                className="w-full rounded-2xl border border-memoryLine/80 bg-white/74 px-4 py-3 text-sm leading-7 text-memoryText outline-none focus:border-memoryAccent focus:ring-4 focus:ring-memoryAccent/20"
-                placeholder="外婆，我今天很想你。"
-              />
-              <button
-                type="submit"
-                disabled={sending || isBlankChatText(draft)}
-                className="memory-button w-full rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm disabled:cursor-not-allowed disabled:bg-memoryText/30 md:w-fit"
-              >
-                {sending ? "正在发送..." : "发送"}
-              </button>
-            </form>
-
-            <div className="mt-6 rounded-[1.5rem] border border-memoryLine/60 bg-memoryPaper/70 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-memoryText">语音消息</h2>
-                  <p className="mt-1 text-sm leading-6 text-memoryText/70">
-                    可以直接录音并上传，也可以选择已上传音频资料。当前仍使用 mock ASR/TTS。
-                  </p>
+        {state === "ready" && persona && conversation ? (
+          <div className="relative z-10 mt-6">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)]">
+              <StarPanel className="overflow-hidden p-0">
+                <div className="border-b border-white/8 bg-indigo-950/24 p-4 sm:p-5">
+                  <div className="grid grid-cols-3 gap-1 overflow-hidden rounded-2xl border border-starGold/12 bg-indigo-950/36 p-1">
+                    {INTERACTION_MODES.map((item) => (
+                      <ModeButton
+                        key={item.id}
+                        active={mode === item.id}
+                        icon={item.icon}
+                        onClick={() => setMode(item.id)}
+                      >
+                        {item.label}
+                      </ModeButton>
+                    ))}
+                  </div>
                 </div>
-                <Link
-                  href={ROUTES.personaVoice(persona.id)}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-3 py-2 text-sm font-semibold text-memoryText"
-                >
-                  声音设置
-                </Link>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleStartRecording}
-                  disabled={recordingState !== "idle" || sendingVoice}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText disabled:cursor-not-allowed disabled:text-memoryText/40"
-                >
-                  开始录音
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStopRecording}
-                  disabled={recordingState !== "recording"}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText disabled:cursor-not-allowed disabled:text-memoryText/40"
-                >
-                  {recordingState === "uploading" ? "正在上传录音..." : "停止并上传"}
-                </button>
-              </div>
-              <label className="mt-4 block text-sm font-semibold text-memoryText" htmlFor="voice-material">
-                选择音频资料
-              </label>
-              <select
-                id="voice-material"
-                value={selectedAudioMaterialId}
-                onChange={(event) => setSelectedAudioMaterialId(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-memoryLine/80 bg-white/74 px-4 py-3 text-sm text-memoryText outline-none focus:border-memoryAccent focus:ring-4 focus:ring-memoryAccent/20"
-              >
-                <option value="">暂无可用音频资料</option>
-                {audioMaterials.map((material) => (
-                  <option key={material.id} value={material.id}>
-                    {material.file_name || material.user_description || material.id}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={handleSendVoice}
-                  disabled={sendingVoice || !selectedAudioMaterialId}
-                  className="memory-button rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm disabled:cursor-not-allowed disabled:bg-memoryText/30"
-                >
-                  {sendingVoice ? "正在发送语音..." : "发送语音消息"}
-                </button>
-                <Link
-                  href={ROUTES.personaUploads(persona.id)}
-                  className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText"
-                >
-                  上传音频
-                </Link>
-              </div>
+
+                <div className="grid min-h-[25rem] gap-0 xl:grid-cols-[minmax(0,1fr)_18rem]">
+                  <div className="min-h-[25rem]">
+                    {mode === "text" ? (
+                      <ChatSurface messages={messages} persona={persona} />
+                    ) : null}
+                    {mode === "gesture" ? (
+                      <GestureSurface personaName={persona.name} onVoice={() => setMode("voice")} />
+                    ) : null}
+                    {mode === "voice" ? <VoiceSurface personaName={persona.name} /> : null}
+                  </div>
+                  <MemoryStoryPanel
+                    story={featuredStory}
+                    storyCount={stories.length}
+                    isBusy={storyBusy}
+                    personaName={persona.name}
+                    onGenerate={() => void handleExperience("archive", "共同回忆")}
+                  />
+                </div>
+
+                {error ? (
+                  <p className="mx-4 mb-4 rounded-2xl border border-rose-300/20 bg-rose-500/15 p-3 text-sm font-semibold text-rose-100 sm:mx-5">
+                    {error}
+                  </p>
+                ) : null}
+
+                <form onSubmit={handleSend} className="flex gap-3 border-t border-white/8 p-4 sm:p-5">
+                  <input
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    className="star-input min-h-[3.3rem] flex-1"
+                    placeholder={`今天想和${persona.name}说些什么？`}
+                  />
+                  <StarButton
+                    type="submit"
+                    disabled={sending || isBlankChatText(draft)}
+                    className="min-w-20 px-5 sm:min-w-24 sm:px-6"
+                  >
+                    {sending ? "发送中" : <Send className="h-5 w-5" />}
+                  </StarButton>
+                </form>
+              </StarPanel>
+
+              <CompanionPanel persona={persona} story={featuredStory} />
             </div>
-          </GlassPanel>
-        </div>
-      ) : null}
-      </MemoryContainer>
-    </MemoryShell>
+
+            <section className="relative z-10 mt-5 grid gap-4 md:grid-cols-3">
+              {EXPERIENCE_CARDS.map((card) => (
+                <ExperienceCard
+                  key={card.title}
+                  icon={card.icon}
+                  title={card.title}
+                  description={card.description}
+                  actionLabel={storyBusy && card.kind === "archive" ? "正在生成..." : card.actionLabel}
+                  disabled={storyBusy && card.kind === "archive"}
+                  onClick={() => void handleExperience(card.kind, card.prompt)}
+                />
+              ))}
+            </section>
+          </div>
+        ) : null}
+      </main>
+    </StarShell>
   );
 }
 
@@ -498,194 +306,310 @@ async function loadChat(personaId: string): Promise<{
   persona: PersonaRead;
   conversation: ConversationRead;
   messages: MessageRead[];
-  audioMaterials: SourceMaterialRead[];
-  avatarConfig: AvatarConfigResponse;
+  stories: MemoryStoryRead[];
 }> {
-  const [persona, materials, avatarConfig] = await Promise.all([
-    getPersona(personaId),
-    listMaterials(personaId),
-    getAvatarConfig(personaId)
-  ]);
+  const persona = await getPersona(personaId);
   const conversations = await listConversations(personaId);
   const conversation =
     conversations[0] ?? (await createConversation(personaId, `和${persona.name}的对话`));
-  const messages = await listMessages(conversation.id);
-  return {
-    persona,
-    conversation,
-    messages,
-    audioMaterials: materials.filter((material) => material.file_type === "audio"),
-    avatarConfig
-  };
+  const [messages, stories] = await Promise.all([
+    listMessages(conversation.id),
+    listStories(personaId).catch(() => [])
+  ]);
+  return { persona, conversation, messages, stories };
 }
 
-function MessageCard({
-  message,
-  onCorrect,
-  onAudioPlay,
-  onAudioStop
+function ModeButton({
+  active,
+  icon: Icon,
+  onClick,
+  children
 }: {
-  message: MessageRead;
-  onCorrect: (
-    message: MessageRead,
-    citation: MessageCitationRead,
-    content: string
-  ) => Promise<void>;
-  onAudioPlay?: (messageId: string) => void;
-  onAudioStop?: (messageId: string) => void;
+  active: boolean;
+  icon: typeof MessageCircle;
+  onClick: () => void;
+  children: string;
 }) {
-  const [correctionTextByCitation, setCorrectionTextByCitation] = useState<
-    Record<string, string>
-  >({});
-  const isPersona = message.role === "persona";
-
   return (
-    <article
-      className={`chat-pop rounded-[1.5rem] border p-4 shadow-soft ${
-        isPersona
-          ? "mr-auto max-w-[88%] border-memoryLine/70 bg-white/78"
-          : "ml-auto max-w-[88%] border-memoryAccent/25 bg-memoryWarm/82"
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 py-3 text-xs font-bold transition sm:text-sm ${
+        active
+          ? "bg-gradient-to-r from-starPeach/75 to-starGold/55 text-starCream shadow-[0_0_24px_rgba(255,210,138,0.22)]"
+          : "text-starMist/58 hover:text-starCream"
       }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-memoryText">
-          {messageRoleLabel(message.role)}
-        </p>
-        <time className="text-xs text-memoryText/50">{formatDate(message.created_at)}</time>
-      </div>
-      <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-memoryText">
-        {message.content}
-      </p>
-      {hasPlayableAudio(message) ? (
-        <div className="mt-4 rounded-2xl bg-white/74 p-3">
-          <p className="text-xs font-semibold tracking-[0.08em] text-memoryAccent">
-            语音回复
-          </p>
-          <audio
-            className="mt-3 w-full"
-            controls
-            src={message.audio_url ?? undefined}
-            onPlay={() => onAudioPlay?.(message.id)}
-            onPause={() => onAudioStop?.(message.id)}
-            onEnded={() => onAudioStop?.(message.id)}
-          >
-            <track kind="captions" />
-          </audio>
-        </div>
-      ) : null}
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className="leading-tight">{children}</span>
+    </button>
+  );
+}
 
-      {isPersona ? (
-        <div className="mt-4 border-t border-memoryLine/60 pt-4">
-          <p className="text-xs font-semibold tracking-[0.08em] text-memoryAccent">
-            回复依据
-          </p>
-          {message.citations.length === 0 ? (
-            <p className="mt-2 text-sm text-memoryText/60">
-              这条回复没有使用来源记忆。
+function ChatSurface({
+  messages,
+  persona
+}: {
+  messages: MessageRead[];
+  persona: PersonaRead;
+}) {
+  return (
+    <div className="max-h-[35rem] min-h-[25rem] overflow-y-auto p-4 sm:p-5">
+      {messages.length === 0 ? (
+        <div className="grid min-h-[23rem] place-items-center text-center">
+          <div>
+            <Star className="mx-auto h-12 w-12 fill-current text-starGold" />
+            <p className="mt-4 text-sm font-semibold leading-7 text-starMist/70">
+              现在可以和{persona.name}说话了。
+              <br />
+              可以从一句“我今天很想你”开始。
             </p>
-          ) : (
-            <div className="mt-3 grid gap-3">
-              {message.citations.map((citation) => (
-                <div key={citation.id} className="rounded-2xl bg-white/74 p-3">
-                  <p className="text-xs font-semibold text-memoryText/60">
-                    {citationSummary(citation)}
-                  </p>
-                  {citation.quote ? (
-                    <p className="mt-2 text-sm leading-6 text-memoryText">{citation.quote}</p>
-                  ) : null}
-                  {citation.memory_card_id ? (
-                    <div className="mt-3 grid gap-2">
-                      <label className="text-xs font-semibold text-memoryText/60">
-                        修正这条记忆
-                      </label>
-                      <textarea
-                        value={correctionTextByCitation[citation.id] ?? citation.quote ?? ""}
-                        onChange={(event) =>
-                          setCorrectionTextByCitation({
-                            ...correctionTextByCitation,
-                            [citation.id]: event.target.value
-                          })
-                        }
-                        rows={3}
-                        className="w-full rounded-2xl border border-memoryLine/80 bg-white/74 px-4 py-3 text-sm leading-6 text-memoryText outline-none focus:border-memoryAccent focus:ring-4 focus:ring-memoryAccent/20"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onCorrect(
-                            message,
-                            citation,
-                            correctionTextByCitation[citation.id] ??
-                              citation.quote ??
-                              ""
-                          )
-                        }
-                        className="rounded-2xl border border-memoryLine/80 bg-white/72 px-4 py-2.5 text-sm font-semibold text-memoryText md:w-fit"
-                      >
-                        保存为修正记忆
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
+          </div>
         </div>
-      ) : null}
-    </article>
-  );
-}
-
-function SignedOutState() {
-  return (
-    <GlassPanel className="mt-8 max-w-3xl">
-      <h2 className="font-serif text-2xl font-semibold text-memoryText">需要先进入记忆空间</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-7 text-memoryText/70">
-        可以免注册体验外婆示例，或登录已有账号继续私有对话。
-      </p>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <DemoEntry label="立即体验示例" />
-        <Link
-          href={ROUTES.login}
-          className="rounded-2xl border border-memoryLine/80 bg-white/72 px-5 py-3 text-sm font-semibold text-memoryText shadow-soft"
-        >
-          登录已有账号
-        </Link>
-      </div>
-    </GlassPanel>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <dt className="font-semibold text-memoryText/60">{label}</dt>
-      <dd className="mt-1 whitespace-pre-wrap leading-6 text-memoryText">
-        {value || "未设置"}
-      </dd>
+      ) : (
+        <div className="grid gap-5">
+          {messages.map((message) => (
+            <MessageBubble key={message.id} message={message} personaName={persona.name} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Notice({ text }: { text: string }) {
+function GestureSurface({
+  personaName,
+  onVoice
+}: {
+  personaName: string;
+  onVoice: () => void;
+}) {
   return (
-    <GlassPanel className="mt-8 text-sm leading-7 text-memoryText/72">
-      {text}
-    </GlassPanel>
+    <div className="grid min-h-[25rem] place-items-center p-6 text-center">
+      <div className="max-w-md">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-violet-400/20 text-violet-100 shadow-[0_0_42px_rgba(181,128,255,0.32)]">
+          <Video className="h-10 w-10" aria-hidden="true" />
+        </div>
+        <h2 className="mt-5 font-serif text-2xl font-bold text-starGold">视频手势互动</h2>
+        <p className="mt-3 text-sm font-semibold leading-7 text-starMist/68">
+          这里会用于和{personaName}进行视频手势互动。识别到你的停留、挥手或点头后，下一步进入语音对话。
+        </p>
+        <button
+          type="button"
+          onClick={onVoice}
+          className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-starGold/24 bg-starGold/12 px-5 py-3 text-sm font-bold text-starCream transition hover:bg-starGold/18"
+        >
+          进入语音对话
+          <Mic2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
   );
 }
 
-function Alert({ tone, text }: { tone: "error" | "success"; text: string }) {
-  const color =
-    tone === "error"
-      ? "text-red-700 bg-red-50"
-      : "text-memoryAccentDark bg-memoryWarm/70";
-  return <div className={`mb-4 rounded-2xl p-3 text-sm ${color}`}>{text}</div>;
+function VoiceSurface({ personaName }: { personaName: string }) {
+  return (
+    <div className="grid min-h-[25rem] place-items-center p-6 text-center">
+      <div className="max-w-md">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-3xl bg-starGold/16 text-starGold shadow-[0_0_42px_rgba(255,190,109,0.32)]">
+          <Mic2 className="h-10 w-10" aria-hidden="true" />
+        </div>
+        <h2 className="mt-5 font-serif text-2xl font-bold text-starGold">语音对话</h2>
+        <p className="mt-3 text-sm font-semibold leading-7 text-starMist/68">
+          这里会用于和{personaName}进行语音对话。可以先用文字输入，系统会持续保留语音互动入口。
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ message, personaName }: { message: MessageRead; personaName: string }) {
+  const isPersona = message.role === "persona";
+  return (
+    <article className={`flex gap-3 ${isPersona ? "justify-start" : "justify-end"}`}>
+      {isPersona ? (
+        <span className="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-starGold/18 text-starGold">
+          <Star className="h-6 w-6 fill-current" />
+        </span>
+      ) : null}
+      <div className={`max-w-[78%] ${isPersona ? "" : "text-right"}`}>
+        <p className="mb-2 text-xs font-bold text-starMist/46">
+          {isPersona ? `${personaName}的星星` : "我"}
+        </p>
+        <div
+          className={`rounded-2xl px-5 py-4 text-left text-sm font-semibold leading-7 shadow-[0_12px_30px_rgba(0,0,0,0.18)] ${
+            isPersona
+              ? "bg-indigo-200/10 text-starMist/82"
+              : "bg-violet-400/22 text-starCream"
+          }`}
+        >
+          {message.content}
+        </div>
+        <time className="mt-2 block text-xs text-starMist/34">{formatDate(message.created_at)}</time>
+      </div>
+    </article>
+  );
+}
+
+function MemoryStoryPanel({
+  story,
+  storyCount,
+  isBusy,
+  personaName,
+  onGenerate
+}: {
+  story: MemoryStoryRead | null;
+  storyCount: number;
+  isBusy: boolean;
+  personaName: string;
+  onGenerate: () => void;
+}) {
+  return (
+    <aside className="border-t border-white/8 bg-indigo-950/18 p-4 xl:border-l xl:border-t-0">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-bold text-starGold">共同回忆</p>
+        <span className="rounded-full bg-starGold/12 px-3 py-1 text-xs font-bold text-starMist/68">
+          {storyCount} 段
+        </span>
+      </div>
+      <div className="mt-3 aspect-video overflow-hidden rounded-2xl bg-[url('/memory-space/family-album.jpg')] bg-cover bg-center shadow-[0_16px_38px_rgba(0,0,0,0.22)]" />
+      {story ? (
+        <div className="mt-4">
+          <h2 className="font-serif text-xl font-bold text-starGold">{story.title}</h2>
+          <p className="mt-2 line-clamp-6 text-sm font-semibold leading-7 text-starMist/76">
+            {story.content}
+          </p>
+          <p className="mt-3 text-xs font-semibold leading-5 text-starMist/48">
+            来源：{storySourceSummary(story)}
+          </p>
+          {story.audio_url ? (
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-starGold/12 px-3 py-1 text-xs font-bold text-starGold">
+              <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+              已生成语音讲述
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm font-semibold leading-7 text-starMist/66">
+          还没有生成回忆故事。点击“记忆档案馆”，让{personaName}从已审核记忆里讲一段给你听。
+        </p>
+      )}
+      <button
+        type="button"
+        disabled={isBusy}
+        onClick={onGenerate}
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full border border-starGold/24 bg-starGold/12 px-4 py-3 text-sm font-bold text-starCream transition hover:bg-starGold/18 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
+        {isBusy ? "正在生成..." : "让TA讲一段回忆"}
+      </button>
+    </aside>
+  );
+}
+
+function CompanionPanel({
+  persona,
+  story
+}: {
+  persona: PersonaRead;
+  story: MemoryStoryRead | null;
+}) {
+  return (
+    <aside className="relative min-h-[28rem] overflow-hidden rounded-[2rem] border border-starGold/14 bg-indigo-950/24 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur">
+      <div className="absolute inset-0 bg-[url('/memory-space/family-living-room.jpg')] bg-cover bg-center opacity-[0.18]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_58%_22%,rgba(255,191,108,0.28),transparent_24rem),linear-gradient(90deg,rgba(18,18,68,0.18),rgba(18,18,68,0.92))]" />
+      <div className="star-companion-portrait" aria-hidden="true">
+        <div className="star-companion-orbit" />
+        <div className="star-companion-face" />
+        <div className="star-companion-body" />
+      </div>
+      <div className="relative flex h-full flex-col justify-between gap-6">
+        <div className="ml-auto h-44 w-44 rounded-full border border-starGold/26 bg-starGold/8 shadow-[0_0_70px_rgba(255,190,109,0.28)]" />
+        <div>
+          <h2 className="font-serif text-3xl font-bold text-starGold">{persona.name}</h2>
+          <p className="mt-3 text-sm font-semibold leading-7 text-starMist/72">
+            {persona.short_bio || "这颗星星正在慢慢收集TA的故事。"}
+          </p>
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/18 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-bold text-starGold">
+              <ImageIcon className="h-4 w-4" aria-hidden="true" />
+              当前记忆焦点
+            </p>
+            <p className="mt-3 text-xs font-semibold leading-6 text-starMist/62">
+              {story
+                ? `${story.theme} · ${storySourceSummary(story)}`
+                : "每一次回应都会尽量从已确认的记忆里寻找依据。"}
+            </p>
+          </div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ExperienceCard({
+  icon: Icon,
+  title,
+  description,
+  actionLabel,
+  disabled,
+  onClick
+}: {
+  icon: typeof BookOpen;
+  title: string;
+  description: string;
+  actionLabel: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="group min-h-[9.2rem] rounded-3xl border border-starGold/12 bg-indigo-950/32 p-5 text-left shadow-[0_18px_44px_rgba(0,0,0,0.24)] backdrop-blur transition hover:-translate-y-1 hover:border-starGold/28 hover:bg-indigo-900/36 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <div className="flex items-start gap-4">
+        <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-starGold/14 text-starGold shadow-[0_0_30px_rgba(255,190,109,0.24)]">
+          <Icon className="h-8 w-8" aria-hidden="true" />
+        </span>
+        <div>
+          <h2 className="font-serif text-xl font-bold text-starGold">{title}</h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-starMist/66">{description}</p>
+          <p className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-starCream">
+            {actionLabel}
+            <Heart className="h-4 w-4 text-starGold" aria-hidden="true" />
+          </p>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function SignedOut() {
+  return (
+    <StarPanel className="mx-auto mt-8 max-w-3xl p-6 text-center">
+      <p className="text-sm leading-7 text-starMist/72">
+        当前会以本地访客身份开始对话，也可以进入演示星星。
+      </p>
+      <div className="mt-5 flex justify-center">
+        <DemoEntry
+          label="体验演示星星"
+          className="star-button"
+          errorClassName="mt-3 text-sm text-rose-200"
+        />
+      </div>
+    </StarPanel>
+  );
+}
+
+function Notice({ text }: { text: string }) {
+  return <StarPanel className="mx-auto mt-8 max-w-3xl p-5 text-center text-starMist/72">{text}</StarPanel>;
 }
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "medium",
-    timeStyle: "short"
+    hour: "2-digit",
+    minute: "2-digit"
   }).format(new Date(value));
 }

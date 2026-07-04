@@ -7,11 +7,6 @@ class RegisterRequest(BaseModel):
     display_name: str | None = None
 
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-
 class UserRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

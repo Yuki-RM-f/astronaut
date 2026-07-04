@@ -13,7 +13,7 @@ type DemoEntryProps = {
 };
 
 export function DemoEntry({
-  label = "无需注册，体验示例",
+  label = "体验演示星星",
   loadingLabel = "正在准备外婆的记忆空间...",
   className = "memory-button inline-flex items-center justify-center rounded-2xl bg-memoryAccent px-5 py-3 text-sm font-semibold text-white shadow-warm transition hover:-translate-y-0.5 hover:bg-memoryAccentDark focus:outline-none focus:ring-4 focus:ring-memoryAccent/25 disabled:cursor-not-allowed disabled:bg-memoryText/30",
   errorClassName = "mt-3 text-sm text-red-700"

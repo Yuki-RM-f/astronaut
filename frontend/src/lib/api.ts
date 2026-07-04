@@ -3,8 +3,6 @@ const DEFAULT_API_BASE_URL = "http://localhost:8000";
 export const API_PATHS = {
   health: "/health",
   auth: {
-    register: "/api/auth/register",
-    login: "/api/auth/login",
     me: "/api/auth/me",
     demo: "/api/auth/demo"
   },
@@ -53,6 +51,11 @@ export const API_PATHS = {
       `/api/messages/${encodeURIComponent(messageId)}/citations`,
     correctMemory: (messageId: string) =>
       `/api/messages/${encodeURIComponent(messageId)}/correct-memory`
+  },
+  stories: {
+    list: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/stories`,
+    favorite: (storyId: string) => `/api/stories/${encodeURIComponent(storyId)}/favorite`
   },
   voice: {
     config: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/voice`,

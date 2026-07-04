@@ -10,8 +10,7 @@ export const MEMORY_SPACE_COPY = {
 export const MEMORY_SPACE_NAV_ITEMS = [
   { href: ROUTES.home, label: "产品介绍" },
   { href: ROUTES.dashboard, label: "记忆空间" },
-  { href: ROUTES.personasNew, label: "创建人物" },
-  { href: ROUTES.login, label: "登录" }
+  { href: ROUTES.personasNew, label: "创建人物" }
 ] as const;
 
 export const MEMORY_SPACE_ASSETS = {
@@ -37,7 +36,7 @@ export const MEMORY_SPACE_ASSETS = {
   memoryStringLights: {
     src: "/memory-space/memory-string-lights.jpg",
     alt: "串灯上悬挂的旧家庭照片",
-    usage: "记忆审计、人格档案和声音页面的氛围背景",
+    usage: "记忆审核、人格档案和声音页面的氛围背景",
     sourceUrl: "https://www.pexels.com/photo/old-pictures-hung-on-a-string-light-17950964/"
   }
 } as const;

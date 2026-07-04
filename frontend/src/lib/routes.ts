@@ -1,7 +1,5 @@
 export const ROUTES = {
   home: "/",
-  login: "/login",
-  register: "/register",
   dashboard: "/dashboard",
   personasNew: "/personas/new",
   personaDetail: (id: string) => `/personas/${encodeURIComponent(id)}`,
