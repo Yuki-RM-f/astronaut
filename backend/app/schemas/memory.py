@@ -53,6 +53,7 @@ class MemoryRead(BaseModel):
     source_location: str | None
     evidence_json: dict | list | None
     status: AllowedMemoryStatus
+    is_important: bool
     user_correction: str | None
     created_by: str
     created_at: datetime
@@ -75,6 +76,7 @@ class MemoryCreate(BaseModel):
     source_location: str = Field(min_length=1)
     evidence_json: dict | list | None = None
     status: AllowedMemoryStatus = "pending_review"
+    is_important: bool = False
 
     @field_validator("title", "content", "source_quote", "source_location")
     @classmethod
@@ -89,6 +91,7 @@ class MemoryUpdate(BaseModel):
     confidence_level: AllowedConfidenceLevel | None = None
     confidence_score: int | None = Field(default=None, ge=0, le=100)
     status: AllowedMemoryStatus | None = None
+    is_important: bool | None = None
 
     @field_validator(
         "title",
@@ -97,6 +100,7 @@ class MemoryUpdate(BaseModel):
         "confidence_level",
         "confidence_score",
         "status",
+        "is_important",
         mode="before",
     )
     @classmethod

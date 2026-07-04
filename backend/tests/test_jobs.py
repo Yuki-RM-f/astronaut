@@ -135,4 +135,4 @@ def test_job_detail_returns_source_material_id(client):
     assert body["persona_id"] == persona["id"]
     assert body["source_material_id"] == material["id"]
     assert body["job_type"] == "parse_text"
-    assert body["status"] == "succeeded"
+    assert body["status"] == "pending"

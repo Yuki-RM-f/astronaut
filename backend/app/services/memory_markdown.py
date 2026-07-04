@@ -21,6 +21,9 @@ from app.providers.gateway import ProviderGateway
 MEMORY_CONTEXT_ROOT = Path("storage") / "memory_context"
 LONG_TERM_MEMORY_FILE = "long_term_memory.md"
 SHORT_TERM_MEMORY_FILE = "short_term_memory.md"
+CONVERSATION_KIND_CHAT = "chat"
+GUIDED_CONVERSATION_KINDS = {"regrets", "wishes"}
+CONTEXTLESS_GUIDED_CONVERSATION_KINDS = {"wishes"}
 REVIEWED_MEMORY_STATUSES = {"confirmed", "corrected"}
 STATUS_PRIORITY = {"corrected": 2, "confirmed": 1}
 MAX_LONG_TERM_MEMORY_CHARS = 12000
@@ -57,8 +60,14 @@ def long_term_memory_path(persona_id: str) -> Path:
     return memory_context_dir(persona_id) / LONG_TERM_MEMORY_FILE
 
 
-def short_term_memory_path(persona_id: str) -> Path:
-    return memory_context_dir(persona_id) / SHORT_TERM_MEMORY_FILE
+def short_term_memory_path(
+    persona_id: str,
+    conversation_kind: str = CONVERSATION_KIND_CHAT,
+) -> Path:
+    kind = _normalize_conversation_kind(conversation_kind)
+    if kind == CONVERSATION_KIND_CHAT:
+        return memory_context_dir(persona_id) / SHORT_TERM_MEMORY_FILE
+    return memory_context_dir(persona_id) / f"short_term_memory_{kind}.md"
 
 
 def remove_memory_context_files(persona_id: str) -> None:
@@ -73,19 +82,25 @@ def refresh_long_term_memory_md(db: Session, persona: Persona) -> str:
     return _write_text(long_term_memory_path(persona.id), body)
 
 
-def refresh_short_term_memory_md(db: Session, persona: Persona) -> str:
+def refresh_short_term_memory_md(
+    db: Session,
+    persona: Persona,
+    conversation_kind: str = CONVERSATION_KIND_CHAT,
+) -> str:
+    kind = _normalize_conversation_kind(conversation_kind)
     messages = db.scalars(
         select(Message)
         .join(Conversation, Message.conversation_id == Conversation.id)
         .where(
             Conversation.persona_id == persona.id,
+            Conversation.kind == kind,
             Conversation.deleted_at.is_(None),
             Message.deleted_at.is_(None),
         )
         .order_by(Message.created_at.asc(), Message.id.asc())
     ).all()
     body = render_short_term_memory_md(persona, messages)
-    return _write_text(short_term_memory_path(persona.id), body)
+    return _write_text(short_term_memory_path(persona.id, kind), body)
 
 
 def reviewed_memory_cards(db: Session, persona_id: str) -> list[MemoryCard]:
@@ -99,6 +114,7 @@ def reviewed_memory_cards(db: Session, persona_id: str) -> list[MemoryCard]:
     return sorted(
         memories,
         key=lambda memory: (
+            0 if memory.is_important else 1,
             memory.category or "",
             -STATUS_PRIORITY.get(memory.status, 0),
             -(memory.updated_at or memory.created_at or _utcnow()).timestamp(),
@@ -111,9 +127,19 @@ def build_chat_memory_context(
     db: Session,
     persona: Persona,
     user_message: str,
+    conversation_kind: str = CONVERSATION_KIND_CHAT,
 ) -> MemoryMarkdownContext:
+    kind = _normalize_conversation_kind(conversation_kind)
+    if kind in CONTEXTLESS_GUIDED_CONVERSATION_KINDS:
+        return MemoryMarkdownContext(
+            long_term_memory_md="",
+            short_term_memory_md="",
+            selected_memory_ids=[],
+            long_term_path="",
+            short_term_path=short_term_memory_path(persona.id, kind).as_posix(),
+        )
     long_md = refresh_long_term_memory_md(db, persona)
-    short_md = refresh_short_term_memory_md(db, persona)
+    short_md = refresh_short_term_memory_md(db, persona, kind)
     selected_ids = extract_memory_ids(long_md)[:MAX_SELECTED_MEMORY_IDS]
     long_compressed = False
     short_compressed = False
@@ -127,6 +153,7 @@ def build_chat_memory_context(
                 {
                     "persona_id": persona.id,
                     "persona_name": persona.name,
+                    "conversation_kind": kind,
                     "user_message": user_message,
                     "long_term_memory_md": long_md,
                     "short_term_memory_md": short_md,
@@ -170,7 +197,7 @@ def build_chat_memory_context(
         short_term_memory_md=short_md,
         selected_memory_ids=selected_ids[:MAX_SELECTED_MEMORY_IDS],
         long_term_path=long_term_memory_path(persona.id).as_posix(),
-        short_term_path=short_term_memory_path(persona.id).as_posix(),
+        short_term_path=short_term_memory_path(persona.id, kind).as_posix(),
         long_term_compressed=long_compressed,
         short_term_compressed=short_compressed,
         compression_failed=compression_failed,
@@ -202,6 +229,7 @@ def render_long_term_memory_md(persona: Persona, memories: list[MemoryCard]) -> 
                 f"### {_clean_line(memory.title)}",
                 f"- memory_card_id: {memory.id}",
                 f"- status: {memory.status}",
+                f"- important: {str(memory.is_important).lower()}",
                 f"- confidence: {memory.confidence_level} {memory.confidence_score}",
                 f"- content: {_clean_line(content)}",
                 f"- source_quote: {_clean_line(memory.source_quote or content)}",
@@ -274,6 +302,13 @@ def _clean_selected_ids(value: Any, allowed_ids: set[str]) -> list[str]:
             selected.append(memory_id)
             seen.add(memory_id)
     return selected
+
+
+def _normalize_conversation_kind(value: str | None) -> str:
+    kind = (value or CONVERSATION_KIND_CHAT).strip()
+    if kind in GUIDED_CONVERSATION_KINDS:
+        return kind
+    return CONVERSATION_KIND_CHAT
 
 
 def _write_text(path: Path, body: str) -> str:

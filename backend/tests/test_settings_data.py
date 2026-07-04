@@ -12,6 +12,7 @@ from app.models.persona_profile import PersonaProfile
 from app.models.source_material import SourceMaterial
 from app.models.user import User
 from app.models.voice_avatar import AvatarModel, VoiceModel
+from app.services import avatar as avatar_service
 from app.services import memory_markdown
 
 
@@ -225,12 +226,38 @@ def test_clear_current_account_data_soft_deletes_owned_domain_records(
         "# other\n",
         encoding="utf-8",
     )
+    monkeypatch.setattr(
+        avatar_service,
+        "LOCAL_AVATAR_MODELS_ROOT",
+        tmp_path / "avatar_models",
+        raising=False,
+    )
+    owned_avatar_upload = client.post(
+        f"/api/personas/{owned_persona['id']}/avatar/upload",
+        headers=auth(owner_token),
+        files={"file": ("owner.glb", b"owner-glb", "model/gltf-binary")},
+    )
+    assert owned_avatar_upload.status_code == 201
+    owned_avatar_id = owned_avatar_upload.json()["selected_avatar_model"]["id"]
+    owned_avatar_path = next((tmp_path / "avatar_models").rglob(f"{owned_avatar_id}-*.glb"))
+    other_avatar_upload = client.post(
+        f"/api/personas/{other_persona['id']}/avatar/upload",
+        headers=auth(other_token),
+        files={"file": ("other.glb", b"other-glb", "model/gltf-binary")},
+    )
+    assert other_avatar_upload.status_code == 201
+    other_avatar_id = other_avatar_upload.json()["selected_avatar_model"]["id"]
+    other_avatar_path = next((tmp_path / "avatar_models").rglob(f"{other_avatar_id}-*.glb"))
+    assert owned_avatar_path.exists()
+    assert other_avatar_path.exists()
 
     response = client.delete("/api/settings/data", headers=auth(owner_token))
 
     assert response.status_code == 204
     assert not owned_storage_path.exists()
+    assert not owned_avatar_path.exists()
     assert other_storage_path.exists()
+    assert other_avatar_path.exists()
     assert not owned_context_dir.exists()
     assert other_context_dir.exists()
     assert client.get("/api/auth/me", headers=auth(owner_token)).status_code == 200

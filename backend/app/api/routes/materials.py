@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.services.materials import (
     infer_file_type,
     material_with_jobs,
     queue_material_parse,
+    run_material_parse_job_by_id,
     soft_delete_material,
 )
 
@@ -37,6 +38,7 @@ router = APIRouter(tags=["materials"])
 )
 async def upload_materials(
     persona_id: str,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     importance: AllowedImportance = Form("normal"),
     user_description: str | None = Form(None),
@@ -60,6 +62,7 @@ async def upload_materials(
             importance=importance,
             user_description=user_description,
         )
+        background_tasks.add_task(run_material_parse_job_by_id, _job.id)
         items.append(material_with_jobs(db, material))
     return MaterialListResponse(items=items)
 
@@ -72,6 +75,7 @@ async def upload_materials(
 def create_manual(
     persona_id: str,
     payload: ManualMaterialCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -87,6 +91,7 @@ def create_manual(
         people_tags=payload.people_tags,
         location_hint=payload.location_hint,
     )
+    background_tasks.add_task(run_material_parse_job_by_id, _job.id)
     return material_with_jobs(db, material)
 
 
@@ -139,8 +144,11 @@ def delete_material(
 )
 def parse_material(
     material_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     material = get_material_or_404(material_id, current_user, db)
-    return queue_material_parse(db, material)
+    job = queue_material_parse(db, material)
+    background_tasks.add_task(run_material_parse_job_by_id, job.id)
+    return job

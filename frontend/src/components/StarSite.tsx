@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentType, ReactNode } from "react";
-import { ChevronDown, Sparkles, Star } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useState, type ComponentType, type ReactNode } from "react";
+import { ChevronDown, Menu, Sparkles, Star, X } from "lucide-react";
 import { MEMORY_SPACE_NAV_ITEMS } from "@/src/lib/memory-space";
 import { ROUTES } from "@/src/lib/routes";
 
@@ -24,30 +25,79 @@ export function StarShell({
 }
 
 export function StarNav({ floating = false }: { floating?: boolean }) {
+  const pathname = usePathname();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isActive = (href: string) =>
+    pathname === href || (href !== ROUTES.home && pathname?.startsWith(`${href}/`));
+
   return (
     <header className={floating ? "absolute inset-x-0 top-0 z-30" : "relative z-30"}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-5 py-5 sm:px-8 md:flex-row md:items-center md:justify-between md:gap-6 lg:px-10">
-        <Link href={ROUTES.home} className="flex items-center gap-3 text-starCream">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 md:gap-6 lg:px-10">
+        <Link
+          href={ROUTES.home}
+          className="flex shrink-0 items-center gap-3 text-starCream"
+          onClick={() => setMenuOpen(false)}
+        >
           <span className="grid h-9 w-9 place-items-center rounded-full bg-starGold/15 text-starGold shadow-[0_0_24px_rgba(255,205,123,0.35)]">
             <Star className="h-6 w-6 fill-current" />
           </span>
           <span className="text-2xl font-bold tracking-wide">星记</span>
         </Link>
 
-        <nav className="flex w-full max-w-full items-center gap-3 overflow-x-auto pb-1 text-sm font-semibold text-starMist/78 md:w-auto md:gap-8 md:overflow-visible md:pb-0">
-          {MEMORY_SPACE_NAV_ITEMS.map((item) => (
-            <Link
-              key={item.label}
-              className="shrink-0 rounded-full border border-transparent px-1 py-1 transition hover:border-starGold/18 hover:text-starGold"
-              href={item.href}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <button
+          type="button"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-starGold/18 bg-indigo-950/52 text-starCream md:hidden"
+          aria-label={menuOpen ? "关闭导航" : "打开导航"}
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((current) => !current)}
+        >
+          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+
+        <nav className="hidden items-center gap-6 text-sm font-semibold text-starMist/78 md:flex">
+          {MEMORY_SPACE_NAV_ITEMS.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.label}
+                aria-current={active ? "page" : undefined}
+                className={`shrink-0 rounded-full border px-3 py-2 transition ${
+                  active
+                    ? "border-starGold/28 bg-starGold/14 text-starGold"
+                    : "border-transparent hover:border-starGold/18 hover:text-starGold"
+                }`}
+                href={item.href}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="hidden h-10 w-10 md:block" aria-hidden="true" />
       </div>
+      {menuOpen ? (
+        <nav className="mx-5 mb-4 grid gap-2 rounded-[1.5rem] border border-white/10 bg-indigo-950/88 p-3 text-sm font-semibold text-starMist/78 shadow-[0_20px_60px_rgba(0,0,0,0.32)] backdrop-blur md:hidden">
+          {MEMORY_SPACE_NAV_ITEMS.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.label}
+                aria-current={active ? "page" : undefined}
+                className={`rounded-2xl border px-4 py-3 transition ${
+                  active
+                    ? "border-starGold/28 bg-starGold/14 text-starGold"
+                    : "border-transparent bg-white/5 hover:border-starGold/18 hover:text-starGold"
+                }`}
+                href={item.href}
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
     </header>
   );
 }

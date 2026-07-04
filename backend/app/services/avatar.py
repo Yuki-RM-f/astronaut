@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import re
+import shutil
 import threading
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -12,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.ai_job import AIJob
 from app.models.persona import Persona
 from app.models.source_material import SourceMaterial
+from app.models.user import User, uuid_str
 from app.models.voice_avatar import AvatarModel
 from app.providers.gateway import ProviderGateway
 from app.schemas.avatar import (
@@ -30,6 +34,7 @@ AVATAR_FAILURE_NOTICE = (
     "这张照片暂时没有生成成功。你可以换一张更清晰的正脸照，或者先使用默认纪念形象继续对话。"
 )
 AVATAR_STYLE_OPTIONS: list[AvatarStyle] = ["semi_realistic", "cartoon", "memorial"]
+LOCAL_AVATAR_MODELS_ROOT = Path("storage") / "avatar_models"
 
 
 def _utcnow() -> datetime:
@@ -47,6 +52,49 @@ def select_default_avatar(
     payload: DefaultAvatarSelection,
 ) -> AvatarConfigResponse:
     model = _create_default_avatar_model(db, persona, payload.style)
+    db.commit()
+    db.refresh(model)
+    return _avatar_config_response(persona, model, list_avatar_models(db, persona))
+
+
+def upload_avatar_model(
+    db: Session,
+    persona: Persona,
+    *,
+    file_name: str,
+    content: bytes,
+) -> AvatarConfigResponse:
+    if not file_name.lower().endswith(".glb"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Avatar model upload requires a .glb file",
+        )
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Avatar model upload cannot be empty",
+        )
+
+    _clear_selected_avatar_models(db, persona)
+    model_id = uuid_str()
+    model = AvatarModel(
+        id=model_id,
+        persona_id=persona.id,
+        provider_type="user_upload",
+        provider_name="glb_upload",
+        status="uploaded_ready",
+        model_url=f"/api/avatar-models/{model_id}/file",
+        format="glb",
+        user_selected=True,
+    )
+    db.add(model)
+    _write_local_avatar_model(
+        user_id=persona.user_id,
+        persona_id=persona.id,
+        avatar_model_id=model_id,
+        file_name=file_name,
+        content=content,
+    )
     db.commit()
     db.refresh(model)
     return _avatar_config_response(persona, model, list_avatar_models(db, persona))
@@ -151,9 +199,51 @@ def list_avatar_models(db: Session, persona: Persona) -> list[AvatarModel]:
     ).all()
 
 
+def get_avatar_model_file_path(
+    db: Session,
+    current_user: User,
+    avatar_model_id: str,
+) -> Path:
+    row = db.execute(
+        select(AvatarModel, Persona)
+        .join(Persona, AvatarModel.persona_id == Persona.id)
+        .where(
+            AvatarModel.id == avatar_model_id,
+            AvatarModel.deleted_at.is_(None),
+            Persona.user_id == current_user.id,
+            Persona.deleted_at.is_(None),
+        )
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    model, persona = row
+    path = _find_local_avatar_model_file(
+        user_id=persona.user_id,
+        persona_id=persona.id,
+        avatar_model_id=model.id,
+    )
+    if path is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+    return path
+
+
+def remove_local_avatar_model_files_for_persona(user_id: str, persona_id: str) -> None:
+    persona_dir = _avatar_persona_dir(user_id=user_id, persona_id=persona_id)
+    try:
+        root = LOCAL_AVATAR_MODELS_ROOT.resolve(strict=False)
+        resolved = persona_dir.resolve(strict=False)
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return
+    if persona_dir.exists():
+        shutil.rmtree(persona_dir, ignore_errors=True)
+
+
 def _avatar_status(selected: AvatarModel | None) -> AvatarStatus:
     if selected is None:
         return "no_avatar"
+    if selected.status == "uploaded_ready":
+        return "uploaded_ready"
     if selected.status == "generated_ready":
         return "generated_ready"
     return "default_avatar"
@@ -200,6 +290,55 @@ def _create_default_avatar_model(
     )
     db.add(model)
     return model
+
+
+def _write_local_avatar_model(
+    *,
+    user_id: str,
+    persona_id: str,
+    avatar_model_id: str,
+    file_name: str,
+    content: bytes,
+) -> Path:
+    storage_dir = _avatar_persona_dir(user_id=user_id, persona_id=persona_id)
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    path = storage_dir / f"{avatar_model_id}-{_safe_file_name(file_name)}"
+    path.write_bytes(content)
+    return path
+
+
+def _find_local_avatar_model_file(
+    *,
+    user_id: str,
+    persona_id: str,
+    avatar_model_id: str,
+) -> Path | None:
+    storage_dir = _avatar_persona_dir(user_id=user_id, persona_id=persona_id)
+    if not storage_dir.is_dir():
+        return None
+    matches = sorted(storage_dir.glob(f"{avatar_model_id}-*.glb"))
+    if not matches:
+        return None
+    path = matches[0]
+    try:
+        root = LOCAL_AVATAR_MODELS_ROOT.resolve(strict=False)
+        resolved = path.resolve(strict=False)
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return path if path.is_file() else None
+
+
+def _avatar_persona_dir(*, user_id: str, persona_id: str) -> Path:
+    return LOCAL_AVATAR_MODELS_ROOT / user_id / persona_id
+
+
+def _safe_file_name(file_name: str) -> str:
+    base_name = file_name.replace("\\", "/").split("/")[-1].strip()
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", base_name).strip("._")
+    if not safe_name.lower().endswith(".glb"):
+        safe_name = f"{safe_name or 'avatar'}.glb"
+    return safe_name
 
 
 def _clear_selected_avatar_models(db: Session, persona: Persona) -> None:

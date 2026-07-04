@@ -9,11 +9,112 @@ export const MEMORY_SPACE_COPY = {
 
 export const MEMORY_SPACE_NAV_ITEMS = [
   { href: ROUTES.home, label: "首页" },
-  { href: `${ROUTES.home}#product-intro`, label: "产品介绍" },
+  { href: ROUTES.productIntro, label: "产品介绍" },
   { href: ROUTES.personasNew, label: "创建档案" },
-  { href: `${ROUTES.home}#memory-review`, label: "记忆审核" },
-  { href: `${ROUTES.home}#star-stories`, label: "星光故事" }
+  { href: ROUTES.dashboard, label: "我的星空" }
 ] as const;
+
+export type PersonaWorkspaceNavKey =
+  | "overview"
+  | "uploads"
+  | "jobs"
+  | "memories"
+  | "chat"
+  | "regrets"
+  | "wishes"
+  | "voice"
+  | "avatar";
+
+export type PersonaWorkspaceNavItem = {
+  key: PersonaWorkspaceNavKey;
+  label: string;
+  href: string;
+  description: string;
+};
+
+export type PersonaWorkspaceNavGroup = {
+  label: string;
+  items: PersonaWorkspaceNavItem[];
+};
+
+export function getPersonaWorkspaceNavGroups(personaId: string): PersonaWorkspaceNavGroup[] {
+  return [
+    {
+      label: "总览",
+      items: [
+        {
+          key: "overview",
+          label: "人物总览",
+          href: ROUTES.personaDetail(personaId),
+          description: "查看资料建议、互动入口和人格设定。"
+        }
+      ]
+    },
+    {
+      label: "资料",
+      items: [
+        {
+          key: "uploads",
+          label: "资料上传",
+          href: ROUTES.personaUploads(personaId),
+          description: "补充资料，审核资料解析结果。"
+        },
+        {
+          key: "jobs",
+          label: "资料任务",
+          href: ROUTES.personaJobs(personaId),
+          description: "查看解析、抽取和语音合成进度。"
+        }
+      ]
+    },
+    {
+      label: "记忆",
+      items: [
+        {
+          key: "memories",
+          label: "记忆档案馆",
+          href: ROUTES.personaMemories(personaId),
+          description: "让 TA 讲述几段回忆，搜索已整理记忆。"
+        }
+      ]
+    },
+    {
+      label: "互动",
+      items: [
+        {
+          key: "chat",
+          label: "星星对话",
+          href: ROUTES.personaChat(personaId),
+          description: "进入文字、手势和语音对话。"
+        },
+        {
+          key: "regrets",
+          label: "遗憾对话室",
+          href: ROUTES.personaRegrets(personaId),
+          description: "说出以前没来得及说的话。"
+        },
+        {
+          key: "wishes",
+          label: "心愿延续系统",
+          href: ROUTES.personaWishes(personaId),
+          description: "写下想继续完成的心愿和下一步行动。"
+        },
+        {
+          key: "voice",
+          label: "声音",
+          href: ROUTES.personaVoice(personaId),
+          description: "设置默认 TTS、音色样本和语音预览。"
+        },
+        {
+          key: "avatar",
+          label: "3D 形象",
+          href: ROUTES.personaAvatar(personaId),
+          description: "上传 GLB 模型并查看数字人预览。"
+        }
+      ]
+    }
+  ];
+}
 
 export const MEMORY_SPACE_ASSETS = {
   grandmotherTea: {
@@ -38,7 +139,7 @@ export const MEMORY_SPACE_ASSETS = {
   memoryStringLights: {
     src: "/memory-space/memory-string-lights.jpg",
     alt: "串灯上悬挂的旧家庭照片",
-    usage: "记忆审核、人格档案和声音页面的氛围背景",
+    usage: "资料审核和声音页面的氛围背景",
     sourceUrl: "https://www.pexels.com/photo/old-pictures-hung-on-a-string-light-17950964/"
   }
 } as const;
@@ -65,19 +166,23 @@ export const MEMORY_JOURNEY_STEPS = [
 export const MEMORY_SPACE_ACTIONS = {
   chat: {
     title: "和 TA 说说话",
-    description: "用已确认记忆和人格档案生成第一人称回复。"
+    description: "用已确认记忆和档案摘要生成第一人称回复。"
   },
   upload: {
     title: "补充一份资料",
     description: "把照片、录音、视频或文字故事放进记忆里。"
   },
   memories: {
-    title: "确认新的记忆",
-    description: "逐条确认、修改或划掉系统整理出的记忆。"
+    title: "进入记忆档案馆",
+    description: "让 TA 讲几段回忆，并搜索已整理记忆。"
   },
-  profile: {
-    title: "查看人格档案",
-    description: "检查 TA 的习惯、关系、表达方式和可信度。"
+  regrets: {
+    title: "进入遗憾对话室",
+    description: "把以前没来得及说的话慢慢说完。"
+  },
+  wishes: {
+    title: "记录一个心愿",
+    description: "把想继续完成的事拆成下一步行动。"
   },
   voice: {
     title: "整理声音",
@@ -85,6 +190,6 @@ export const MEMORY_SPACE_ACTIONS = {
   },
   avatar: {
     title: "设置 3D 形象",
-    description: "选择默认纪念形象，或用图片生成 mock 头像/半身预览。"
+    description: "上传自包含 GLB 模型，并在对话侧展示同一数字人。"
   }
 } as const;

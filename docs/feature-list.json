@@ -62,7 +62,7 @@
     {
       "id": "feat-007",
       "name": "Milestone 3 mock 多模态解析与记忆审计基础闭环",
-      "description": "实现当前 Milestone 3 已交付范围：mock Provider Gateway 为 text_parser、ocr、asr、image_understanding、video_understanding 和 memory_extraction 生成 deterministic 输出；上传、手动资料和重新解析会同步创建 ParsedChunk 与带 source_material_id、source_quote、source_location 的 MemoryCard，并把 AI Job 标记为 succeeded；后端提供用户隔离的记忆列表、创建、详情、编辑、确认、拒绝、禁用和删除接口；前端提供 /personas/{id}/memories 记忆审计页，支持状态、分类、置信度筛选、来源展示和确认/编辑/拒绝/禁用/删除操作。该功能不包含真实 OCR/ASR/VLM/模型质量、人格档案或可信度重算、对话记忆检索、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
+      "description": "实现当前 Milestone 3 已交付范围：mock Provider Gateway 为 text_parser、ocr、asr、image_understanding、video_understanding 和 memory_extraction 生成 deterministic 输出；四类资料识别结果先统一写入 ParsedChunk.content，再进入严格六模块 JSON memory_extraction，后端校验 structured_memory_json 后派生带 source_material_id、source_quote、source_location 的 MemoryCard，并把 AI Job 标记为 succeeded；后端提供用户隔离的记忆列表、创建、详情、编辑、确认、拒绝、禁用和删除接口；前端提供 /personas/{id}/memories 记忆审计页，支持状态、分类、置信度筛选、来源展示和确认/编辑/拒绝/禁用/删除操作。该功能不包含真实 OCR/ASR/VLM/模型质量、人格档案或可信度重算、对话记忆检索、语音/TTS、头像/3D、故事/导出或完整 Demo flow。",
       "dependencies": [
         "feat-006"
       ],
@@ -92,17 +92,17 @@
     {
       "id": "feat-010",
       "name": "Milestone 6 Task 1 后端默认 TTS 与语音合成基础闭环",
-      "description": "实现当前 Milestone 6 已交付的后端默认 TTS 与语音合成基础范围：后端提供用户隔离的 GET /api/personas/{id}/voice、POST /api/personas/{id}/voice/default-tts 和 POST /api/personas/{id}/voice/synthesize；默认 TTS 选择写入 selected VoiceModel，状态为 default_tts，并返回 PRD 要求的“当前使用系统默认声音，不是 TA 的真实声音”提示；语音合成通过 mock tts Provider Gateway 生成 deterministic mock audio_url，写入 succeeded synthesize_speech AI Job，并可在任务列表查看。该功能不包含音色样本提取、音色克隆成功/失败兜底、POST /api/conversations/{id}/voice-message、前端录音/播放、3D avatar、故事/导出、真实 TTS 或真实音色质量。",
+      "description": "实现当前 Milestone 6 已交付的后端默认 TTS 与语音合成基础范围：后端提供用户隔离的 GET /api/personas/{id}/voice、POST /api/personas/{id}/voice/default-tts 和 POST /api/personas/{id}/voice/synthesize；voice config 返回 tts_model、兼容旧调用的 default_tts_options 和 MiniMax 中文普通话真人相关 default_tts_voices 静态列表，选项名称使用中文；默认 TTS 选择校验所选 system voice_id，默认值为 Chinese (Mandarin)_Kind-hearted_Elder，并写入 selected VoiceModel，状态为 default_tts，model_artifact_url 为 minimax://system-voice/<urlencoded_voice_id>；语音合成会从 system voice 或 cloned voice artifact 解析 voice_id 并传给 Provider Gateway/MiniMax TTS，同时返回 PRD 要求的“当前使用系统默认声音，不是 TA 的真实声音”提示，写入 succeeded synthesize_speech AI Job，并可在任务列表查看。该功能不包含动态 get_voice 联网拉取、音色样本提取、音色克隆成功/失败兜底、POST /api/conversations/{id}/voice-message、前端录音/播放、3D avatar、故事/导出、真实 TTS 或真实音色质量。",
       "dependencies": [
         "feat-009"
       ],
       "status": "completed",
-      "evidence": "backend/app/api/routes/voice.py; backend/app/services/voice.py; backend/app/schemas/voice.py; backend/app/providers/gateway.py; backend/app/main.py; backend/tests/test_voice.py; docs/superpowers/plans/2026-07-04-milestone-6-voice-tts.md; python -m pytest backend/tests/test_voice.py -q; python -m pytest backend/tests -q"
+      "evidence": "backend/app/api/routes/voice.py; backend/app/services/voice.py; backend/app/schemas/voice.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/app/main.py; backend/tests/test_voice.py; backend/tests/test_minimax_provider.py; docs/superpowers/plans/2026-07-04-milestone-6-voice-tts.md; python -m pytest backend/tests/test_voice.py backend/tests/test_minimax_provider.py -q; python -m pytest backend/tests/test_voice.py -q; python -m pytest backend/tests -q"
     },
     {
       "id": "feat-011",
       "name": "Milestone 6 Task 2 后端音色样本与克隆兜底基础闭环",
-      "description": "实现当前 Milestone 6 已交付的后端音色样本和 mock 音色克隆范围：POST /api/personas/{id}/voice/samples 可从当前用户拥有的 audio SourceMaterial 创建 sample_ready VoiceModel，并写入 succeeded extract_voice_sample AI Job；POST /api/personas/{id}/voice/clone 通过 mock voice_clone Provider Gateway 发起 clone_voice AI Job，成功时把样本标记为 selected cloned_ready 并返回 mock model_artifact_url，失败时把样本标记为 clone_failed，创建或保留 selected default_tts 兜底并返回默认 TTS 提示。该功能不包含 POST /api/conversations/{id}/voice-message、前端录音/播放、真实 voice clone/TTS 质量、3D avatar、故事/导出或完整 Demo flow。",
+      "description": "实现当前 Milestone 6 已交付的后端音色样本和 mock/可选 MiniMax 音色克隆范围：POST /api/personas/{id}/voice/samples 可从当前用户拥有的 audio SourceMaterial 创建 sample_ready VoiceModel，并写入 succeeded extract_voice_sample AI Job；POST /api/personas/{id}/voice/clone 通过 Provider Gateway 发起 clone_voice AI Job，成功时把样本标记为 selected cloned_ready 并返回 mock 或 MiniMax model_artifact_url；clone 前会对可读 WAV 做 MiniMax 至少 10 秒预检，短音频写入 voice_preflight failed job，不调用真实 provider；其他失败时把样本标记为 clone_failed，创建或保留 selected default_tts 兜底并返回默认 TTS 提示。该功能不包含 POST /api/conversations/{id}/voice-message、前端录音/播放、真实 voice clone/TTS 质量、3D avatar、故事/导出或完整 Demo flow。",
       "dependencies": [
         "feat-010"
       ],
@@ -132,12 +132,12 @@
     {
       "id": "feat-014",
       "name": "Milestone 6 Task 4 前端声音设置与语音播放基础闭环",
-      "description": "实现当前 Milestone 6 前端声音控制基础范围：新增 /personas/{id}/voice 声音设置页，展示当前 voice_status、默认 TTS 原文提示、声音记录、音频资料样本选择、音色样本创建、mock 音色克隆和语音预览播放；人物记忆空间提供声音设置入口；聊天页提供浏览器录音上传和已上传音频资料两种语音消息入口，调用 POST /api/conversations/{id}/voice-message，并在返回的 persona message 存在 audio_url 时展示浏览器 audio 播放控件。该功能的 TTS、音色克隆和前端语音播放仍使用 deterministic mock provider；ASR 可随 feat-025 的 DashScope 配置启用真实 provider；不包含真实 TTS/音色质量、3D 口型同步、故事/导出或完整 Demo flow。",
+      "description": "实现当前 Milestone 6 前端声音控制基础范围：新增 /personas/{id}/voice 声音设置页，展示当前 voice_status、默认 TTS 原文提示、声音记录、MiniMax 中文普通话真人相关 system voice 默认 TTS 可选列表、纯净无噪声 TA 人声音频上传或浏览器录音、音色样本创建、mock/可选 MiniMax 音色克隆和语音预览播放；默认 TTS 列表用“中文名称：voice_id”展示，保存按钮提交所选 voice_id，语音预览区显示当前语音来源，默认 TTS 显示 MiniMax tts_model 与 voice_id，克隆音色显示用户创建的 voice model id 并在有 artifact 时补充 MiniMax clone voice_id；声音页不再从既有音频资料下拉选择样本，而是提示用户必须提供只包含 TA 清晰人声、避免背景音乐/多人说话/环境噪声的音频；用户可选择本地音频文件，或调取浏览器麦克风录制 TA 的人声音频，停止后先试听确认并转为 WAV，按 MiniMax 克隆要求预检至少 10 秒，再上传并创建样本；页面保留两步按钮，明确上传/录音只创建“音色样本”，生成模拟音色会调用 MiniMax 克隆并得到 voice_id；克隆失败提示会把 MiniMax 短音频错误转成“至少 10 秒”的可操作说明；人物记忆空间提供声音设置入口；聊天页提供浏览器录音上传和已上传音频资料两种语音消息入口，调用 POST /api/conversations/{id}/voice-message，并在返回的 persona message 存在 audio_url 时展示浏览器 audio 播放控件。该功能不包含动态 get_voice 联网拉取、真实 TTS/音色质量、录音降噪或质量检测、3D 口型同步、故事/导出或完整 Demo flow。",
       "dependencies": [
         "feat-012"
       ],
       "status": "completed",
-      "evidence": "frontend/src/lib/voice.ts; frontend/src/lib/chat.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/tests/voice.test.mjs; frontend/tests/chat.test.mjs; frontend/tests/routes.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+      "evidence": "frontend/src/lib/voice.ts; frontend/src/lib/chat.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/tests/voice.test.mjs; frontend/tests/chat.test.mjs; frontend/tests/routes.test.mjs; node --import tsx --test tests/voice.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
     },
     {
       "id": "feat-015",
@@ -193,13 +193,13 @@
     },
     {
       "id": "feat-020",
-      "name": "Milestone 8 Task 2 前端回忆讲述页基础闭环（已由星空对话入口替代）",
-      "description": "该切片曾新增 /personas/{id}/stories 回忆讲述页、stories helper、路由和 API path 常量。feat-041 星空前端交互迁移后，独立 stories 页面、路由常量和导航入口不再暴露；stories helper 和后端 API path 保留，当前对话页把记忆档案馆/遗憾对话室/心愿延续作为前端互动入口。该功能不包含故事文本/音频导出、删除关键数据、真实 LLM/TTS 质量或完整 Demo flow。",
+      "name": "Milestone 8 Task 2 前端回忆讲述页基础闭环（已由记忆档案馆替代）",
+      "description": "该切片曾新增 /personas/{id}/stories 回忆讲述页、stories helper、路由和 API path 常量。当前独立 stories 页面、路由常量和导航入口不再暴露；stories helper 和后端 API path 保留，回忆讲述体验由 /personas/{id}/memories 记忆档案馆承接，遗憾对话室和心愿延续引导已拆到 /personas/{id}/regrets 与 /personas/{id}/wishes。该功能不包含故事文本/音频导出、删除关键数据、真实 LLM/TTS 质量或完整 Demo flow。",
       "dependencies": [
         "feat-019"
       ],
       "status": "superseded",
-      "evidence": "superseded by feat-041; frontend/src/lib/stories.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/stories.test.mjs; frontend/tests/routes.test.mjs; npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+      "evidence": "superseded by feat-044; frontend/src/lib/stories.ts; frontend/src/lib/api.ts; frontend/src/lib/routes.ts; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/regrets/page.tsx; frontend/app/personas/[id]/wishes/page.tsx; frontend/tests/stories.test.mjs; frontend/tests/routes.test.mjs; frontend/tests/guided-experiences.test.mjs; npm.cmd --prefix frontend run test -- stories.test.mjs routes.test.mjs guided-experiences.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
     },
     {
       "id": "feat-021",
@@ -246,7 +246,7 @@
     {
       "id": "feat-025",
       "name": "真实多模态解析与 DashScope Provider 接入",
-      "description": "实现第一轮真实解析链路：扩展运行配置和 Compose provider 变量，新增 DashScope adapter；`DEFAULT_LLM_PROVIDER=dashscope` 且配置 `DASHSCOPE_API_KEY` 时，`text_parser`、`ocr`、`image_understanding`、`asr`、`video_understanding` 和 `memory_extraction` 通过统一 Provider Gateway 调用 DashScope/Qwen，未配置 key 时自动回到 mock；PDF/DOC/DOCX 文本资料先走本地抽取，视频资料优先用 ffmpeg 抽音轨和关键帧；parse job、ParsedChunk metadata 和 MemoryCard evidence 记录 provider_type/provider_name。该功能不实现真实 TTS、音色克隆、Chat/Story LLM、记忆 Markdown 聊天上下文或真实 3D provider。",
+      "description": "实现第一轮真实解析链路：扩展运行配置和 Compose provider 变量，新增 DashScope adapter；`DEFAULT_LLM_PROVIDER=dashscope` 且配置 `DASHSCOPE_API_KEY` 时，`text_parser`、`ocr`、`image_understanding`、`asr`、`video_understanding` 和严格六模块 JSON `memory_extraction` 通过统一 Provider Gateway 调用 DashScope/Qwen，未配置 key 时自动回到 mock；PDF/DOC/DOCX 文本资料先走本地抽取，视频资料优先用 ffmpeg 抽音轨和关键帧；parse job、ParsedChunk metadata 和 MemoryCard evidence 记录 provider_type/provider_name。该功能不实现真实 TTS、音色克隆、Chat/Story LLM、记忆 Markdown 聊天上下文或真实 3D provider。",
       "dependencies": [
         "feat-007",
         "feat-024"
@@ -321,7 +321,7 @@
     {
       "id": "feat-032",
       "name": "真实 MiniMax 语音合成与音色复刻接入",
-      "description": "实现第一轮真实语音链路：扩展运行配置和 Provider Gateway，新增 MiniMax adapter；配置 MINIMAX_API_KEY 或 MiniMax OpenAI 兼容 OPENAI_API_KEY/OPENAI_BASE_URL 时，tts 通过 MiniMax /v1/t2a_v2 生成语音 URL，voice_clone 先向 /v1/files/upload 上传音频样本，再调用 /v1/voice_clone 生成 voice_id 和预览音频；APP_ENV=test 或未配置 key 时保持 deterministic mock fallback。该功能不改变 DashScope 多模态解析链路，不实现真实 Chat/Story LLM、聊天记忆上下文调整、真实 3D provider 或真实音频口型同步；真实音色复刻质量取决于 MiniMax 账号实名/企业认证和样本音频质量。",
+      "description": "实现第一轮真实语音链路：扩展运行配置和 Provider Gateway，新增 MiniMax adapter；配置 MINIMAX_API_KEY 或 MiniMax OpenAI 兼容 OPENAI_API_KEY/OPENAI_BASE_URL 时，tts 通过 MiniMax /v1/t2a_v2 生成语音 URL，默认 TTS 可从 selected VoiceModel 的 minimax://system-voice/<urlencoded_voice_id> 读取用户选择的 MiniMax 中文普通话 system voice_id 并覆盖 MINIMAX_DEFAULT_VOICE_ID fallback；voice_clone 先向 /v1/files/upload 上传音频样本，再调用 /v1/voice_clone 生成 voice_id 和预览音频，后续 cloned artifact 继续以 minimax://voice/{voice_id} 传入 TTS。APP_ENV=test 或未配置 key 时保持 deterministic mock fallback。该功能不改变 DashScope 多模态解析链路，不接入动态 get_voice 联网拉取，不实现真实 Chat/Story LLM、聊天记忆上下文调整、真实 3D provider 或真实音频口型同步；真实音色复刻质量取决于 MiniMax 账号实名/企业认证和样本音频质量。",
       "dependencies": [
         "feat-014",
         "feat-025"
@@ -423,7 +423,7 @@
     {
       "id": "feat-041",
       "name": "yawen 星空前端交互迁移",
-      "description": "以当前工作区为基础迁移 origin/yawen 的星空视觉与前端交互，不直接合并 yawen，不编辑 backend/。前端采用 StarSite、StarPlanetScene、星空首页、创建页、Dashboard、人物详情、上传、任务、记忆审计、档案、对话、声音和 3D 页面交互；本轮进一步按参考图收口对话和审核体验：对话页左侧为三模式对话区，右侧共享 AvatarStage 数字人舞台，读取现有 avatar config 后用 selected 可渲染模型或可显示 preview image 替换星空占位；记忆审核页改为“记忆解析与审核”标题、可信度横幅、6 个维度卡片和底部完成审核 CTA，维度确认/删除通过前端循环调用现有 memory API，不新增后端维度模型。前端移除登录/注册页面、登录态导航差异、数据设置页、模型设置页和独立 stories 页面。无 token 时前端通过 ensureDemoSession() 调用现有 POST /api/auth/demo 透明获得 demo token；已有 token 静默复用但 UI 不展示账号入口。创建星星页保留当前后端必需 age 字段，创建 payload 继续写入 language=zh-CN、默认说话风格、情绪边界和禁用表达；创建成功后使用现有 uploadMaterials API 上传已选文件，上传失败时保留已创建 persona 并提示去资料上传页补传。yawen 未闭环的视频手势互动、遗憾对话室和心愿延续只作为前端模式或 prompt 入口，不声明真实后端能力。",
+      "description": "以当前工作区为基础迁移 origin/yawen 的星空视觉与前端交互，不直接合并 yawen，不编辑 backend/。前端采用 StarSite、StarPlanetScene、星空首页、创建页、Dashboard、人物详情、上传、任务、记忆档案馆、档案、对话、声音和 3D 页面交互；后续由 feat-044 收口三类体验：对话页只保留文字/手势/语音对话和侧边 AvatarStage 数字人舞台，/personas/{id}/memories 记忆档案馆承接回忆讲述，遗憾对话室和心愿延续引导拆为 /personas/{id}/regrets 与 /personas/{id}/wishes 独立前端页。前端移除登录/注册页面、登录态导航差异、数据设置页、模型设置页和独立 stories 页面。无 token 时前端通过 ensureDemoSession() 调用现有 POST /api/auth/demo 透明获得 demo token；已有 token 静默复用但 UI 不展示账号入口。创建星星页保留当前后端必需 age 字段，创建 payload 继续写入 language=zh-CN、默认说话风格、情绪边界和禁用表达；创建成功后使用现有 uploadMaterials API 上传已选文件，上传失败时保留已创建 persona 并提示去资料上传页补传。yawen 未闭环的视频手势互动仍为前端体验；遗憾对话室和心愿延续引导复用现有 chat API，不声明独立后端心愿数据模型、提醒策略或长期 P1 心愿系统。",
       "dependencies": [
         "feat-013",
         "feat-014",
@@ -450,7 +450,7 @@
     {
       "id": "feat-043",
       "name": "Memory Audit v2 记忆档案馆与 Persona Engine 集成",
-      "description": "以 origin/jinru 的 Memory_Audit_v2 为设计来源重新实现当前项目内的星空主题记忆档案馆，不直接合并分支。后端扩展 audit_logs，新增 memory_conflicts、审计 API、冲突检测、语义搜索和记忆历史，记忆创建/编辑/确认/拒绝/停用/删除、对话引用/纠错、profile 编辑/重生成/可信度变化、故事引用和搜索均写入当前事务内的用户隔离审计事件；跨用户访问返回 404。Persona Engine prompt 归档到 docs，并新增 persona_profile_analysis provider capability；显式 profile regenerate 调用 Persona Engine 输入多模态 chunk、active memory cards、source metadata 和 persona card，保存 persona_engine_json 和生成时间，解析失败时回退 deterministic profile，不影响聊天 prompt 或自动记忆审核刷新。前端将 /personas/{id}/memories 升级为星空主题“记忆档案馆”，同页保留分类审核和点亮星星流程，并新增审计仪表盘、语义搜索、冲突中心、最近事件和记忆历史；路演 HTML 作为 docs 静态资料归档。",
+      "description": "以 origin/jinru 的 Memory_Audit_v2 为设计来源重新实现当前项目内的星空主题记忆档案馆，不直接合并分支。后端扩展 audit_logs，新增 memory_conflicts、审计 API、冲突检测、语义搜索和记忆历史，记忆创建/编辑/确认/拒绝/停用/删除、对话引用/纠错、profile 编辑/重生成/可信度变化、故事引用和搜索均写入当前事务内的用户隔离审计事件；跨用户访问返回 404。语义搜索读取长期/短期记忆 Markdown 辅助关键词排序，但结果只返回可追溯 MemoryCard，不把短期对话片段混入独立结果。Persona Engine prompt 归档到 docs，并新增 persona_profile_analysis provider capability；显式 profile regenerate 调用 Persona Engine 输入多模态 chunk、active memory cards、source metadata 和 persona card，保存 persona_engine_json 和生成时间，解析失败时回退 deterministic profile，不影响聊天 prompt 或自动记忆审核刷新。当前前端 /personas/{id}/memories 为星空主题“记忆档案馆”，只保留回忆讲述和语义搜索；审核、可信度和点亮星星流程已迁入 uploads。路演 HTML 作为 docs 静态资料归档。",
       "dependencies": [
         "feat-007",
         "feat-008",
@@ -461,6 +461,146 @@
       ],
       "status": "completed",
       "evidence": "backend/alembic/versions/0006_memory_audit_v2_persona_engine.py; backend/app/models/audit_log.py; backend/app/models/memory_conflict.py; backend/app/models/persona_profile.py; backend/app/api/routes/audit.py; backend/app/services/audit.py; backend/app/services/conflict_detector.py; backend/app/services/semantic_search.py; backend/app/services/persona_engine_prompt.py; backend/app/api/routes/memories.py; backend/app/api/routes/profile.py; backend/app/services/chat.py; backend/app/services/parsing.py; backend/app/services/stories.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/tests/test_audit.py; backend/tests/test_profile.py; backend/tests/test_provider_gateway.py; backend/tests/test_minimax_provider.py; backend/tests/test_migrations.py; frontend/src/lib/audit.ts; frontend/src/lib/api.ts; frontend/app/personas/[id]/memories/page.tsx; frontend/tests/audit.test.mjs; frontend/tests/routes.test.mjs; docs/Persona_Engine_System_Prompt.md; docs/展览路演材料.html; python -m pytest backend/tests/test_audit.py backend/tests/test_profile.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_migrations.py -q; python -m pytest backend/tests -q; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; docker compose config > $null; browser smoke desktop/mobile /personas/{id}/memories"
+    },
+    {
+      "id": "feat-044",
+      "name": "页面路径与入口重编排",
+      "description": "在保留现有后端 API 的前提下，重编排当前星空前端入口：顶部导航固定为产品级核心页面“首页、产品介绍、创建档案、我的星空”，其中“产品介绍”指向独立 /product-intro 星空路演摘编页，首页保留简版 #product-intro 概览；移除全局“记忆审核”和“星光故事”功能型入口；人物详情页保留下方资料、记忆和互动功能卡片作为人物内功能入口，各人物内功能页不再展示人物工作台块、分组按钮或返回人物工作台按钮；人物详情页改为下一步建议与分组功能区，主 CTA 按资料、待审核记忆和已审核状态切换；创建档案页仅在页内展示“资料卡片 -> 上传回忆 -> 保存并进入审核”阶段流程。对话页收口为文字、手势、语音对话和侧边 AvatarStage 数字人；/personas/{id}/memories 作为记忆档案馆承接回忆讲述和语义搜索，回忆讲述按用户主题读取长期/短期记忆上下文、只引用 confirmed/corrected 来源记忆，并在入库、列表、导出和 TTS 前清洗 provider 思考块；/personas/{id}/regrets 和 /personas/{id}/wishes 复用现有 chat API 做轻量引导。该功能不新增后端 API、不恢复 login/register/settings/stories 独立前端入口、不实现 P1 心愿持久化数据模型、提醒策略或长期行动系统。",
+      "dependencies": [
+        "feat-041",
+        "feat-043"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/lib/memory-space.ts; frontend/src/components/StarSite.tsx; frontend/src/components/GuidedExperiencePage.tsx; frontend/app/page.tsx; frontend/app/product-intro/page.tsx; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/jobs/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/regrets/page.tsx; frontend/app/personas/[id]/wishes/page.tsx; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/avatar/page.tsx; frontend/src/lib/guided-experiences.ts; frontend/src/lib/routes.ts; frontend/tests/memory-space.test.mjs; frontend/tests/routes.test.mjs; frontend/tests/product-intro.test.mjs; frontend/tests/homepage-cta.test.mjs; frontend/tests/guided-experiences.test.mjs; frontend/tests/chat.test.mjs; docs/README.md; docs/prd-checklist.md; docs/progress.md; docs/平台说明.md; python -m json.tool docs/feature-list.json; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; browser smoke persona detail and subpages without workspace nav desktop/mobile; browser smoke / and /product-intro desktop/mobile"
+    },
+    {
+      "id": "feat-045",
+      "name": "Uploads 承接记忆审核与唯一可信度",
+      "description": "在不新增数据库表或 HTTP 路由的前提下，将资料解析结果审查从 /personas/{id}/memories 迁移到 /personas/{id}/uploads：创建星星成功后进入 uploads；uploads 同页提供资料上传、结构化记忆 Markdown、分类记忆卡片确认/编辑/删除、自定义维度和“完成审核，点亮星星”按钮；memories 页面只保留“让TA讲几段回忆”和语义搜索，不再展示审核卡片、可信度、健康分、待审核、开放冲突、冲突中心或最近事件。资料解析后先把单个资料的 ParsedChunk.content 送入严格六模块 JSON memory_extraction，后端校验 structured_memory_json 并派生待审核 MemoryCard，再基于当前 active materials/chunks/memory cards 运行 memory_document_generation 生成 structured_memory_document_json、后端渲染的 structured_memory_md 和 trust_score，写入 parse/trust AI job output_json，并以 persona.trust_score 作为唯一展示值；profile GET、记忆确认/编辑/删除和 profile 编辑/重生成不再重新计算或覆盖 trust，POST /recalculate-trust 兼容为重新运行同一文档/可信度生成链路。Dashboard、人物详情、profile 和 memories 页面不再展示 trust 数字或可信度组成；Dashboard 星星卡提供确认删除按钮，复用现有 DELETE /api/personas/{id} 人物软删除 API。",
+      "dependencies": [
+        "feat-043",
+        "feat-044"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/providers/gateway.py; backend/app/providers/dashscope.py; backend/app/providers/minimax.py; backend/app/services/parsing.py; backend/app/services/profile.py; backend/app/api/routes/profile.py; backend/app/services/data_exports.py; backend/tests/test_provider_gateway.py; backend/tests/test_dashscope_provider.py; backend/tests/test_parsing.py; backend/tests/test_profile.py; backend/tests/test_memories.py; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/dashboard/page.tsx; frontend/app/page.tsx; frontend/src/lib/persona.ts; frontend/src/lib/memory-space.ts; frontend/tests/persona.test.mjs; frontend/tests/memories.test.mjs; frontend/tests/memory-space.test.mjs; frontend/tests/homepage-cta.test.mjs; frontend/tests/dashboard-delete.test.mjs; python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_parsing.py backend/tests/test_profile.py backend/tests/test_memories.py -q; python -m pytest backend/tests/test_dashscope_provider.py -q; npm.cmd --prefix frontend run test -- persona.test.mjs memories.test.mjs memory-space.test.mjs homepage-cta.test.mjs profile.test.mjs; node --import tsx --test tests/dashboard-delete.test.mjs; browser smoke /dashboard delete non-外婆 stars"
+    },
+    {
+      "id": "feat-046",
+      "name": "移除 Profile 页面并迁移档案摘要",
+      "description": "不删除后端 profile API 或数据能力，但前端不再保留独立 /personas/{id}/profile 人格档案 UI：深链访问重定向到 /personas/{id}/uploads，人物详情功能卡片和 ROUTES 不再暴露 profile 入口。该切片曾把档案摘要卡片迁入 uploads；后续 feat-048 已将摘要改为上传解析后的 memory_document_generation 自动生成并移除前端手动编辑。人物详情页顶部简介展示 profile.profile_summary，无摘要时显示中性空态，不再展示创建人物时填写的 short_bio。该功能不迁移完整 profile JSON 维度编辑 UI，不新增 HTTP 路由或数据库表。",
+      "dependencies": [
+        "feat-045"
+      ],
+      "status": "completed",
+      "evidence": "frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/profile/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/page.tsx; frontend/app/dashboard/page.tsx; frontend/src/lib/routes.ts; frontend/src/lib/memory-space.ts; frontend/tests/routes.test.mjs; frontend/tests/memory-space.test.mjs; frontend/tests/profile.test.mjs; frontend/tests/persona.test.mjs; docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; browser smoke uploads/profile redirect/persona detail summary"
+    },
+    {
+      "id": "feat-047",
+      "name": "GLB 形象上传与前端展示闭环",
+      "description": "将当前 3D 形象设置流程收口为用户上传自包含 .glb 模型：后端新增 avatar 专用上传接口和受 JWT/用户隔离保护的模型文件读取接口，上传成功后创建 selected AvatarModel，写入 uploaded_ready、glb、user_upload/glb_upload，并把本地文件保存到 storage/avatar_models/{user_id}/{persona_id}/；Compose 后端把 /app/storage/avatar_models 挂到 avatar-model-storage，避免开发容器重建后丢失已上传 GLB 文件；删除人物和清空当前账号数据时同步移除对应本地 GLB 文件。前端 /personas/{id}/avatar 不再暴露默认纪念形象、图片资料生成、mock 3D 生成或口型测试入口，改为 GLB 上传、上传/加载/成功/失败状态提示、当前模型记录和模型地址展示；共享 AvatarPreview/AvatarStage 使用 GLTFLoader + MeshoptDecoder 加载后端文件接口，在形象页、对话页、遗憾对话室和心愿延续页统一展示真实 GLB 的静态美观舞台。本切片不实现 .gltf 外链贴图、VRM、动作文件、视频手势驱动、audio envelope 或 viseme 口型同步，也不接入真实 3D 生成 provider。",
+      "dependencies": [
+        "feat-015",
+        "feat-016",
+        "feat-041",
+        "feat-046"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/schemas/avatar.py; backend/app/services/avatar.py; backend/app/api/routes/avatar.py; backend/app/api/routes/personas.py; backend/app/api/routes/settings_data.py; backend/tests/test_avatar.py; backend/tests/test_personas.py; backend/tests/test_settings_data.py; frontend/src/lib/api.ts; frontend/src/lib/avatar.ts; frontend/src/components/AvatarPreview.tsx; frontend/src/components/AvatarStage.tsx; frontend/app/personas/[id]/avatar/page.tsx; frontend/src/lib/memory-space.ts; frontend/app/product-intro/page.tsx; frontend/tests/avatar.test.mjs; frontend/tests/routes.test.mjs; python -m pytest backend/tests/test_avatar.py backend/tests/test_personas.py backend/tests/test_settings_data.py -q; node --import tsx --test tests/avatar.test.mjs tests/routes.test.mjs tests/guided-experiences.test.mjs tests/chat.test.mjs; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+    },
+    {
+      "id": "feat-048",
+      "name": "Uploads 自动档案摘要与结构化信息星标",
+      "description": "删除 uploads 页手动档案摘要卡片，档案摘要改由每次资料解析后的 memory_document_generation 自动输出 profile_summary 并覆盖 PersonaProfile.profile_summary；profile GET、记忆确认/编辑/删除和 Persona Engine profile regenerate 不再生成或覆盖该自动摘要，也不覆盖唯一 trust。资料上传区复用创建页“上传珍贵回忆”四宫格样式，文件资料和手动资料前端不再暴露资料级备注或重要程度；重要性迁移到真实 MemoryCard 的 is_important 星标，PATCH /api/memories/{id} 可切换该字段。星标记忆进入 structured_memory_document_json、后端渲染的结构化记忆 Markdown、长期记忆 Markdown、Persona Engine payload、story retrieval 和 chat memory selection，并在这些模型上下文中优先排序。该功能不新增 HTTP 路由，不新增数据库表，只扩展现有 MemoryCard 字段、provider 输出和 schema。",
+      "dependencies": [
+        "feat-045",
+        "feat-046"
+      ],
+      "status": "completed",
+      "evidence": "backend/alembic/versions/0007_memory_card_importance.py; backend/app/models/memory_card.py; backend/app/schemas/memory.py; backend/app/api/routes/memories.py; backend/app/services/parsing.py; backend/app/services/profile.py; backend/app/services/memory_markdown.py; backend/app/services/stories.py; backend/app/services/chat.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/tests/test_provider_gateway.py; backend/tests/test_parsing.py; backend/tests/test_materials.py; backend/tests/test_profile.py; backend/tests/test_memories.py; backend/tests/test_memory_markdown.py; backend/tests/test_chat.py; backend/tests/test_stories.py; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/new/page.tsx; frontend/src/components/UploadMemoryTile.tsx; frontend/src/lib/materials.ts; frontend/src/lib/memories.ts; frontend/tests/materials.test.mjs; frontend/tests/memories.test.mjs; frontend/tests/memory-space.test.mjs; frontend/tests/persona.test.mjs; docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json; python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_parsing.py backend/tests/test_materials.py backend/tests/test_profile.py backend/tests/test_memories.py backend/tests/test_memory_markdown.py backend/tests/test_chat.py backend/tests/test_stories.py -q; node --import tsx --test tests/materials.test.mjs tests/memories.test.mjs tests/memory-space.test.mjs tests/persona.test.mjs tests/profile.test.mjs; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build"
+    },
+    {
+      "id": "feat-049",
+      "name": "遗憾对话室与心愿延续专属 prompt 和上下文隔离",
+      "description": "为 Conversation 增加轻量 kind/context_kind 分流，普通聊天使用 kind=chat/context_kind=general，遗憾对话室使用 kind=regrets，心愿延续引导使用 kind=wishes/context_kind=wishes；会话列表可按 kind 和 context_kind 过滤，创建会话可指定分流。遗憾对话室通过专属 guided system prompt 围绕“有没有什么以前没说的话，今天想慢慢告诉我？”引导用户表达道歉、感谢、想念、告别或心结；发送消息时保留人物设定、profile summary 和已确认/已修正长期记忆，但短期 Markdown 只读取 regrets 同类会话，普通 chat 可见消息不会显示或进入遗憾 prompt。心愿延续引导使用专门 wishes system prompt，围绕“你现在有什么想完成的心愿，或者想替我继续做的一件事吗？”引导用户只在心愿、替 TA 继续做的一件事和下一步行动主题下发散，鼓励继续向前看、努力生活、早日实现愿望；该上下文只使用当前 wishes conversation 历史和人物基础/profile 语气，不读取普通聊天、遗憾对话等其他 conversation 的短期 Markdown，也不走默认记忆召回/引用。前端 chat 页只加载/创建 kind=chat 会话，regrets 引导页只加载/创建 kind=regrets 会话，wishes 引导页只加载/创建 kind=wishes/context_kind=wishes 的专属会话，sendMessage 继续复用既有 messages endpoint。本切片不新增 P1 心愿持久化数据模型、提醒策略、CRUD 或长期行动系统。",
+      "dependencies": [
+        "feat-009",
+        "feat-042",
+        "feat-044"
+      ],
+      "status": "completed",
+      "evidence": "backend/alembic/versions/0008_conversation_kind.py; backend/alembic/versions/0009_conversation_context_kind.py; backend/app/models/conversation.py; backend/app/schemas/chat.py; backend/app/api/routes/chat.py; backend/app/services/chat.py; backend/app/services/memory_markdown.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/tests/test_chat.py; backend/tests/test_memory_markdown.py; backend/tests/test_minimax_provider.py; frontend/src/lib/chat.ts; frontend/src/lib/guided-experiences.ts; frontend/src/components/GuidedExperiencePage.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/chat.test.mjs; frontend/tests/guided-experiences.test.mjs; docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json; python -m pytest backend/tests/test_chat.py backend/tests/test_minimax_provider.py -q; python -m pytest backend/tests/test_chat.py backend/tests/test_memory_markdown.py backend/tests/test_minimax_provider.py -q; python -m pytest backend/tests -q; node --import tsx --test tests/guided-experiences.test.mjs tests/chat.test.mjs; npm.cmd --prefix frontend run test; npm.cmd --prefix frontend run lint; npm.cmd --prefix frontend run build; browser smoke /personas/{id}/wishes prompt visible and overflow 0"
+    },
+    {
+      "id": "feat-050",
+      "name": "视频手势互动与 GLB 动作反馈",
+      "description": "在不新增后端 API、数据库字段或摄像头视频上传的前提下，将 /personas/{id}/chat 的视频手势模式从占位说明升级为浏览器本地摄像头互动：用户可开始/停止摄像头，前端通过 @mediapipe/tasks-vision GestureRecognizer 在浏览器端识别张开手掌、握拳和手部 landmarks，并用横向轨迹判断挥手，用画面停留触发出现/注视反馈；识别结果只保存在当前组件状态，不写入数据库或后端消息。新增 gesture helper 负责手势归一、冷却去抖、手势到 motionIntent 的映射和 GLB animation clip 名称匹配；聊天页把 motionIntent 传给右侧 AvatarStage。AvatarPreview 使用 THREE.AnimationMixer 优先播放 GLB 自带 idle/wave/nod/listen/speak 等可匹配动画，缺少对应 clip 时使用整体旋转、轻摆、点头、靠近等基础动作 fallback，并提示当前模型不含对应动画。本切片只做本地 MVP 手势体验和 GLB 动作反馈，不做复杂手语、全身动作捕捉、多人识别、摄像头视频持久化、手势触发模型回复、真实 audio envelope 或 viseme 口型同步。",
+      "dependencies": [
+        "feat-044",
+        "feat-047"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/lib/gesture.ts; frontend/src/components/AvatarPreview.tsx; frontend/src/components/AvatarStage.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/tests/gesture.test.mjs; frontend/tests/chat.test.mjs; frontend/tests/avatar.test.mjs; frontend/package.json; frontend/package-lock.json; docs/README.md; docs/feature-list.json; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json exit 0; node --import tsx --test tests/gesture.test.mjs tests/chat.test.mjs tests/avatar.test.mjs 31 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0; docker compose build frontend exit 0; docker compose up -d --no-deps --force-recreate frontend exit 0; browser smoke desktop/mobile gesture panel visible and overflow 0. Note: npm.cmd --prefix frontend run test -- chat.test.mjs avatar.test.mjs and npm.cmd --prefix frontend run test currently run the full suite and fail on existing memories/stories assertions outside this slice, with 114 passed / 2 failed."
+    },
+    {
+      "id": "feat-051",
+      "name": "ECS 直连端口部署与远程访问地址同步",
+      "description": "在不新增 HTTP API、数据库字段或产品功能的前提下，将当前 Docker Compose 部署说明和配置补齐为阿里云 ECS 直连端口方案：本地调试继续使用 http://localhost:3000 和 http://localhost:8000/health；ECS 部署通过未提交的 .env/runtime.env 设置 FRONTEND_URL=http://<ECS公网IP>:3000、BACKEND_URL=http://<ECS公网IP>:8000、NEXT_PUBLIC_API_BASE_URL=http://<ECS公网IP>:8000 和强随机 JWT_SECRET；前端 Docker build 期注入 NEXT_PUBLIC_API_BASE_URL，避免远程客户端仍指向 localhost；Compose 只对外保留前端 3000 和后端 8000，PostgreSQL、Redis 和 MinIO 宿主端口默认绑定到 127.0.0.1，文档明确 ECS 安全组只放行 3000/8000，不对公网放行 15432、6379、9000 或 9001。",
+      "dependencies": [
+        "feat-003",
+        "feat-004"
+      ],
+      "status": "completed",
+      "evidence": "docker-compose.yml; frontend/Dockerfile; backend/tests/test_container_runtime.py; readme.md; docs/README.md; docs/平台说明.md; docs/prd-checklist.md; docs/progress.md; docs/可信人格记忆Agent_mvp_prd.md; docs/init.sh; AGENTS.md; python -m json.tool docs/feature-list.json exit 0; python -m pytest backend/tests/test_container_runtime.py backend/tests/test_health.py -q 7 passed; node --import tsx --test tests/routes.test.mjs from frontend cwd 18 passed; NEXT_PUBLIC_API_BASE_URL=http://203.0.113.10:8000 npm.cmd --prefix frontend run build exit 0; docker compose config exit 0; sample ECS env docker compose config exit 0 with 203.0.113.10 URLs and host_ip 127.0.0.1 for postgres/redis/minio"
+    },
+    {
+      "id": "feat-052",
+      "name": "结构化记忆文档 JSON 契约修复",
+      "description": "修复 uploads 手动资料或多模态资料解析后结构化记忆文档因 MiniMax 非严格 JSON 而显示失败的问题。memory_document_generation 的模型输出改为 structured_memory_document_json、profile_summary、trust 和 suggestions，Markdown 改由后端根据结构化 JSON 确定性渲染为 structured_memory_md；MiniMax 文档链路启用 JSON object 响应约束，解析前清理 <think>、Markdown fence 和前后说明，并从首个 JSON object 做 schema 校验。若 provider 文档 JSON 仍不可用，后端用已生成的 MemoryCard 结构生成同样的文档 JSON/Markdown、摘要和 trust，技术诊断只保存在 job metadata，不在 uploads 资料卡片展示。该修复不新增 HTTP 路由或数据库表，不改变资料级 ParsedChunk -> memory_extraction -> MemoryCard 的多模态归一流程。",
+      "dependencies": [
+        "feat-045",
+        "feat-048"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/providers/minimax.py; backend/app/providers/gateway.py; backend/app/services/profile.py; backend/app/services/parsing.py; backend/tests/test_minimax_provider.py; backend/tests/test_provider_gateway.py; backend/tests/test_parsing.py; backend/tests/test_profile.py; frontend/app/personas/[id]/uploads/page.tsx; frontend/tests/materials.test.mjs; docs/README.md; docs/prd-checklist.md; docs/平台说明.md; docs/可信人格记忆Agent_mvp_prd.md; docs/progress.md; python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_parsing.py backend/tests/test_materials.py backend/tests/test_profile.py backend/tests/test_memories.py backend/tests/test_memory_markdown.py backend/tests/test_chat.py backend/tests/test_stories.py -q 99 passed; python -m pytest backend/tests -q 245 passed; npm.cmd --prefix frontend run test 125 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0; python -m json.tool docs/feature-list.json exit 0"
+    },
+    {
+      "id": "feat-053",
+      "name": "OpenAI-Next 文本生成兜底",
+      "description": "新增 OpenAI-Next text-only fallback provider。MiniMax 仍是文本生成主 provider；当 `chat_llm`、`story_generation`、`memory_context_compression`、`persona_profile_analysis` 或 `memory_document_generation` 的 MiniMax 调用失败，且本地未提交 `.env/runtime.env` 或系统环境变量配置 `OPENAI_NEXT_API_KEY`、`OPENAI_NEXT_BASE_URL` 和 `OPENAI_NEXT_MODEL` 时，Provider Gateway 会对同一文本 capability 追加一次 OpenAI-Next `/chat/completions` 兜底，并在 metadata 中记录 provider_name=openai_next、fallback_from_provider=minimax 和脱敏失败原因。OpenAI-Next 不参与 TTS、voice_clone、ASR、OCR、image_understanding、video_understanding 或 memory_extraction；未配置 OpenAI-Next 时保持既有 MiniMax 异常/本地 fallback 行为。provider settings 后端 allowlist 和 GET 报告已加入 `openai_next_text_fallback`，响应仍不返回原始 API key。真实 key 只写入 git 忽略的本地 runtime env，tracked docs 只保留变量名和占位说明。",
+      "dependencies": [
+        "feat-040",
+        "feat-033",
+        "feat-052"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/core/config.py; backend/app/providers/openai_next.py; backend/app/providers/gateway.py; backend/app/services/provider_settings.py; backend/tests/test_config.py; backend/tests/test_openai_next_provider.py; backend/tests/test_provider_gateway.py; backend/tests/test_provider_settings.py; .env/runtime.env local only; docs/README.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m pytest backend/tests/test_config.py backend/tests/test_provider_settings.py backend/tests/test_openai_next_provider.py backend/tests/test_provider_gateway.py -q; python -m pytest backend/tests -q; python -m json.tool docs/feature-list.json; docker compose config"
+    },
+    {
+      "id": "feat-054",
+      "name": "星空前端 UX 路演打磨",
+      "description": "在不新增后端 API、数据库 schema 或产品能力的前提下，按 Demo 路演可演示性优化当前星空前端：StarNav 增加当前路由高亮和移动端紧凑菜单；人物总览和人物子页不恢复旧的大块人物工作台导航，并移除后续紧凑人物工具栏，不展示当前星星或当前人物子页快速切换，人物子页仅保留单一返回人物总览入口，人物详情页下方功能卡片作为内部入口；首页移动端上移标题和 CTA，并已删除首屏 AI 模拟体验提示卡片；Dashboard 星星卡增加明确进入操作，创建页移动端保存操作固定在底部；uploads、任务、声音和 3D 页面调整首屏操作优先级，uploads 已有资料超过 2 条时默认只显示前 2 条并提供展开/收起控件；主对话、遗憾和心愿页面共用内部滚动的对话工作区与固定输入栏，数字人舞台始终可见，窄屏按对话框在上、数字人在下堆叠，xl 宽屏按左右双栏等高展示，主对话补充快捷问题 chips；记忆档案馆故事卡片支持收藏和来源折叠；旧 /personas/{id}/stories 深链重定向到 /personas/{id}/memories，不恢复独立 stories 产品入口。该功能不新增真实 AI、真实声音、真实 3D、独立故事页、登录/注册/设置页或 P1 心愿持久化能力。",
+      "dependencies": [
+        "feat-041",
+        "feat-044",
+        "feat-047",
+        "feat-049",
+        "feat-050"
+      ],
+      "status": "completed",
+      "evidence": "frontend/src/components/StarSite.tsx; frontend/src/components/ConversationWorkspace.tsx; frontend/src/components/PersonaBackLink.tsx; frontend/app/page.tsx; frontend/app/dashboard/page.tsx; frontend/app/personas/new/page.tsx; frontend/app/personas/[id]/page.tsx; frontend/app/personas/[id]/uploads/page.tsx; frontend/app/personas/[id]/jobs/page.tsx; frontend/app/personas/[id]/memories/page.tsx; frontend/app/personas/[id]/chat/page.tsx; frontend/app/personas/[id]/voice/page.tsx; frontend/app/personas/[id]/avatar/page.tsx; frontend/app/personas/[id]/stories/page.tsx; frontend/src/components/GuidedExperiencePage.tsx; frontend/tests/ux-polish.test.mjs; frontend/tests/chat.test.mjs; frontend/tests/homepage-cta.test.mjs; frontend/tests/materials.test.mjs; docs/README.md; docs/prd-checklist.md; docs/progress.md; TDD red node --import tsx --test tests/ux-polish.test.mjs exit 1 while PersonaBackLink.tsx was missing; layout TDD red node --import tsx --test tests/ux-polish.test.mjs exit 1 while old conversation layout missed items-stretch and kept folded avatar logic; node --import tsx --test tests/ux-polish.test.mjs 6 passed; TDD red npm.cmd --prefix frontend run test -- materials.test.mjs exit 1 before uploads existing materials collapse existed; npm.cmd --prefix frontend run test -- materials.test.mjs 127 passed; npm.cmd --prefix frontend run test 127 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0; python -m json.tool docs/feature-list.json exit 0; docker compose up --build -d frontend exit 0; browser smoke back links desktop 1280x720 and mobile 390x844 for uploads/chat/regrets backCount=1 visibleBackCount=1, href points to persona detail, click returns to persona detail, no current-star or quick-switch toolbar text, overflowX=false; browser smoke conversation layout chat 1280x720 sideBySide=true heightDiff=0 messageAreaHeight=709 overflowX=false, chat 390x844 stacked=true inputInitiallyVisible=true overflowX=false, chat 793x860 stacked=true overflowX=false, regrets/wishes 390x844 stacked=true avatarVisible=true inputInitiallyVisible=true overflowX=false, no folded avatar button, desktop input visible after scroll, avatar crop nonwhite 180180/180180; browser smoke uploads existing materials collapsed 2 cards, expanded 7 cards, recollapsed 2 cards, overflowX=0"
+    },
+    {
+      "id": "feat-055",
+      "name": "Uploads 异步解析与 MemoryCard 同源结构化文档",
+      "description": "修复 uploads 手动资料和文件资料提交时长时间卡住，以及结构化记忆文档与下方审核卡片事实源不一致的问题。资料上传、手动资料创建、重新解析和 job retry 现在只创建/重置 SourceMaterial + AIJob(pending/retrying) 并调度后台解析，API 快速返回；后台 helper 使用独立 DB session 执行既有 run_parse_job，并在开始前检查 canceled/deleted 状态。run_parse_job 先完成 ParsedChunk、严格六模块 memory_extraction 和 MemoryCard 创建，再把当前资料标记为 succeeded；结构化文档 JSON/Markdown 由当前 active MemoryCard 与 succeeded materials 确定性生成，条目 id 必须来自 MemoryCard，不再从 persona_card、failed/running materials 或 parsed chunks 直接补造不可审核条目。memory_document_generation 只负责 profile_summary、trust、trust_rationale 和 suggestions；uploads 前端从当前 memories 渲染结构化 Markdown，提交后轮询 materials/memories/profile 直到相关 job 结束或提示后台仍在处理。本切片不新增 HTTP 路由或数据库表，不迁移旧 job 中保存的历史 Markdown。",
+      "dependencies": [
+        "feat-006",
+        "feat-007",
+        "feat-048",
+        "feat-052"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/materials.py; backend/app/api/routes/jobs.py; backend/app/api/routes/auth.py; backend/app/services/materials.py; backend/app/services/parsing.py; backend/app/services/profile.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/app/providers/dashscope.py; backend/tests/test_materials.py; backend/tests/test_parsing.py; backend/tests/test_profile.py; backend/tests/test_provider_gateway.py; backend/tests/test_minimax_provider.py; backend/tests/test_dashscope_provider.py; backend/tests/test_auth.py; backend/tests/test_jobs.py; backend/tests/test_memories.py; backend/tests/test_exports.py; frontend/app/personas/[id]/uploads/page.tsx; frontend/tests/materials.test.mjs; docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json exit 0; python -m pytest backend/tests/test_materials.py backend/tests/test_parsing.py backend/tests/test_profile.py backend/tests/test_provider_gateway.py backend/tests/test_dashscope_provider.py -q 45 passed; python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py -q 30 passed; python -m pytest backend/tests -q 247 passed; npm.cmd --prefix frontend run test 129 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0; docker compose build backend frontend exit 0; docker compose up -d --no-deps --force-recreate backend frontend exit 0; HTTP smoke backend /health 200 and uploads page 200; browser smoke uploads shows structured document, upload tiles, manual material, trust, and hides summary editor plus MiniMax/strict JSON diagnostics"
     }
   ]
 }

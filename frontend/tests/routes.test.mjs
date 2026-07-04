@@ -5,6 +5,7 @@ import { API_PATHS, getApiBaseUrl } from "../src/lib/api.js";
 
 test("PRD P0 routes are exposed for the current shell", () => {
   assert.equal(ROUTES.home, "/");
+  assert.equal(ROUTES.productIntro, "/product-intro");
   assert.equal(ROUTES.dashboard, "/dashboard");
   assert.equal("login" in ROUTES, false);
   assert.equal("register" in ROUTES, false);
@@ -29,8 +30,8 @@ test("Milestone 3 memory audit routes are exposed", () => {
   assert.equal(ROUTES.personaMemories("p1"), "/personas/p1/memories");
 });
 
-test("Milestone 4 profile route is exposed", () => {
-  assert.equal(ROUTES.personaProfile("p1"), "/personas/p1/profile");
+test("Milestone 4 profile page route is no longer exposed", () => {
+  assert.equal("personaProfile" in ROUTES, false);
 });
 
 test("Milestone 5 chat route is exposed", () => {
@@ -43,6 +44,12 @@ test("Milestone 6 voice route is exposed", () => {
 
 test("Milestone 7 avatar route is exposed", () => {
   assert.equal(ROUTES.personaAvatar("p1"), "/personas/p1/avatar");
+});
+
+test("guided experience routes are exposed without restoring stories page", () => {
+  assert.equal(ROUTES.personaRegrets("p1"), "/personas/p1/regrets");
+  assert.equal(ROUTES.personaWishes("p1"), "/personas/p1/wishes");
+  assert.equal("personaStories" in ROUTES, false);
 });
 
 test("Milestone 3 memory API paths are exposed", () => {
@@ -112,6 +119,8 @@ test("Milestone 7 avatar API paths are exposed", () => {
   assert.equal(API_PATHS.avatar.config("p1"), "/api/personas/p1/avatar");
   assert.equal(API_PATHS.avatar.defaultAvatar("p1"), "/api/personas/p1/avatar/default");
   assert.equal(API_PATHS.avatar.generate("p1"), "/api/personas/p1/avatar/generate");
+  assert.equal(API_PATHS.avatar.upload("p1"), "/api/personas/p1/avatar/upload");
+  assert.equal(API_PATHS.avatar.file("a1"), "/api/avatar-models/a1/file");
 });
 
 test("Milestone 8 story API paths are exposed", () => {

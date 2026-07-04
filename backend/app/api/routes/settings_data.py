@@ -6,6 +6,7 @@ from app.api.deps import get_current_user
 from app.db.session import get_db
 from app.models.persona import Persona
 from app.models.user import User
+from app.services.avatar import remove_local_avatar_model_files_for_persona
 from app.services.data_management import clear_user_domain_data, utcnow_naive
 from app.services.material_storage import remove_local_material_files
 from app.services.memory_markdown import remove_memory_context_files
@@ -24,5 +25,6 @@ def clear_current_account_data(
     db.commit()
     remove_local_material_files(storage_urls)
     for persona_id in persona_ids:
+        remove_local_avatar_model_files_for_persona(current_user.id, persona_id)
         remove_memory_context_files(persona_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

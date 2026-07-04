@@ -8,6 +8,7 @@ export const AVATAR_FAILURE_NOTICE =
 export type AvatarStatus =
   | "no_avatar"
   | "default_avatar"
+  | "uploaded_ready"
   | "generating"
   | "generated_ready"
   | "generation_failed";
@@ -97,6 +98,8 @@ export function avatarStatusLabel(status: string | null | undefined): string {
       return "未设置形象";
     case "default_avatar":
       return "默认纪念形象";
+    case "uploaded_ready":
+      return "GLB 模型已上传";
     case "generating":
       return "3D 生成中";
     case "generated_ready":
@@ -124,7 +127,7 @@ export function avatarStyleLabel(style: string | null | undefined): string {
 export function hasRenderableAvatarModel(
   model: AvatarModelRead | null | undefined
 ): boolean {
-  return Boolean(model?.model_url?.trim() && model.format);
+  return Boolean(model?.model_url?.trim() && model.format === "glb" && resolveAvatarModelUrl(model));
 }
 
 export function hasUsablePreviewImage(value: string | null | undefined): boolean {
@@ -158,6 +161,20 @@ export function getAvatarDisplaySource(
   return { kind: "placeholder", model: null, previewImageUrl: null };
 }
 
+export function resolveAvatarModelUrl(model: AvatarModelRead | null | undefined): string | null {
+  const rawUrl = model?.model_url?.trim();
+  if (!rawUrl || model?.format !== "glb") {
+    return null;
+  }
+  if (rawUrl.startsWith("/api/")) {
+    return buildApiUrl(rawUrl);
+  }
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+    return rawUrl;
+  }
+  return null;
+}
+
 export function shouldShowChatAvatar(
   config: AvatarConfigResponse | null | undefined
 ): boolean {
@@ -178,7 +195,7 @@ export function shouldDriveAvatarMouth(
 export function avatarModelSummary(model: AvatarModelRead): string {
   const parts = [
     avatarStatusLabel(model.status),
-    avatarStyleLabel(model.style),
+    model.style ? avatarStyleLabel(model.style) : null,
     model.format,
     model.provider_name
   ].filter(Boolean);
@@ -214,4 +231,18 @@ export async function generateAvatar(
     body: JSON.stringify(payload)
   });
   return readApiJson<AvatarGenerateResponse>(response, "无法生成 3D 形象。");
+}
+
+export async function uploadAvatarModel(
+  personaId: string,
+  file: File
+): Promise<AvatarConfigResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(buildApiUrl(AVATAR_API_PATHS.upload(personaId)), {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData
+  });
+  return readApiJson<AvatarConfigResponse>(response, "无法上传 GLB 模型。");
 }

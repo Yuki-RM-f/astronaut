@@ -58,6 +58,7 @@ export type MemoryRead = {
   source_location: string | null;
   evidence_json: Record<string, unknown> | unknown[] | null;
   status: MemoryStatus;
+  is_important: boolean;
   user_correction: string | null;
   created_by: string;
   created_at: string;
@@ -81,6 +82,7 @@ export type MemoryUpdatePayload = Partial<{
   confidence_level: MemoryConfidenceLevel;
   confidence_score: number;
   status: MemoryStatus;
+  is_important: boolean;
 }>;
 
 export type DimensionAction = "confirm" | "delete" | "update";

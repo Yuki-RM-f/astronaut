@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import struct
 import threading
 from datetime import UTC, datetime
@@ -24,10 +25,15 @@ from app.schemas.story import (
     StoryMemorySource,
 )
 from app.services.audit import write_audit_event
+from app.services.memory_markdown import build_chat_memory_context
 from app.services.voice import DEFAULT_TTS_NOTICE
 
 
 REVIEWED_MEMORY_STATUSES = {"confirmed", "corrected"}
+STORY_SOURCE_LIMIT = 3
+THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
+THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*", re.IGNORECASE | re.DOTALL)
+THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
 MOCK_AUDIO_EXPORT_NOTICE = (
     "当前音频来自 mock TTS audio_url，不是 TA 的真实声音，也不是已落盘的真实音频文件。"
 )
@@ -59,12 +65,23 @@ def generate_story(
             detail="Story generation requires confirmed or corrected memories",
         )
 
+    memory_context = build_chat_memory_context(db, persona, payload.theme)
+    ranked_memories = _rank_story_memories(
+        memories,
+        payload.theme,
+        memory_context.long_term_memory_md,
+        memory_context.short_term_memory_md,
+    )
+    retrieved_memories = ranked_memories[:STORY_SOURCE_LIMIT] or memories[:STORY_SOURCE_LIMIT]
     story_payload = {
         "persona_id": persona.id,
         "persona_name": persona.name,
         "user_nickname_by_persona": persona.user_nickname_by_persona,
         "story_theme": payload.theme,
-        "retrieved_memories": [_memory_payload(memory) for memory in memories],
+        "long_term_memory_md": memory_context.long_term_memory_md,
+        "short_term_memory_md": memory_context.short_term_memory_md,
+        "source_memory_ids": [memory.id for memory in retrieved_memories],
+        "retrieved_memories": [_memory_payload(memory) for memory in retrieved_memories],
     }
     story_job = _create_running_job(
         persona=persona,
@@ -79,9 +96,14 @@ def generate_story(
         "story_generation",
         {**story_payload, "job_id": story_job.id},
     )
-    story_output = story_result["output"]
+    story_output = _clean_story_output(
+        story_result["output"],
+        persona=persona,
+        theme=payload.theme,
+        fallback_memories=retrieved_memories,
+    )
     story_job.status = "succeeded"
-    story_job.output_json = story_result
+    story_job.output_json = {**story_result, "output": story_output}
     story_job.finished_at = _utcnow()
 
     speech_payload = {
@@ -115,6 +137,12 @@ def generate_story(
         is_favorite=False,
         metadata_json={
             "provider": _provider_summary(story_result),
+            "memory_context": {
+                "source": "memory_markdown",
+                "long_term_path": memory_context.long_term_path,
+                "short_term_path": memory_context.short_term_path,
+                "selected_memory_ids": story_payload["source_memory_ids"],
+            },
             "generate_story_job_id": story_job.id,
             "synthesize_speech_job_id": speech_job.id,
             "voice": {
@@ -201,9 +229,49 @@ def _reviewed_memories(db: Session, persona: Persona) -> list[MemoryCard]:
             MemoryCard.deleted_at.is_(None),
             MemoryCard.status.in_(REVIEWED_MEMORY_STATUSES),
         )
-        .order_by(MemoryCard.updated_at.desc(), MemoryCard.id.desc())
-        .limit(3)
+        .order_by(
+            MemoryCard.is_important.desc(),
+            MemoryCard.updated_at.desc(),
+            MemoryCard.id.desc(),
+        )
     ).all()
+
+
+def _rank_story_memories(
+    memories: list[MemoryCard],
+    theme: str,
+    long_term_memory_md: str,
+    short_term_memory_md: str,
+) -> list[MemoryCard]:
+    query = _normalize(theme)
+    terms = _tokens(theme)
+    if not query and not terms:
+        return memories
+
+    def score(memory: MemoryCard) -> tuple[int, bool, datetime, str]:
+        document = _normalize(
+            "\n".join(
+                item
+                for item in [
+                    memory.title,
+                    memory.content,
+                    memory.user_correction,
+                    memory.source_quote,
+                    memory.source_location,
+                    _memory_context_excerpt(long_term_memory_md, memory.id),
+                    _memory_context_excerpt(short_term_memory_md, memory.id),
+                ]
+                if item
+            )
+        )
+        match_score = 0
+        if query and query in document:
+            match_score += 10
+        match_score += sum(1 for term in terms if term and term in document)
+        updated_at = memory.updated_at or memory.created_at or _utcnow()
+        return (match_score, memory.is_important, updated_at, memory.id)
+
+    return sorted(memories, key=score, reverse=True)
 
 
 def _memory_payload(memory: MemoryCard) -> dict[str, Any]:
@@ -213,8 +281,73 @@ def _memory_payload(memory: MemoryCard) -> dict[str, Any]:
         "title": memory.title,
         "content": memory.user_correction or memory.content,
         "quote": quote,
+        "is_important": memory.is_important,
         "source_location": memory.source_location,
     }
+
+
+def _clean_story_output(
+    output: dict[str, Any],
+    *,
+    persona: Persona,
+    theme: str,
+    fallback_memories: list[MemoryCard],
+) -> dict[str, Any]:
+    fallback_by_id = {memory.id: memory for memory in fallback_memories}
+    raw_ids = output.get("source_memory_ids")
+    requested_ids = [str(item) for item in raw_ids] if isinstance(raw_ids, list) else []
+    source_ids = [memory_id for memory_id in requested_ids if memory_id in fallback_by_id]
+    if not source_ids:
+        source_ids = [memory.id for memory in fallback_memories[:STORY_SOURCE_LIMIT]]
+
+    source_memories = [
+        _story_source_payload(fallback_by_id[memory_id])
+        for memory_id in source_ids
+        if memory_id in fallback_by_id
+    ]
+    source_cards = [
+        fallback_by_id[memory_id]
+        for memory_id in source_ids
+        if memory_id in fallback_by_id
+    ]
+    title = _clean_whitespace(
+        _strip_model_thinking(str(output.get("title") or theme or "共同回忆"))
+    )
+    content = _clean_whitespace(_strip_model_thinking(str(output.get("content") or "")))
+    if not content or not _contains_chinese(content):
+        content = _fallback_story_content(persona, theme, source_cards or fallback_memories)
+    return {
+        "title": title or f"{theme}里的回忆",
+        "content": content,
+        "source_memory_ids": [item["memory_card_id"] for item in source_memories],
+        "source_memories": source_memories,
+    }
+
+
+def _story_source_payload(memory: MemoryCard) -> dict[str, Any]:
+    content = memory.user_correction or memory.content
+    return {
+        "memory_card_id": memory.id,
+        "title": memory.title,
+        "quote": memory.source_quote or content,
+        "source_location": memory.source_location,
+    }
+
+
+def _fallback_story_content(persona: Persona, theme: str, memories: list[MemoryCard]) -> str:
+    nickname = persona.user_nickname_by_persona or "你"
+    theme_text = _clean_whitespace(theme or "共同回忆")
+    memory_lines = [
+        _clean_whitespace(memory.user_correction or memory.content)
+        for memory in memories[:STORY_SOURCE_LIMIT]
+        if _clean_whitespace(memory.user_correction or memory.content)
+    ]
+    if not memory_lines:
+        return f"{nickname}，这段关于{theme_text}的回忆，我还需要更多已确认的资料，不能硬说成真的。"
+    return (
+        f"{nickname}，我想给你讲一段关于{theme_text}的回忆。我记得"
+        f"{'；'.join(memory_lines)}。这些我只能按已经确认的记忆慢慢说给你听。"
+    )
 
 
 def _story_response(story: MemoryStory) -> MemoryStoryRead:
@@ -338,6 +471,49 @@ def _provider_summary(result: dict[str, Any]) -> dict[str, str]:
         "capability": str(result["capability"]),
         "status": str(result["status"]),
     }
+
+
+def _strip_model_thinking(text: str) -> str:
+    stripped = THINK_BLOCK_RE.sub("", text)
+    stripped = THINK_CLOSE_RE.sub("", stripped)
+    if re.search(r"<think\b", stripped, re.IGNORECASE):
+        stripped = THINK_OPEN_RE.sub("", stripped)
+    return stripped.strip()
+
+
+def _clean_whitespace(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _contains_chinese(text: str) -> bool:
+    return bool(re.search(r"[\u4e00-\u9fff]", text))
+
+
+def _tokens(text: str) -> list[str]:
+    normalized = _normalize(text)
+    ascii_words = re.findall(r"[a-z0-9_]+", normalized)
+    chinese = re.findall(r"[\u4e00-\u9fff]+", normalized)
+    grams: list[str] = ascii_words[:]
+    for chunk in chinese:
+        grams.append(chunk)
+        if len(chunk) > 1:
+            grams.extend(chunk[index : index + 2] for index in range(len(chunk) - 1))
+    return grams
+
+
+def _normalize(text: Any) -> str:
+    return re.sub(r"\s+", "", str(text or "").lower())
+
+
+def _memory_context_excerpt(markdown: str, memory_id: str) -> str:
+    if not markdown or memory_id not in markdown:
+        return ""
+    index = markdown.find(memory_id)
+    start = max(0, markdown.rfind("\n### ", 0, index))
+    end = markdown.find("\n### ", index + len(memory_id))
+    if end < 0:
+        end = min(len(markdown), index + 1000)
+    return markdown[start:end]
 
 
 def _run_gateway(capability: str, payload: dict[str, Any]) -> dict[str, Any]:

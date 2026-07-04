@@ -26,6 +26,10 @@ def isolate_provider_env(monkeypatch, runtime_env_path: Path) -> None:
         "OPENAI_BASE_URL",
         "OPENAI_API_KEY",
         "OPENAI_MODEL",
+        "OPENAI_NEXT_API_KEY",
+        "OPENAI_NEXT_BASE_URL",
+        "OPENAI_NEXT_MODEL",
+        "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS",
         "DASHSCOPE_API_KEY",
         "DASHSCOPE_REGION",
         "DASHSCOPE_WORKSPACE_ID",
@@ -35,6 +39,7 @@ def isolate_provider_env(monkeypatch, runtime_env_path: Path) -> None:
         "QWEN_VISION_MODEL",
         "QWEN_OCR_MODEL",
         "QWEN_ASR_MODEL",
+        "DASHSCOPE_REQUEST_TIMEOUT_SECONDS",
         "MINIMAX_API_KEY",
         "MINIMAX_BASE_URL",
         "MINIMAX_TTS_MODEL",
@@ -56,9 +61,13 @@ def test_provider_settings_report_masks_runtime_secrets(client, monkeypatch, tmp
                 "DEFAULT_LLM_PROVIDER=dashscope",
                 "DASHSCOPE_API_KEY=dashscope-secret",
                 "DASHSCOPE_WORKSPACE_ID=ws-demo",
+                "DASHSCOPE_REQUEST_TIMEOUT_SECONDS=210",
                 "QWEN_TEXT_MODEL=qwen-plus",
                 "MINIMAX_API_KEY=minimax-secret",
                 "MINIMAX_BASE_URL=https://api.minimaxi.com/v1",
+                "OPENAI_NEXT_API_KEY=openai-next-secret",
+                "OPENAI_NEXT_BASE_URL=https://api.openai-next.com/v1",
+                "OPENAI_NEXT_MODEL=gpt-5",
                 "EMBEDDING_PROVIDER=local_gpu",
                 "LOCAL_GPU_WORKER_URL=http://host.docker.internal:9000",
             ]
@@ -73,6 +82,7 @@ def test_provider_settings_report_masks_runtime_secrets(client, monkeypatch, tmp
     assert response.status_code == 200
     assert "dashscope-secret" not in response.text
     assert "minimax-secret" not in response.text
+    assert "openai-next-secret" not in response.text
     body = response.json()
     assert body["runtime_env_exists"] is True
     assert body["default_llm_provider"] == "dashscope"
@@ -80,7 +90,14 @@ def test_provider_settings_report_masks_runtime_secrets(client, monkeypatch, tmp
     assert providers["dashscope"]["configured"] is True
     assert providers["dashscope"]["secret_status"] == "configured"
     assert providers["dashscope"]["settings"]["workspace_id"] == "ws-demo"
+    assert providers["dashscope"]["settings"]["request_timeout_seconds"] == "210"
     assert providers["minimax"]["configured"] is True
+    assert providers["openai_next_text_fallback"]["configured"] is True
+    assert providers["openai_next_text_fallback"]["secret_status"] == "configured"
+    assert providers["openai_next_text_fallback"]["settings"]["base_url"] == (
+        "https://api.openai-next.com/v1"
+    )
+    assert providers["openai_next_text_fallback"]["settings"]["model"] == "gpt-5"
     assert providers["mock"]["configured"] is True
     assert "local_gpu" not in providers
 
@@ -99,8 +116,13 @@ def test_update_provider_settings_writes_allowlisted_runtime_env(client, monkeyp
                 "DEFAULT_LLM_PROVIDER": "dashscope",
                 "DASHSCOPE_API_KEY": "new-dashscope-secret",
                 "DASHSCOPE_WORKSPACE_ID": "ws-new",
+                "DASHSCOPE_REQUEST_TIMEOUT_SECONDS": "180",
                 "MINIMAX_API_KEY": "new-minimax-secret",
                 "MINIMAX_BASE_URL": "https://api.minimaxi.com/v1",
+                "OPENAI_NEXT_API_KEY": "new-openai-next-secret",
+                "OPENAI_NEXT_BASE_URL": "https://api.openai-next.com/v1",
+                "OPENAI_NEXT_MODEL": "gpt-5",
+                "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS": "60",
             }
         },
     )
@@ -108,6 +130,7 @@ def test_update_provider_settings_writes_allowlisted_runtime_env(client, monkeyp
     assert response.status_code == 200
     assert "new-dashscope-secret" not in response.text
     assert "new-minimax-secret" not in response.text
+    assert "new-openai-next-secret" not in response.text
     body = response.json()
     assert body["default_llm_provider"] == "dashscope"
     assert {provider["id"]: provider for provider in body["providers"]}["dashscope"][
@@ -116,7 +139,10 @@ def test_update_provider_settings_writes_allowlisted_runtime_env(client, monkeyp
     saved = runtime_env.read_text(encoding="utf-8")
     assert "DEFAULT_LLM_PROVIDER=dashscope" in saved
     assert "DASHSCOPE_API_KEY=new-dashscope-secret" in saved
+    assert "DASHSCOPE_REQUEST_TIMEOUT_SECONDS=180" in saved
     assert "MINIMAX_API_KEY=new-minimax-secret" in saved
+    assert "OPENAI_NEXT_API_KEY=new-openai-next-secret" in saved
+    assert "OPENAI_NEXT_MODEL=gpt-5" in saved
 
 
 def test_update_provider_settings_rejects_unknown_runtime_keys(client, monkeypatch, tmp_path):

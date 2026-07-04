@@ -21,6 +21,14 @@ DefaultTTSAgeStyle = Literal["young", "middle_aged", "elderly"]
 DefaultTTSStyle = Literal["gentle", "calm", "lively", "kind", "low"]
 DefaultTTSSpeed = Literal["slow", "normal", "fast"]
 DefaultTTSEmotion = Literal["calm", "comfort", "encourage", "nostalgia"]
+DEFAULT_MINIMAX_TTS_VOICE_ID = "Chinese (Mandarin)_Kind-hearted_Elder"
+
+
+class DefaultTTSVoiceRead(BaseModel):
+    voice_id: str
+    voice_name: str
+    language: str
+    description: str
 
 
 class VoiceModelRead(BaseModel):
@@ -48,6 +56,8 @@ class VoiceConfigResponse(BaseModel):
     voice_models: list[VoiceModelRead] = Field(default_factory=list)
     default_tts_notice: str
     default_tts_options: dict[str, list[str]]
+    default_tts_voices: list[DefaultTTSVoiceRead]
+    tts_model: str
 
 
 class DefaultTTSSelection(BaseModel):
@@ -56,6 +66,15 @@ class DefaultTTSSelection(BaseModel):
     style: DefaultTTSStyle = "gentle"
     speed: DefaultTTSSpeed = "normal"
     emotion: DefaultTTSEmotion = "comfort"
+    voice_id: str = Field(default=DEFAULT_MINIMAX_TTS_VOICE_ID, min_length=1)
+
+    @field_validator("voice_id")
+    @classmethod
+    def reject_blank_voice_id(cls, value: str):
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("voice_id cannot be blank")
+        return stripped
 
 
 class SpeechSynthesisCreate(BaseModel):

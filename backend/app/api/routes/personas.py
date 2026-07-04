@@ -18,6 +18,7 @@ from app.schemas.persona import (
     PersonaUpdate,
 )
 from app.services.data_management import soft_delete_persona_tree, utcnow_naive
+from app.services.avatar import remove_local_avatar_model_files_for_persona
 from app.services.material_storage import remove_local_material_files
 from app.services.memory_markdown import remove_memory_context_files
 from app.services.persona_prompt import build_persona_prompt_context
@@ -164,5 +165,6 @@ def delete_persona(
     storage_urls = soft_delete_persona_tree(db, persona, utcnow_naive())
     db.commit()
     remove_local_material_files(storage_urls)
+    remove_local_avatar_model_files_for_persona(current_user.id, persona.id)
     remove_memory_context_files(persona.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

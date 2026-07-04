@@ -102,7 +102,7 @@ class Settings:
     qwen_vision_model: str = "qwen3.7-plus"
     qwen_ocr_model: str = "qwen-vl-ocr-latest"
     qwen_asr_model: str = "qwen3-asr-flash"
-    dashscope_request_timeout_seconds: int = 60
+    dashscope_request_timeout_seconds: int = 180
     tripo_api_key: str = field(default="", repr=False)
     tripo_base_url: str = "https://api.tripo3d.ai"
     cosyvoice_tts_model: str = "cosyvoice-v3.5-flash"
@@ -113,6 +113,10 @@ class Settings:
     minimax_clone_model: str = "speech-2.8-hd"
     minimax_default_voice_id: str = "male-qn-qingse"
     minimax_request_timeout_seconds: int = 60
+    openai_next_api_key: str = field(default="", repr=False)
+    openai_next_base_url: str = "https://api.openai-next.com/v1"
+    openai_next_model: str = "gpt-5"
+    openai_next_request_timeout_seconds: int = 60
 
 
 @lru_cache
@@ -180,7 +184,7 @@ def get_settings() -> Settings:
         qwen_ocr_model=_setting("QWEN_OCR_MODEL", "qwen-vl-ocr-latest", runtime_env),
         qwen_asr_model=_setting("QWEN_ASR_MODEL", "qwen3-asr-flash", runtime_env),
         dashscope_request_timeout_seconds=_setting_int(
-            "DASHSCOPE_REQUEST_TIMEOUT_SECONDS", 60, runtime_env
+            "DASHSCOPE_REQUEST_TIMEOUT_SECONDS", 180, runtime_env
         ),
         tripo_api_key=_setting("TRIPO_API_KEY", "", runtime_env),
         tripo_base_url=_setting("TRIPO_BASE_URL", "https://api.tripo3d.ai", runtime_env),
@@ -201,5 +205,17 @@ def get_settings() -> Settings:
         ),
         minimax_request_timeout_seconds=_setting_int(
             "MINIMAX_REQUEST_TIMEOUT_SECONDS", 60, runtime_env
+        ),
+        openai_next_api_key=_setting("OPENAI_NEXT_API_KEY", "", runtime_env),
+        openai_next_base_url=_setting(
+            "OPENAI_NEXT_BASE_URL",
+            "https://api.openai-next.com/v1",
+            runtime_env,
+        ),
+        openai_next_model=_setting("OPENAI_NEXT_MODEL", "gpt-5", runtime_env),
+        openai_next_request_timeout_seconds=_setting_int(
+            "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS",
+            60,
+            runtime_env,
         ),
     )

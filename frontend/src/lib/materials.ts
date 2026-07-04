@@ -45,14 +45,21 @@ type MaterialListResponse = {
 
 export type UploadMaterialsPayload = {
   files: File[];
-  importance: MaterialImportance;
+  importance?: MaterialImportance;
   user_description?: string;
 };
 
 export type ManualMaterialPayload = {
   manual_text: string;
-  importance: MaterialImportance;
+  importance?: MaterialImportance;
   user_description?: string;
+};
+
+export type SelectedUploadFileSummary = {
+  kind: string;
+  name: string;
+  typeLabel: string;
+  sizeLabel: string;
 };
 
 export function materialTypeLabel(value: MaterialType): string {
@@ -62,6 +69,19 @@ export function materialTypeLabel(value: MaterialType): string {
 export function materialImportanceLabel(value: MaterialImportance): string {
   return (
     MATERIAL_IMPORTANCE_OPTIONS.find((option) => option.value === value)?.label ?? value
+  );
+}
+
+export function describeSelectedUploadFiles(
+  uploads: Record<string, File[]>
+): SelectedUploadFileSummary[] {
+  return Object.entries(uploads).flatMap(([kind, files]) =>
+    files.map((file) => ({
+      kind,
+      name: file.name,
+      typeLabel: describeFileType(file),
+      sizeLabel: formatFileSize(file.size)
+    }))
   );
 }
 
@@ -82,7 +102,9 @@ export async function uploadMaterials(
 ): Promise<SourceMaterialRead[]> {
   const formData = new FormData();
   payload.files.forEach((file) => formData.append("files", file));
-  formData.append("importance", payload.importance);
+  if (payload.importance) {
+    formData.append("importance", payload.importance);
+  }
 
   const description = payload.user_description?.trim();
   if (description) {
@@ -106,17 +128,43 @@ export async function createManualMaterial(
   payload: ManualMaterialPayload
 ): Promise<SourceMaterialRead> {
   const description = payload.user_description?.trim();
+  const body: Record<string, string | null> = {
+    manual_text: payload.manual_text.trim()
+  };
+  if (payload.importance) {
+    body.importance = payload.importance;
+  }
+  if (description) {
+    body.user_description = description;
+  }
   const response = await fetch(buildApiUrl(API_PATHS.materials.manual(personaId)), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders()
     },
-    body: JSON.stringify({
-      manual_text: payload.manual_text.trim(),
-      importance: payload.importance,
-      user_description: description || null
-    })
+    body: JSON.stringify(body)
   });
   return readApiJson<SourceMaterialRead>(response, "无法创建手动资料。");
+}
+
+function describeFileType(file: File): string {
+  if (file.type.trim()) {
+    return file.type;
+  }
+
+  const extensionMatch = file.name.match(/(\.[^.]+)$/);
+  return extensionMatch ? extensionMatch[1].toLowerCase() : "未知类型";
+}
+
+function formatFileSize(size: number): string {
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

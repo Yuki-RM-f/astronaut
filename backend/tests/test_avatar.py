@@ -64,6 +64,16 @@ def create_manual_material(client, token: str, persona_id: str) -> dict:
     return response.json()
 
 
+def upload_glb_avatar(client, token: str, persona_id: str, *, file_name: str = "waipo.glb") -> dict:
+    response = client.post(
+        f"/api/personas/{persona_id}/avatar/upload",
+        headers=auth(token),
+        files={"file": (file_name, b"glb-model-bytes", "model/gltf-binary")},
+    )
+    assert response.status_code == 201
+    return response.json()
+
+
 def test_get_avatar_config_starts_with_no_avatar(client):
     token = register_user(client, "avatar-initial@example.com")
     persona = create_persona(client, token)
@@ -100,6 +110,75 @@ def test_select_default_avatar_creates_selected_glb_model(client):
     assert data["selected_avatar_model"]["animation_config_json"]["idle_breath"] is True
     assert data["selected_avatar_model"]["expression_config_json"]["smile"] is True
     assert data["selected_avatar_model"]["lip_sync_config_json"]["mode"] == "audio_envelope"
+
+
+def test_upload_glb_avatar_creates_selected_model_and_serves_file(
+    client, monkeypatch, tmp_path
+):
+    from app.services import avatar as avatar_service
+
+    monkeypatch.setattr(
+        avatar_service,
+        "LOCAL_AVATAR_MODELS_ROOT",
+        tmp_path / "avatar_models",
+        raising=False,
+    )
+    token = register_user(client, "avatar-upload@example.com")
+    persona = create_persona(client, token)
+
+    data = upload_glb_avatar(client, token, persona["id"])
+
+    selected = data["selected_avatar_model"]
+    assert data["avatar_status"] == "uploaded_ready"
+    assert selected["status"] == "uploaded_ready"
+    assert selected["format"] == "glb"
+    assert selected["provider_type"] == "user_upload"
+    assert selected["provider_name"] == "glb_upload"
+    assert selected["model_url"] == f"/api/avatar-models/{selected['id']}/file"
+    assert selected["user_selected"] is True
+    assert data["avatar_models"][0]["id"] == selected["id"]
+
+    served = client.get(selected["model_url"], headers=auth(token))
+
+    assert served.status_code == 200
+    assert served.content == b"glb-model-bytes"
+    assert served.headers["content-type"].startswith("model/gltf-binary")
+
+    jobs = client.get(f"/api/personas/{persona['id']}/jobs", headers=auth(token))
+    assert jobs.status_code == 200
+    assert not any(item["job_type"] == "avatar_3d" for item in jobs.json()["items"])
+
+
+def test_upload_glb_rejects_non_glb_files(client):
+    token = register_user(client, "avatar-upload-reject@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/avatar/upload",
+        headers=auth(token),
+        files={"file": ("portrait.jpg", b"image-bytes", "image/jpeg")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_avatar_model_file_is_user_scoped(client, monkeypatch, tmp_path):
+    from app.services import avatar as avatar_service
+
+    monkeypatch.setattr(
+        avatar_service,
+        "LOCAL_AVATAR_MODELS_ROOT",
+        tmp_path / "avatar_models",
+        raising=False,
+    )
+    owner_token = register_user(client, "avatar-file-owner@example.com")
+    other_token = register_user(client, "avatar-file-other@example.com")
+    persona = create_persona(client, owner_token)
+    data = upload_glb_avatar(client, owner_token, persona["id"])
+    model_url = data["selected_avatar_model"]["model_url"]
+
+    assert client.get(model_url, headers=auth(owner_token)).status_code == 200
+    assert client.get(model_url, headers=auth(other_token)).status_code == 404
 
 
 def test_generate_avatar_from_image_material_creates_model_and_job(client):

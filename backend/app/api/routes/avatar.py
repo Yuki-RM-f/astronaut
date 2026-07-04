@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, File, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -14,8 +15,10 @@ from app.schemas.avatar import (
 )
 from app.services.avatar import (
     generate_avatar,
+    get_avatar_model_file_path,
     get_avatar_config,
     select_default_avatar,
+    upload_avatar_model,
 )
 from app.services.materials import get_persona_or_404
 
@@ -60,3 +63,38 @@ def generate_persona_avatar(
     if result.job.status == "succeeded":
         response.status_code = status.HTTP_201_CREATED
     return result
+
+
+@router.post(
+    "/personas/{persona_id}/avatar/upload",
+    response_model=AvatarConfigResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_persona_avatar_model(
+    persona_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    persona = get_persona_or_404(persona_id, current_user, db)
+    content = await file.read()
+    return upload_avatar_model(
+        db,
+        persona,
+        file_name=file.filename or "avatar.glb",
+        content=content,
+    )
+
+
+@router.get("/avatar-models/{avatar_model_id}/file")
+def get_avatar_model_file(
+    avatar_model_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    path = get_avatar_model_file_path(db, current_user, avatar_model_id)
+    return FileResponse(
+        path,
+        media_type="model/gltf-binary",
+        filename=path.name,
+    )

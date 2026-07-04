@@ -89,7 +89,11 @@ export const API_PATHS = {
     defaultAvatar: (personaId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/avatar/default`,
     generate: (personaId: string) =>
-      `/api/personas/${encodeURIComponent(personaId)}/avatar/generate`
+      `/api/personas/${encodeURIComponent(personaId)}/avatar/generate`,
+    upload: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/avatar/upload`,
+    file: (avatarModelId: string) =>
+      `/api/avatar-models/${encodeURIComponent(avatarModelId)}/file`
   },
   stories: {
     list: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories`,

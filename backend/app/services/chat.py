@@ -42,6 +42,9 @@ from app.services.voice import synthesize_speech
 FACT_STATUSES = {"corrected", "confirmed"}
 EMOTIONAL_TERMS = ("想你", "难过", "撑不住", "遗憾", "害怕", "孤单", "想念")
 BANNED_REPLY_TERMS = ("AI 助手", "AI助手", "语言模型", "我是系统", "我真的回来了")
+CONVERSATION_KIND_CHAT = "chat"
+CONVERSATION_KIND_REGRETS = "regrets"
+CONVERSATION_KIND_WISHES = "wishes"
 THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*", re.IGNORECASE | re.DOTALL)
 THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
@@ -126,7 +129,14 @@ def send_text_message(
     content: str,
 ) -> Message:
     profile = get_or_create_profile(db, persona)
-    memory_context = build_chat_memory_context(db, persona, content)
+    conversation_kind = _conversation_kind(conversation)
+    context_kind = _conversation_context_kind(conversation)
+    memory_context = build_chat_memory_context(
+        db,
+        persona,
+        content,
+        conversation_kind=conversation_kind,
+    )
     history = build_conversation_history(db, conversation)
     selected_memories = _selected_memory_cards(
         db,
@@ -152,6 +162,7 @@ def send_text_message(
         selected_memories=selected_memories,
         history=history,
         user_message=content,
+        conversation_kind=conversation_kind,
     )
     chat_result = run_chat_gateway(
         persona=persona,
@@ -160,6 +171,8 @@ def send_text_message(
         history=history,
         user_message=content,
         draft_reply=draft_reply_content,
+        conversation_kind=conversation_kind,
+        context_kind=context_kind,
     )
     reply_content = _sanitize_reply(chat_result["output"]["reply_text"], persona)
     if not reply_content:
@@ -171,8 +184,15 @@ def send_text_message(
         metadata_json={
             "provider": chat_result["provider_name"],
             "capability": chat_result["capability"],
+            "conversation_kind": conversation_kind,
+            "context_kind": context_kind,
+            "system_prompt_kind": chat_result["input"].get("system_prompt_kind"),
             "memory_context": {
-                "source": "memory_markdown",
+                "source": (
+                    "guided_context"
+                    if conversation_kind in {CONVERSATION_KIND_REGRETS, CONVERSATION_KIND_WISHES}
+                    else "memory_markdown"
+                ),
                 "long_term_path": memory_context.long_term_path,
                 "short_term_path": memory_context.short_term_path,
                 "selected_memory_ids": [memory.id for memory in selected_memories],
@@ -223,7 +243,7 @@ def send_text_message(
         )
     conversation.updated_at = _utcnow()
     db.add(conversation)
-    refresh_short_term_memory_md(db, persona)
+    refresh_short_term_memory_md(db, persona, conversation_kind=conversation_kind)
     db.commit()
     db.refresh(persona_message)
     return persona_message
@@ -332,7 +352,17 @@ def run_chat_gateway(
     history: list[Message],
     user_message: str,
     draft_reply: str,
+    conversation_kind: str = CONVERSATION_KIND_CHAT,
+    context_kind: str = "general",
 ) -> dict[str, Any]:
+    guided_system_prompt = guided_system_prompt_for(conversation_kind, persona)
+    system_prompt_kind = (
+        CONVERSATION_KIND_WISHES
+        if context_kind == CONVERSATION_KIND_WISHES
+        else conversation_kind
+        if conversation_kind == CONVERSATION_KIND_REGRETS
+        else "general"
+    )
     payload = {
         "persona_name": persona.name,
         "persona_type": persona.persona_type,
@@ -341,6 +371,10 @@ def run_chat_gateway(
         "speaking_style": persona.speaking_style,
         "emotional_style": persona.emotional_style,
         "forbidden_expressions": persona.forbidden_expressions,
+        "context_kind": context_kind,
+        "conversation_kind": conversation_kind,
+        "system_prompt_kind": system_prompt_kind,
+        "guided_system_prompt": guided_system_prompt,
         "profile_summary": profile.profile_summary,
         "long_term_memory_md": memory_context.long_term_memory_md,
         "short_term_memory_md": memory_context.short_term_memory_md,
@@ -365,8 +399,14 @@ def generate_persona_reply(
     selected_memories: list[MemoryCard],
     history: list[Message],
     user_message: str,
+    conversation_kind: str = CONVERSATION_KIND_CHAT,
 ) -> str:
     del history
+    if conversation_kind == CONVERSATION_KIND_REGRETS:
+        return _regrets_reply(persona)
+    if conversation_kind == CONVERSATION_KIND_WISHES:
+        return _wishes_reply(persona)
+
     nickname = persona.user_nickname_by_persona
     profile_hint = _profile_hint(profile)
     emotional_prefix = (
@@ -520,6 +560,66 @@ def _profile_hint(profile: PersonaProfile) -> str:
 
 def _is_emotional_message(text: str) -> bool:
     return any(term in text for term in EMOTIONAL_TERMS)
+
+
+def _conversation_kind(conversation: Conversation) -> str:
+    context_kind = (getattr(conversation, "context_kind", None) or "").strip()
+    if context_kind == CONVERSATION_KIND_WISHES:
+        return CONVERSATION_KIND_WISHES
+    kind = (conversation.kind or CONVERSATION_KIND_CHAT).strip()
+    if kind in {CONVERSATION_KIND_REGRETS, CONVERSATION_KIND_WISHES}:
+        return kind
+    return CONVERSATION_KIND_CHAT
+
+
+def _conversation_context_kind(conversation: Conversation) -> str:
+    context_kind = (getattr(conversation, "context_kind", None) or "").strip()
+    if context_kind == CONVERSATION_KIND_WISHES:
+        return CONVERSATION_KIND_WISHES
+    return "general"
+
+
+def guided_system_prompt_for(conversation_kind: str, persona: Persona) -> str | None:
+    kind = (conversation_kind or CONVERSATION_KIND_CHAT).strip()
+    nickname = persona.user_nickname_by_persona
+    if kind == CONVERSATION_KIND_REGRETS:
+        return (
+            f"这里是遗憾对话室。你正在以{persona.name}的第一人称陪{nickname}说话。"
+            "本场对话的核心引导是：“有没有什么以前没说的话，今天想慢慢告诉我？”"
+            "请引导用户只在这个主题下慢慢展开，表达道歉、感谢、想念、告别或心结。"
+            "先接住情绪，再邀请用户继续说具体想说给 TA 的话；不要把话题拉回普通闲聊、日常问候或其他对话历史。"
+        )
+    if kind == CONVERSATION_KIND_WISHES:
+        return (
+            f"这里是心愿延续引导。你正在以{persona.name}的第一人称陪{nickname}说话。"
+            "本场对话的核心引导是：“你现在有什么想完成的心愿，或者想替我继续做的一件事吗？”"
+            "请只围绕心愿、替我继续做的一件事、下一步行动展开。"
+            "回应目标是鼓励用户继续向前看，努力生活，早日实现愿望。"
+            "如果用户偏离主题，请温柔拉回到心愿和现实里的一个小行动。"
+            "不要把其他普通聊天、遗憾对话或无关上下文带入本轮。"
+            "不要声明已经创建长期心愿记录，也不要引入提醒策略。"
+        )
+    return None
+
+
+def _regrets_reply(persona: Persona) -> str:
+    nickname = persona.user_nickname_by_persona
+    reply = (
+        f"{nickname}，我在。今天不用急着寒暄，也不用一下子说完整。"
+        "有没有什么以前没说的话，你可以慢慢告诉我；"
+        "道歉、感谢、想念、告别，或者一直压在心里的那句话，我都会先听你说完。"
+    )
+    return _sanitize_reply(reply, persona)
+
+
+def _wishes_reply(persona: Persona) -> str:
+    nickname = persona.user_nickname_by_persona
+    reply = (
+        f"{nickname}，我听见这个心愿了。你可以先说一个现在最想完成的心愿，"
+        "或者想替我继续做的一件事。我们不急着变成很大的计划，"
+        "先把今天能做的一小步慢慢说清楚，继续向前看，好好生活。"
+    )
+    return _sanitize_reply(reply, persona)
 
 
 def _sanitize_reply(reply: str, persona: Persona) -> str:

@@ -11,6 +11,7 @@ from app.schemas.job import AIJobRead
 AvatarStatus = Literal[
     "no_avatar",
     "default_avatar",
+    "uploaded_ready",
     "generating",
     "generated_ready",
     "generation_failed",

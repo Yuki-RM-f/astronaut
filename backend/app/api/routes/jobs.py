@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,7 +11,7 @@ from app.db.session import get_db
 from app.models.ai_job import AIJob
 from app.models.user import User
 from app.schemas.job import AIJobListResponse, AIJobRead
-from app.services.materials import get_persona_or_404
+from app.services.materials import get_persona_or_404, run_material_parse_job_by_id
 
 
 router = APIRouter(tags=["jobs"])
@@ -63,6 +63,7 @@ def get_job(
 @router.post("/jobs/{job_id}/retry", response_model=AIJobRead)
 def retry_job(
     job_id: str,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -80,6 +81,8 @@ def retry_job(
     db.add(job)
     db.commit()
     db.refresh(job)
+    if job.source_material_id is not None:
+        background_tasks.add_task(run_material_parse_job_by_id, job.id)
     return job
 
 

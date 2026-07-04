@@ -36,9 +36,6 @@ def export_persona_profile(
     persona = get_persona_or_404(persona_id, current_user, db)
     profile = get_or_create_profile(db, persona)
     report = calculate_trust_report(db, persona)
-    persona.trust_score = report.trust_score
-    db.add(persona)
-    db.flush()
     return PersonaProfileExportResponse(
         export_type="profile",
         filename=f"persona-{persona.id}-profile.json",

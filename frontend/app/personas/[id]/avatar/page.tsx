@@ -1,36 +1,31 @@
 "use client";
 
-import Link from "next/link";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { UploadCloud } from "lucide-react";
 import { AvatarStage } from "@/src/components/AvatarStage";
+import type { AvatarModelLoadState } from "@/src/components/AvatarPreview";
 import {
   PageTitle,
   StarNav,
   StarPanel,
   StarShell
 } from "@/src/components/StarSite";
+import { PersonaBackLink } from "@/src/components/PersonaBackLink";
 import {
   avatarModelSummary,
   avatarStatusLabel,
-  avatarStyleLabel,
   AvatarConfigResponse,
-  AvatarStyle,
-  buildDefaultAvatarPayload,
-  buildGenerateAvatarPayload,
-  generateAvatar,
   getAvatarConfig,
   getAvatarDisplaySource,
   hasRenderableAvatarModel,
-  selectDefaultAvatar
+  uploadAvatarModel
 } from "@/src/lib/avatar";
 import { ensureDemoSession } from "@/src/lib/auth";
-import { listMaterials, SourceMaterialRead } from "@/src/lib/materials";
 import { getPersona, PersonaRead } from "@/src/lib/persona";
-import { ROUTES } from "@/src/lib/routes";
 
 type PageState = "loading" | "ready" | "error";
+type BusyAction = "upload" | null;
 
 export default function PersonaAvatarPage() {
   const params = useParams();
@@ -41,11 +36,9 @@ export default function PersonaAvatarPage() {
   const [state, setState] = useState<PageState>("loading");
   const [persona, setPersona] = useState<PersonaRead | null>(null);
   const [config, setConfig] = useState<AvatarConfigResponse | null>(null);
-  const [imageMaterials, setImageMaterials] = useState<SourceMaterialRead[]>([]);
-  const [selectedMaterialId, setSelectedMaterialId] = useState("");
-  const [style, setStyle] = useState<AvatarStyle>("memorial");
-  const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [mouthTest, setMouthTest] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [busyAction, setBusyAction] = useState<BusyAction>(null);
+  const [modelLoadState, setModelLoadState] = useState<AvatarModelLoadState>("idle");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,10 +61,6 @@ export default function PersonaAvatarPage() {
         }
         setPersona(loaded.persona);
         setConfig(loaded.config);
-        setImageMaterials(loaded.imageMaterials);
-        setSelectedMaterialId(loaded.imageMaterials[0]?.id ?? "");
-        const selectedStyle = loaded.config.selected_avatar_model?.style;
-        setStyle(isAvatarStyle(selectedStyle) ? selectedStyle : "memorial");
         setState("ready");
       })
       .catch((caught) => {
@@ -87,82 +76,52 @@ export default function PersonaAvatarPage() {
     };
   }, [personaId]);
 
-  async function refreshAvatarConfig() {
-    if (!personaId) {
-      return;
-    }
-    setConfig(await getAvatarConfig(personaId));
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setNotice(null);
+    setError(null);
   }
 
-  async function runAction(actionName: string, action: () => Promise<void>) {
-    setBusyAction(actionName);
+  async function handleUpload() {
+    if (!personaId || !selectedFile) {
+      setError("需要先选择一个 GLB 模型文件。");
+      return;
+    }
+    if (!selectedFile.name.toLowerCase().endsWith(".glb")) {
+      setError("当前只支持上传 .glb 模型文件。");
+      return;
+    }
+
+    setBusyAction("upload");
     setNotice(null);
     setError(null);
     try {
-      await action();
+      const nextConfig = await uploadAvatarModel(personaId, selectedFile);
+      setConfig(nextConfig);
+      setSelectedFile(null);
+      setModelLoadState("loading");
+      setNotice("GLB 模型已上传，正在加载预览。");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "操作失败。");
+      setError(caught instanceof Error ? caught.message : "无法上传 GLB 模型。");
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function handleDefaultAvatar() {
-    if (!personaId) {
-      return;
-    }
-    await runAction("default", async () => {
-      const nextConfig = await selectDefaultAvatar(
-        personaId,
-        buildDefaultAvatarPayload(style)
-      );
-      setConfig(nextConfig);
-      setNotice("已选择默认纪念形象。");
-    });
-  }
-
-  async function handleGenerateAvatar() {
-    if (!personaId || !selectedMaterialId) {
-      setError("需要先选择一张图片资料。");
-      return;
-    }
-    await runAction("generate", async () => {
-      const result = await generateAvatar(
-        personaId,
-        buildGenerateAvatarPayload(selectedMaterialId, style)
-      );
-      await refreshAvatarConfig();
-      setNotice(
-        result.avatar_status === "generated_ready"
-          ? "已生成 mock 3D 形象。"
-          : result.failure_notice
-      );
-    });
-  }
-
-  function handleMouthTest() {
-    setMouthTest(true);
-    window.setTimeout(() => setMouthTest(false), 2600);
-  }
-
   const selectedModel = config?.selected_avatar_model ?? null;
+  const selectedModelIsRenderable = hasRenderableAvatarModel(selectedModel);
 
   return (
     <StarShell>
       <StarNav />
       <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10">
-        <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-starGold">
-          <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
-            返回星星
-          </Link>
-          {personaId ? <Link href={ROUTES.personaChat(personaId)}>进入对话</Link> : null}
-          {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传图片</Link> : null}
-        </div>
+        {personaId ? <PersonaBackLink personaId={personaId} /> : null}
 
         <PageTitle
           className="mt-6"
-          title={persona ? `${persona.name}的纪念形象预览` : "TA 的纪念形象预览"}
-          subtitle="这里仅展示默认纪念形象、图片生成任务和简化动作测试，不声明真实 3D 数字人能力。"
+          title={persona ? `${persona.name}的 GLB 数字人` : "TA 的 GLB 数字人"}
+          subtitle="上传一个自包含 GLB 模型后，这里和对话页右侧会展示同一个数字人模型。"
         />
 
         {state === "loading" ? <Notice text="正在加载形象设置..." /> : null}
@@ -173,30 +132,30 @@ export default function PersonaAvatarPage() {
             <AvatarStage
               personaName={persona?.name ?? "TA"}
               source={getAvatarDisplaySource(config)}
-              mouthActive={mouthTest}
-              className="border-starGold/18"
-              subtitle="生成或选择形象后，对话页右侧会直接替换为当前数字人预览。"
+              onModelLoadStateChange={setModelLoadState}
+              className="order-3 border-starGold/18 lg:order-1"
+              subtitle="上传 GLB 模型后，对话页、遗憾对话室和心愿延续页会使用同一个数字人展示。"
             />
 
-            <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+            <div className="order-2 grid gap-6 lg:order-2 lg:grid-cols-[0.85fr_1.15fr]">
               <StarPanel className="p-5">
                 <h2 className="font-serif text-2xl font-bold text-starGold">
                   当前状态：{avatarStatusLabel(config.avatar_status)}
                 </h2>
                 <p className="mt-3 rounded-2xl border border-white/8 bg-white/6 p-3 text-sm font-semibold leading-7 text-starMist/74">
-                  {config.failure_notice}
+                  {modelProcessText(modelLoadState, selectedModelIsRenderable)}
                 </p>
                 <dl className="mt-5 grid gap-4 text-sm">
                   <Detail
                     label="选中形象"
                     value={
-                      selectedModel && hasRenderableAvatarModel(selectedModel)
+                      selectedModelIsRenderable && selectedModel
                         ? avatarModelSummary(selectedModel)
                         : "未设置"
                     }
                   />
                   <Detail label="形象记录" value={`${config.avatar_models.length}`} />
-                  <Detail label="模型地址" value={selectedModel?.model_url ?? "未生成"} />
+                  <Detail label="模型地址" value={selectedModel?.model_url ?? "未上传"} />
                 </dl>
               </StarPanel>
 
@@ -204,64 +163,37 @@ export default function PersonaAvatarPage() {
                 {error ? <Alert tone="error" text={error} /> : null}
                 {notice ? <Alert tone="success" text={notice} /> : null}
 
-                <Panel title="1. 选择风格">
-                  <select
-                    value={style}
-                    onChange={(event) => setStyle(event.target.value as AvatarStyle)}
-                    className={inputClass}
-                  >
-                    {config.style_options.map((option) => (
-                      <option key={option} value={option}>
-                        {avatarStyleLabel(option)}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleDefaultAvatar}
-                    disabled={busyAction !== null}
-                    className={primaryButtonClass}
-                  >
-                    {busyAction === "default" ? "正在设置..." : "选择默认纪念形象"}
-                  </button>
-                </Panel>
-
-                <Panel title="2. 图片生成">
-                  <label className="text-sm font-bold text-starMist/78" htmlFor="avatar-material">
-                    选择图片资料
-                  </label>
-                  <select
-                    id="avatar-material"
-                    value={selectedMaterialId}
-                    onChange={(event) => setSelectedMaterialId(event.target.value)}
-                    className={`${inputClass} mt-2`}
-                  >
-                    <option value="">暂无可用图片资料</option>
-                    {imageMaterials.map((material) => (
-                      <option key={material.id} value={material.id}>
-                        {material.file_name || material.user_description || material.id}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleGenerateAvatar}
-                    disabled={busyAction !== null || !selectedMaterialId}
-                    className={secondaryButtonClass}
-                  >
-                    {busyAction === "generate" ? "正在生成..." : "生成 mock 3D 形象"}
-                  </button>
-                </Panel>
-
-                <Panel title="3. 动作与口型">
-                  <p className="text-sm font-semibold leading-7 text-starMist/70">
-                    预览包含待机、眨眼、微笑和点头；口型测试使用简化 audio envelope 控制嘴部开合。
+                <StarPanel className="p-5">
+                  <h2 className="font-serif text-2xl font-bold text-starGold">
+                    上传 GLB 模型
+                  </h2>
+                  <p className="mt-3 text-sm font-semibold leading-7 text-starMist/72">
+                    请选择已经准备好的自包含 .glb 文件。上传后会保存为当前选中数字人模型。
                   </p>
-                  <button type="button" onClick={handleMouthTest} className={secondaryButtonClass}>
-                    <Sparkles className="h-4 w-4" aria-hidden="true" />
-                    测试口型同步
+                  <label className="mt-5 block">
+                    <span className="text-sm font-bold text-starMist/78">GLB 文件</span>
+                    <input
+                      type="file"
+                      accept=".glb,model/gltf-binary"
+                      onChange={handleFileChange}
+                      className="mt-2 block w-full rounded-2xl border border-starGold/16 bg-indigo-950/32 px-4 py-3 text-sm font-bold text-starCream file:mr-4 file:rounded-full file:border-0 file:bg-starGold file:px-4 file:py-2 file:text-sm file:font-black file:text-violet-950"
+                    />
+                  </label>
+                  {selectedFile ? (
+                    <p className="mt-3 text-sm font-semibold text-starMist/64">
+                      已选择：{selectedFile.name}
+                    </p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleUpload}
+                    disabled={busyAction !== null || !selectedFile}
+                    className="star-button mt-5 gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <UploadCloud className="h-4 w-4" aria-hidden="true" />
+                    {busyAction === "upload" ? "正在上传..." : "上传 GLB 模型"}
                   </button>
-                </Panel>
+                </StarPanel>
               </section>
             </div>
           </div>
@@ -274,27 +206,28 @@ export default function PersonaAvatarPage() {
 async function loadAvatarPage(personaId: string): Promise<{
   persona: PersonaRead;
   config: AvatarConfigResponse;
-  imageMaterials: SourceMaterialRead[];
 }> {
-  const [persona, config, materials] = await Promise.all([
+  const [persona, config] = await Promise.all([
     getPersona(personaId),
-    getAvatarConfig(personaId),
-    listMaterials(personaId)
+    getAvatarConfig(personaId)
   ]);
-  return {
-    persona,
-    config,
-    imageMaterials: materials.filter((material) => material.file_type === "image")
-  };
+  return { persona, config };
 }
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <StarPanel className="p-5">
-      <h2 className="font-serif text-2xl font-bold text-starGold">{title}</h2>
-      <div className="mt-4">{children}</div>
-    </StarPanel>
-  );
+function modelProcessText(state: AvatarModelLoadState, hasModel: boolean): string {
+  if (!hasModel) {
+    return "尚未上传 GLB 模型。上传成功后会在上方预览区加载并展示。";
+  }
+  if (state === "loading") {
+    return "模型加载中，请稍候。";
+  }
+  if (state === "ready") {
+    return "模型加载成功，当前 GLB 已作为这个人物的数字人展示。";
+  }
+  if (state === "error") {
+    return "模型加载失败。请确认 GLB 文件完整，或重新上传一个可打开的模型。";
+  }
+  return "已保存 GLB 模型，正在准备预览。";
 }
 
 function Detail({ label, value }: { label: string; value: string | null }) {
@@ -327,12 +260,3 @@ function Alert({ tone, text }: { tone: "error" | "success"; text: string }) {
     </div>
   );
 }
-
-function isAvatarStyle(value: string | null | undefined): value is AvatarStyle {
-  return value === "semi_realistic" || value === "cartoon" || value === "memorial";
-}
-
-const inputClass = "star-input text-sm";
-const primaryButtonClass = "star-button mt-4 min-w-32 disabled:opacity-60";
-const secondaryButtonClass =
-  "mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-starGold/22 bg-starGold/10 px-4 py-2.5 text-sm font-bold text-starCream transition hover:bg-starGold/16 disabled:cursor-not-allowed disabled:opacity-35";

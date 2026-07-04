@@ -58,6 +58,7 @@
 - 前端构建：`npm.cmd --prefix frontend run build`
 - Compose 配置校验：`docker compose config`
 - 本地开发拓扑：`docker compose up --build`
+- ECS 直连部署（仅用户明确要求在云服务器执行时）：先在未提交的 `.env/runtime.env` 填写 `FRONTEND_URL=http://<ECS公网IP>:3000`、`BACKEND_URL=http://<ECS公网IP>:8000`、`NEXT_PUBLIC_API_BASE_URL=http://<ECS公网IP>:8000` 和强随机 `JWT_SECRET`，再运行 `docker compose --env-file .env/runtime.env up --build -d`；最终输出远程访问地址使用 `http://<ECS公网IP>:3000`，不要用 localhost 代替。
 - 内容清洗检查示例：`rg "<不应出现的项目专有词>" docs AGENTS.md`
 
 PowerShell 中运行 npm 命令时使用 `npm.cmd`，不要使用 PowerShell 解析到的 `npm` 脚本。不要提交 `.env/runtime.env`、真实密钥、`node_modules`、`__pycache__` 或其他生成缓存。

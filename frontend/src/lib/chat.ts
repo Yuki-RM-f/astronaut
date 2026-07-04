@@ -1,12 +1,18 @@
 import { API_PATHS, buildApiUrl, readApiJson } from "./api";
 import { authHeaders } from "./auth";
+import { shouldDriveAvatarMouth } from "./avatar";
 import { MemoryRead } from "./memories";
+
+export type ConversationKind = "chat" | "regrets" | "wishes";
+export type ConversationContextKind = "general" | "wishes";
 
 export type ConversationRead = {
   id: string;
   user_id: string;
   persona_id: string;
   title: string | null;
+  kind: ConversationKind;
+  context_kind: ConversationContextKind;
   created_at: string;
   updated_at: string;
 };
@@ -90,6 +96,66 @@ export function hasPlayableAudio(message: MessageRead): boolean {
   return Boolean(message.audio_url?.trim());
 }
 
+export function isAvatarMouthActive(
+  messages: Array<{ id: string; role: string; audio_url?: string | null }>,
+  playingMessageId: string | null
+): boolean {
+  return messages.some((message) => shouldDriveAvatarMouth(message, playingMessageId));
+}
+
+export function personaMessageLabel(personaName: string): string {
+  return personaName.trim() || "TA";
+}
+
+export function buildOptimisticUserMessage(
+  conversationId: string,
+  content: string,
+  now = new Date()
+): MessageRead {
+  const createdAt = now.toISOString();
+  return {
+    id: `optimistic-user-${now.getTime()}`,
+    conversation_id: conversationId,
+    role: "user",
+    content: content.trim(),
+    audio_url: null,
+    metadata_json: { optimistic: true },
+    created_at: createdAt,
+    citations: []
+  };
+}
+
+export function buildPendingPersonaThinkingMessage(
+  conversationId: string,
+  personaName: string,
+  now = new Date()
+): MessageRead {
+  const createdAt = now.toISOString();
+  return {
+    id: `pending-persona-${now.getTime()}`,
+    conversation_id: conversationId,
+    role: "persona",
+    content: `${personaMessageLabel(personaName)}正在想...`,
+    audio_url: null,
+    metadata_json: { pending_persona_thinking: true },
+    created_at: createdAt,
+    citations: []
+  };
+}
+
+export function isPendingPersonaThinking(message: MessageRead): boolean {
+  if (message.id.startsWith("pending-persona-")) {
+    return true;
+  }
+  const metadata = message.metadata_json;
+  return (
+    typeof metadata === "object" &&
+    metadata !== null &&
+    !Array.isArray(metadata) &&
+    metadata.pending_persona_thinking === true
+  );
+}
+
 export function buildCorrectionPayload(
   memoryId: string,
   content: string,
@@ -112,9 +178,11 @@ export function buildCorrectionPayload(
 }
 
 export async function listConversations(
-  personaId: string
+  personaId: string,
+  kind?: ConversationKind,
+  contextKind?: ConversationContextKind
 ): Promise<ConversationRead[]> {
-  const response = await fetch(buildApiUrl(API_PATHS.chat.conversations(personaId)), {
+  const response = await fetch(buildApiUrl(conversationListPath(personaId, kind, contextKind)), {
     headers: authHeaders()
   });
   const data = await readApiJson<ConversationListResponse>(
@@ -126,7 +194,9 @@ export async function listConversations(
 
 export async function createConversation(
   personaId: string,
-  title?: string
+  title?: string,
+  kind: ConversationKind = "chat",
+  contextKind?: ConversationContextKind
 ): Promise<ConversationRead> {
   const response = await fetch(buildApiUrl(API_PATHS.chat.conversations(personaId)), {
     method: "POST",
@@ -134,9 +204,30 @@ export async function createConversation(
       "Content-Type": "application/json",
       ...authHeaders()
     },
-    body: JSON.stringify({ title: title?.trim() || undefined })
+    body: JSON.stringify({
+      title: title?.trim() || undefined,
+      kind,
+      context_kind: contextKind
+    })
   });
   return readApiJson<ConversationRead>(response, "无法创建对话。");
+}
+
+function conversationListPath(
+  personaId: string,
+  kind?: ConversationKind,
+  contextKind?: ConversationContextKind
+): string {
+  const path = API_PATHS.chat.conversations(personaId);
+  const searchParams = new URLSearchParams();
+  if (kind) {
+    searchParams.set("kind", kind);
+  }
+  if (contextKind) {
+    searchParams.set("context_kind", contextKind);
+  }
+  const query = searchParams.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 export async function listMessages(conversationId: string): Promise<MessageRead[]> {

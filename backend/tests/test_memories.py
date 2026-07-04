@@ -1,7 +1,10 @@
 from sqlalchemy import select
 
+from app.models.ai_job import AIJob
 from app.models.memory_card import MemoryCard
+from app.models.source_material import SourceMaterial
 from app.services import memory_markdown
+from app.services import parsing
 
 
 def auth(token: str) -> dict[str, str]:
@@ -40,7 +43,7 @@ def create_persona(client, token: str) -> dict:
     return response.json()
 
 
-def create_manual_material(client, token: str, persona_id: str) -> dict:
+def create_manual_material(client, token: str, persona_id: str, db_session=None) -> dict:
     response = client.post(
         f"/api/personas/{persona_id}/materials/manual",
         headers=auth(token),
@@ -50,7 +53,15 @@ def create_manual_material(client, token: str, persona_id: str) -> dict:
         },
     )
     assert response.status_code == 201
-    return response.json()
+    body = response.json()
+    if db_session is not None:
+        material = db_session.get(SourceMaterial, body["id"])
+        job = db_session.get(AIJob, body["jobs"][0]["id"])
+        assert material is not None
+        assert job is not None
+        parsing.run_parse_job(db_session, material, job)
+        db_session.commit()
+    return body
 
 
 def list_memories(client, token: str, persona_id: str, query: str = "") -> list[dict]:
@@ -62,11 +73,11 @@ def list_memories(client, token: str, persona_id: str, query: str = "") -> list[
     return response.json()["items"]
 
 
-def test_memory_list_detail_and_filters_are_user_scoped(client):
+def test_memory_list_detail_and_filters_are_user_scoped(client, db_session):
     owner_token = register_user(client, "memory-owner@example.com")
     other_token = register_user(client, "memory-other@example.com")
     persona = create_persona(client, owner_token)
-    create_manual_material(client, owner_token, persona["id"])
+    create_manual_material(client, owner_token, persona["id"], db_session)
 
     items = list_memories(client, owner_token, persona["id"])
     assert len(items) >= 2
@@ -74,6 +85,7 @@ def test_memory_list_detail_and_filters_are_user_scoped(client):
     assert memory["source_material_id"]
     assert memory["source_quote"]
     assert memory["source_location"]
+    assert memory["is_important"] is False
 
     detail = client.get(f"/api/memories/{memory['id']}", headers=auth(owner_token))
     assert detail.status_code == 200
@@ -116,10 +128,47 @@ def test_memory_list_detail_and_filters_are_user_scoped(client):
     }
 
 
-def test_confirm_edit_disable_reject_and_delete_memory(client):
+def test_memory_importance_star_can_be_toggled_and_is_user_scoped(client, db_session):
+    owner_token = register_user(client, "memory-important-owner@example.com")
+    other_token = register_user(client, "memory-important-other@example.com")
+    persona = create_persona(client, owner_token)
+    create_manual_material(client, owner_token, persona["id"], db_session)
+    memory = list_memories(client, owner_token, persona["id"])[0]
+
+    marked = client.patch(
+        f"/api/memories/{memory['id']}",
+        headers=auth(owner_token),
+        json={"is_important": True},
+    )
+
+    assert marked.status_code == 200
+    assert marked.json()["is_important"] is True
+    stored = db_session.scalar(select(MemoryCard).where(MemoryCard.id == memory["id"]))
+    assert stored is not None
+    assert stored.is_important is True
+
+    assert (
+        client.patch(
+            f"/api/memories/{memory['id']}",
+            headers=auth(other_token),
+            json={"is_important": False},
+        ).status_code
+        == 404
+    )
+
+    unmarked = client.patch(
+        f"/api/memories/{memory['id']}",
+        headers=auth(owner_token),
+        json={"is_important": False},
+    )
+    assert unmarked.status_code == 200
+    assert unmarked.json()["is_important"] is False
+
+
+def test_confirm_edit_disable_reject_and_delete_memory(client, db_session):
     token = register_user(client, "memory-audit@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session)
     memory = list_memories(client, token, persona["id"])[0]
     original_source = {
         "source_material_id": memory["source_material_id"],
@@ -164,22 +213,22 @@ def test_confirm_edit_disable_reject_and_delete_memory(client):
     }
 
 
-def test_confirm_memory_refreshes_next_persona_trust_read(client):
+def test_confirm_memory_refreshes_profile_without_recalculating_trust(client, db_session):
     token = register_user(client, "memory-profile-refresh@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session)
     memory = list_memories(client, token, persona["id"])[0]
 
     before = client.get(f"/api/personas/{persona['id']}", headers=auth(token))
     assert before.status_code == 200
-    assert before.json()["trust_score"] == 0
+    assert before.json()["trust_score"] > 0
 
     confirmed = client.post(f"/api/memories/{memory['id']}/confirm", headers=auth(token))
     assert confirmed.status_code == 200
 
     after = client.get(f"/api/personas/{persona['id']}", headers=auth(token))
     assert after.status_code == 200
-    assert after.json()["trust_score"] > before.json()["trust_score"]
+    assert after.json()["trust_score"] == before.json()["trust_score"]
 
 
 def test_manual_memory_requires_source_fields(client):

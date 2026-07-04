@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import wave
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
+from urllib.parse import quote, unquote
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.ai_job import AIJob
 from app.models.persona import Persona
 from app.models.source_material import SourceMaterial
@@ -16,7 +20,9 @@ from app.models.voice_avatar import VoiceModel
 from app.providers.gateway import ProviderGateway
 from app.schemas.job import AIJobRead
 from app.schemas.voice import (
+    DEFAULT_MINIMAX_TTS_VOICE_ID,
     DefaultTTSSelection,
+    DefaultTTSVoiceRead,
     VoiceCloneCreate,
     VoiceCloneResponse,
     SpeechSynthesisCreate,
@@ -32,6 +38,7 @@ from app.schemas.voice import (
 DEFAULT_TTS_NOTICE = (
     "当前使用系统默认声音，不是 TA 的真实声音。上传 TA 的清晰语音后，可以尝试生成模拟音色。"
 )
+MINIMAX_VOICE_CLONE_MIN_SECONDS = 10
 DEFAULT_TTS_OPTIONS = {
     "gender": ["male", "female", "neutral"],
     "age_style": ["young", "middle_aged", "elderly"],
@@ -39,6 +46,203 @@ DEFAULT_TTS_OPTIONS = {
     "speed": ["slow", "normal", "fast"],
     "emotion": ["calm", "comfort", "encourage", "nostalgia"],
 }
+SYSTEM_VOICE_ARTIFACT_PREFIX = "minimax://system-voice/"
+CLONED_VOICE_ARTIFACT_PREFIX = "minimax://voice/"
+DEFAULT_TTS_VOICES = [
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Reliable_Executive",
+        voice_name="可靠高管",
+        language="Chinese (Mandarin)",
+        description="稳重可靠的普通话男声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_News_Anchor",
+        voice_name="新闻主播",
+        language="Chinese (Mandarin)",
+        description="新闻播报风格的普通话女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Unrestrained_Young_Man",
+        voice_name="洒脱青年",
+        language="Chinese (Mandarin)",
+        description="松弛外放的年轻男声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Mature_Woman",
+        voice_name="成熟女性",
+        language="Chinese (Mandarin)",
+        description="成熟稳重的普通话女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Arrogant_Miss",
+        voice_name="傲娇小姐",
+        language="Chinese (Mandarin)",
+        description="有个性、略带骄傲感的女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Kind-hearted_Antie",
+        voice_name="亲切阿姨",
+        language="Chinese (Mandarin)",
+        description="亲切温和的阿姨声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_HK_Flight_Attendant",
+        voice_name="港风空乘",
+        language="Chinese (Mandarin)",
+        description="服务感较强的空乘声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Humorous_Elder",
+        voice_name="幽默长者",
+        language="Chinese (Mandarin)",
+        description="幽默长者声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Gentleman",
+        voice_name="温和绅士",
+        language="Chinese (Mandarin)",
+        description="温和绅士男声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Warm_Bestie",
+        voice_name="暖心挚友",
+        language="Chinese (Mandarin)",
+        description="温暖亲近的朋友声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Stubborn_Friend",
+        voice_name="固执朋友",
+        language="Chinese (Mandarin)",
+        description="固执朋友感声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Sweet_Lady",
+        voice_name="甜美女士",
+        language="Chinese (Mandarin)",
+        description="甜美温柔女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Southern_Young_Man",
+        voice_name="南方青年",
+        language="Chinese (Mandarin)",
+        description="南方年轻男声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Wise_Women",
+        voice_name="睿智女性",
+        language="Chinese (Mandarin)",
+        description="沉稳智慧女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Gentle_Youth",
+        voice_name="温柔青年",
+        language="Chinese (Mandarin)",
+        description="温柔青年声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Warm_Girl",
+        voice_name="温暖女孩",
+        language="Chinese (Mandarin)",
+        description="温暖年轻女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Male_Announcer",
+        voice_name="男播音员",
+        language="Chinese (Mandarin)",
+        description="播音男声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id=DEFAULT_MINIMAX_TTS_VOICE_ID,
+        voice_name="亲切长者",
+        language="Chinese (Mandarin)",
+        description="亲切长者声线，适合作为默认纪念陪伴音色。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Radio_Host",
+        voice_name="电台主持",
+        language="Chinese (Mandarin)",
+        description="电台主持声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Lyrical_Voice",
+        voice_name="抒情声线",
+        language="Chinese (Mandarin)",
+        description="抒情声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Straightforward_Boy",
+        voice_name="直率男孩",
+        language="Chinese (Mandarin)",
+        description="直率男孩声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Sincere_Adult",
+        voice_name="真诚成年人",
+        language="Chinese (Mandarin)",
+        description="真诚成人声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Gentle_Senior",
+        voice_name="温和长辈",
+        language="Chinese (Mandarin)",
+        description="温和长辈声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Crisp_Girl",
+        voice_name="清亮女孩",
+        language="Chinese (Mandarin)",
+        description="清脆女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Pure-hearted_Boy",
+        voice_name="纯真男孩",
+        language="Chinese (Mandarin)",
+        description="纯真男孩声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Soft_Girl",
+        voice_name="柔和女孩",
+        language="Chinese (Mandarin)",
+        description="柔和女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_IntellectualGirl",
+        voice_name="知性女孩",
+        language="Chinese (Mandarin)",
+        description="知性女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Warm_HeartedGirl",
+        voice_name="暖心女孩",
+        language="Chinese (Mandarin)",
+        description="暖心女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Laid_BackGirl",
+        voice_name="松弛女孩",
+        language="Chinese (Mandarin)",
+        description="松弛女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_ExplorativeGirl",
+        voice_name="探索女孩",
+        language="Chinese (Mandarin)",
+        description="探索感年轻女声。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_Warm-HeartedAunt",
+        voice_name="暖心阿姨",
+        language="Chinese (Mandarin)",
+        description="暖心阿姨声线。",
+    ),
+    DefaultTTSVoiceRead(
+        voice_id="Chinese (Mandarin)_BashfulGirl",
+        voice_name="害羞女孩",
+        language="Chinese (Mandarin)",
+        description="羞涩女声。",
+    ),
+]
+DEFAULT_TTS_VOICE_IDS = {voice.voice_id for voice in DEFAULT_TTS_VOICES}
 
 
 def _utcnow() -> datetime:
@@ -71,6 +275,7 @@ def select_default_tts(
     persona: Persona,
     payload: DefaultTTSSelection,
 ) -> VoiceConfigResponse:
+    _validate_default_tts_voice(payload.voice_id)
     model = _create_default_tts_model(db, persona, payload)
     db.commit()
     db.refresh(model)
@@ -227,7 +432,35 @@ def clone_voice(
     db.add(job)
     db.flush()
 
-    result = _run_gateway("voice_clone", {**provider_payload, "job_id": job.id})
+    gateway_payload = {**provider_payload, "job_id": job.id}
+    preflight_error = _voice_clone_preflight_error(source_material)
+    if preflight_error:
+        result = {
+            "provider_type": "local",
+            "provider_name": "voice_preflight",
+            "capability": "voice_clone",
+            "status": "failed",
+            "input": gateway_payload,
+            "output": {
+                "clone_status": "failed",
+                "error_message": preflight_error,
+            },
+        }
+    else:
+        try:
+            result = _run_gateway("voice_clone", gateway_payload)
+        except Exception as exc:
+            result = {
+                "provider_type": "third_party",
+                "provider_name": "minimax",
+                "capability": "voice_clone",
+                "status": "failed",
+                "input": gateway_payload,
+                "output": {
+                    "clone_status": "failed",
+                    "error_message": str(exc),
+                },
+            }
     output = result["output"]
     job.provider_type = result["provider_type"]
     job.provider_name = result["provider_name"]
@@ -277,6 +510,7 @@ def _voice_config_response(
     selected: VoiceModel | None,
     voice_models: list[VoiceModel] | None = None,
 ) -> VoiceConfigResponse:
+    settings = get_settings()
     return VoiceConfigResponse(
         persona_id=persona.id,
         voice_status=_voice_status(selected),
@@ -288,6 +522,8 @@ def _voice_config_response(
         ],
         default_tts_notice=DEFAULT_TTS_NOTICE,
         default_tts_options=DEFAULT_TTS_OPTIONS,
+        default_tts_voices=DEFAULT_TTS_VOICES,
+        tts_model=settings.minimax_tts_model,
     )
 
 
@@ -310,12 +546,14 @@ def _create_default_tts_model(
     persona: Persona,
     payload: DefaultTTSSelection,
 ) -> VoiceModel:
+    _validate_default_tts_voice(payload.voice_id)
     _clear_selected_voice_models(db, persona)
     model = VoiceModel(
         persona_id=persona.id,
         provider_type="local",
         provider_name="mock_default_tts",
         status="default_tts",
+        model_artifact_url=_system_voice_artifact_url(payload.voice_id),
         sample_text=_default_tts_summary(payload),
         sample_audio_url=None,
         quality_score=None,
@@ -411,6 +649,7 @@ def _provider_summary(result: dict[str, Any]) -> dict[str, Any]:
 def _default_tts_summary(payload: DefaultTTSSelection) -> str:
     return (
         "default_tts:"
+        f"voice_id={payload.voice_id};"
         f"gender={payload.gender};"
         f"age_style={payload.age_style};"
         f"style={payload.style};"
@@ -419,11 +658,64 @@ def _default_tts_summary(payload: DefaultTTSSelection) -> str:
     )
 
 
+def _validate_default_tts_voice(voice_id: str) -> None:
+    if voice_id not in DEFAULT_TTS_VOICE_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unknown default TTS voice_id",
+        )
+
+
+def _system_voice_artifact_url(voice_id: str) -> str:
+    return f"{SYSTEM_VOICE_ARTIFACT_PREFIX}{quote(voice_id, safe='')}"
+
+
 def _voice_id_for_model(model: VoiceModel) -> str | None:
     artifact = model.model_artifact_url or ""
-    if artifact.startswith("minimax://voice/"):
+    if artifact.startswith(CLONED_VOICE_ARTIFACT_PREFIX):
         return artifact.rsplit("/", 1)[-1]
+    if artifact.startswith(SYSTEM_VOICE_ARTIFACT_PREFIX):
+        return unquote(artifact.removeprefix(SYSTEM_VOICE_ARTIFACT_PREFIX))
+    if model.status == "default_tts":
+        return DEFAULT_MINIMAX_TTS_VOICE_ID
     return None
+
+
+def _voice_clone_preflight_error(material: SourceMaterial) -> str | None:
+    if not _is_wav_audio(material):
+        return None
+    duration_seconds = _wav_duration_seconds(material.storage_url)
+    if duration_seconds is None:
+        return "无法读取 WAV 音频时长，请重新录制或上传 mp3/m4a/wav 人声音频。"
+    if duration_seconds < MINIMAX_VOICE_CLONE_MIN_SECONDS:
+        return (
+            f"音频时长约 {duration_seconds:.1f} 秒，"
+            f"MiniMax 音色克隆要求样本至少 {MINIMAX_VOICE_CLONE_MIN_SECONDS} 秒。"
+            "请重新录制或上传更长的人声音频。"
+        )
+    return None
+
+
+def _is_wav_audio(material: SourceMaterial) -> bool:
+    file_name = (material.file_name or "").lower()
+    mime_type = (material.mime_type or "").lower()
+    return file_name.endswith(".wav") or "wav" in mime_type
+
+
+def _wav_duration_seconds(storage_url: str | None) -> float | None:
+    if not storage_url:
+        return None
+    path = Path(storage_url)
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        with wave.open(path.as_posix(), "rb") as audio:
+            frame_rate = audio.getframerate()
+            if frame_rate <= 0:
+                return None
+            return audio.getnframes() / frame_rate
+    except (EOFError, wave.Error):
+        return None
 
 
 def _run_gateway(capability: str, payload: dict[str, Any]) -> dict[str, Any]:

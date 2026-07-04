@@ -1,3 +1,7 @@
+import io
+import wave
+
+
 DEFAULT_TTS_NOTICE = (
     "当前使用系统默认声音，不是 TA 的真实声音。上传 TA 的清晰语音后，可以尝试生成模拟音色。"
 )
@@ -50,6 +54,7 @@ def default_tts_payload() -> dict[str, str]:
         "style": "gentle",
         "speed": "normal",
         "emotion": "comfort",
+        "voice_id": "Chinese (Mandarin)_Kind-hearted_Elder",
     }
 
 
@@ -62,6 +67,67 @@ def upload_audio_material(client, token: str, persona_id: str) -> dict:
     )
     assert response.status_code == 201
     return response.json()["items"][0]
+
+
+def upload_webm_audio_material(client, token: str, persona_id: str) -> dict:
+    response = client.post(
+        f"/api/personas/{persona_id}/materials/upload",
+        headers=auth(token),
+        files=[("files", ("voice-sample-recording.webm", b"webm-voice", "audio/webm"))],
+        data={"importance": "important", "user_description": "浏览器录制的 TA 清晰人声"},
+    )
+    assert response.status_code == 201
+    return response.json()["items"][0]
+
+
+def upload_webm_without_audio_mime(client, token: str, persona_id: str) -> dict:
+    response = client.post(
+        f"/api/personas/{persona_id}/materials/upload",
+        headers=auth(token),
+        files=[
+            (
+                "files",
+                (
+                    "voice-sample-recording.webm",
+                    b"webm-without-audio-mime",
+                    "application/octet-stream",
+                ),
+            )
+        ],
+        data={"importance": "important", "user_description": "MIME 缺失的 webm"},
+    )
+    assert response.status_code == 201
+    return response.json()["items"][0]
+
+
+def upload_short_wav_material(client, token: str, persona_id: str) -> dict:
+    response = client.post(
+        f"/api/personas/{persona_id}/materials/upload",
+        headers=auth(token),
+        files=[
+            (
+                "files",
+                (
+                    "voice-sample-recording-short.wav",
+                    short_wav_bytes(seconds=6),
+                    "audio/wav",
+                ),
+            )
+        ],
+        data={"importance": "important", "user_description": "过短的浏览器录音"},
+    )
+    assert response.status_code == 201
+    return response.json()["items"][0]
+
+
+def short_wav_bytes(*, seconds: int, sample_rate: int = 16000) -> bytes:
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(sample_rate)
+        audio.writeframes(b"\0\0" * sample_rate * seconds)
+    return buffer.getvalue()
 
 
 def create_manual_material(client, token: str, persona_id: str) -> dict:
@@ -86,6 +152,19 @@ def test_get_voice_config_starts_with_no_voice_and_default_tts_notice(client):
     assert data["selected_voice_model"] is None
     assert data["voice_models"] == []
     assert data["default_tts_notice"] == DEFAULT_TTS_NOTICE
+    assert data["tts_model"] == "speech-2.8-hd"
+    assert data["default_tts_voices"][0]["voice_id"] == (
+        "Chinese (Mandarin)_Reliable_Executive"
+    )
+    assert data["default_tts_voices"][0]["voice_name"] == "可靠高管"
+    voice_ids = {voice["voice_id"] for voice in data["default_tts_voices"]}
+    assert "Robot_Armor" not in voice_ids
+    assert "Chinese (Mandarin)_Cute_Spirit" not in voice_ids
+    assert any(
+        voice["voice_id"] == "Chinese (Mandarin)_Kind-hearted_Elder"
+        and voice["voice_name"] == "亲切长者"
+        for voice in data["default_tts_voices"]
+    )
 
 
 def test_select_default_tts_and_synthesize_speech_job(client):
@@ -102,9 +181,13 @@ def test_select_default_tts_and_synthesize_speech_job(client):
     selected_data = selected.json()
     assert selected_data["voice_status"] == "default_tts"
     assert selected_data["default_tts_notice"] == DEFAULT_TTS_NOTICE
+    assert selected_data["tts_model"] == "speech-2.8-hd"
     assert selected_data["selected_voice_model"]["status"] == "default_tts"
     assert selected_data["selected_voice_model"]["provider_type"] == "local"
     assert selected_data["selected_voice_model"]["provider_name"] == "mock_default_tts"
+    assert selected_data["selected_voice_model"]["model_artifact_url"].endswith(
+        "Chinese%20%28Mandarin%29_Kind-hearted_Elder"
+    )
     assert selected_data["selected_voice_model"]["user_selected"] is True
 
     synthesized = client.post(
@@ -133,11 +216,27 @@ def test_select_default_tts_and_synthesize_speech_job(client):
     )
 
 
+def test_select_default_tts_rejects_unknown_voice_id(client):
+    token = register_user(client, "voice-unknown-default@example.com")
+    persona = create_persona(client, token)
+    payload = {**default_tts_payload(), "voice_id": "Unknown_Voice"}
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/default-tts",
+        headers=auth(token),
+        json=payload,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unknown default TTS voice_id"
+
+
 def test_synthesize_speech_records_minimax_provider_metadata(client, monkeypatch):
     from app.services import voice as voice_service
 
     def fake_gateway(capability, payload):
         assert capability == "tts"
+        assert payload["voice_id"] == "Chinese (Mandarin)_Gentle_Senior"
         return {
             "provider_type": "third_party",
             "provider_name": "minimax",
@@ -156,6 +255,12 @@ def test_synthesize_speech_records_minimax_provider_metadata(client, monkeypatch
     monkeypatch.setattr(voice_service, "_run_gateway", fake_gateway)
     token = register_user(client, "voice-minimax-tts@example.com")
     persona = create_persona(client, token)
+    selected = client.post(
+        f"/api/personas/{persona['id']}/voice/default-tts",
+        headers=auth(token),
+        json={**default_tts_payload(), "voice_id": "Chinese (Mandarin)_Gentle_Senior"},
+    )
+    assert selected.status_code == 200
 
     response = client.post(
         f"/api/personas/{persona['id']}/voice/synthesize",
@@ -227,6 +332,44 @@ def test_create_voice_sample_from_audio_material_creates_model_and_job(client):
     assert [item["id"] for item in config.json()["voice_models"]] == [
         data["voice_model"]["id"]
     ]
+
+
+def test_create_voice_sample_from_audio_webm_mime_creates_model_and_job(client):
+    token = register_user(client, "voice-sample-webm@example.com")
+    persona = create_persona(client, token)
+    material = upload_webm_audio_material(client, token, persona["id"])
+    assert material["file_name"] == "voice-sample-recording.webm"
+    assert material["file_type"] == "audio"
+    assert material["mime_type"] == "audio/webm"
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/samples",
+        headers=auth(token),
+        json={"source_material_id": material["id"]},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["voice_status"] == "sample_ready"
+    assert data["voice_model"]["reference_audio_asset_id"] == material["id"]
+    assert data["job"]["job_type"] == "extract_voice_sample"
+
+
+def test_create_voice_sample_rejects_webm_when_audio_mime_is_missing(client):
+    token = register_user(client, "voice-sample-webm-missing-mime@example.com")
+    persona = create_persona(client, token)
+    material = upload_webm_without_audio_mime(client, token, persona["id"])
+    assert material["file_type"] == "video"
+    assert material["mime_type"] == "application/octet-stream"
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/samples",
+        headers=auth(token),
+        json={"source_material_id": material["id"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Voice samples require an audio source material"
 
 
 def test_clone_voice_success_selects_cloned_voice_model(client):
@@ -354,6 +497,81 @@ def test_clone_voice_failure_falls_back_to_default_tts(client):
     )
     assert synthesized.status_code == 200
     assert synthesized.json()["voice_status"] == "default_tts"
+
+
+def test_clone_voice_provider_exception_falls_back_to_default_tts(client, monkeypatch):
+    from app.services import voice as voice_service
+
+    def fake_gateway(capability, payload):
+        if capability == "extract_voice_sample":
+            return {
+                "provider_type": "local",
+                "provider_name": "mock",
+                "capability": "extract_voice_sample",
+                "status": "succeeded",
+                "input": payload,
+                "output": {
+                    "sample_text": "外婆的清晰语音，来自 sample.wav 的 00:00-00:08 片段。",
+                    "sample_audio_url": payload["storage_url"],
+                    "start_time": "00:00",
+                    "end_time": "00:08",
+                    "quality_score": 76,
+                },
+            }
+        raise RuntimeError("MiniMax request failed: invalid params, invalid file ext for voice clone")
+
+    monkeypatch.setattr(voice_service, "_run_gateway", fake_gateway)
+    token = register_user(client, "voice-clone-provider-exception@example.com")
+    persona = create_persona(client, token)
+    material = upload_audio_material(client, token, persona["id"])
+    sample = client.post(
+        f"/api/personas/{persona['id']}/voice/samples",
+        headers=auth(token),
+        json={"source_material_id": material["id"]},
+    ).json()["voice_model"]
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/clone",
+        headers=auth(token),
+        json={"voice_model_id": sample["id"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["voice_status"] == "default_tts"
+    assert data["voice_model"]["id"] == sample["id"]
+    assert data["voice_model"]["status"] == "clone_failed"
+    assert data["selected_voice_model"]["status"] == "default_tts"
+    assert data["job"]["status"] == "failed"
+    assert data["job"]["error_message"] == (
+        "MiniMax request failed: invalid params, invalid file ext for voice clone"
+    )
+
+
+def test_clone_voice_short_wav_fails_before_minimax_and_explains_min_duration(client):
+    token = register_user(client, "voice-clone-short-wav@example.com")
+    persona = create_persona(client, token)
+    material = upload_short_wav_material(client, token, persona["id"])
+    sample = client.post(
+        f"/api/personas/{persona['id']}/voice/samples",
+        headers=auth(token),
+        json={"source_material_id": material["id"]},
+    ).json()["voice_model"]
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/voice/clone",
+        headers=auth(token),
+        json={"voice_model_id": sample["id"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["voice_status"] == "default_tts"
+    assert data["voice_model"]["status"] == "clone_failed"
+    assert data["selected_voice_model"]["status"] == "default_tts"
+    assert data["job"]["status"] == "failed"
+    assert data["job"]["provider_name"] == "voice_preflight"
+    assert "至少 10 秒" in data["job"]["error_message"]
 
 
 def test_voice_samples_reject_non_audio_and_cross_user_materials(client):

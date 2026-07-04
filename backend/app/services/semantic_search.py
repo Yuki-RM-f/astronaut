@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.memory_card import MemoryCard
 from app.models.persona import Persona
+from app.services.memory_markdown import refresh_long_term_memory_md, refresh_short_term_memory_md
 
 
 INACTIVE_STATUSES = {"rejected", "disabled"}
@@ -42,7 +43,11 @@ def semantic_search(
     if not query_terms:
         return []
 
-    documents = [_document(memory) for memory in memories]
+    long_term_memory_md = refresh_long_term_memory_md(db, persona)
+    short_term_memory_md = refresh_short_term_memory_md(db, persona)
+    documents = [
+        _document(memory, long_term_memory_md, short_term_memory_md) for memory in memories
+    ]
     document_tokens = [_tokens(document) for document in documents]
     idf = _idf(document_tokens)
     query_vector = _vector(query_terms, idf)
@@ -59,13 +64,21 @@ def semantic_search(
                 memory=memory,
                 relevance_score=round(score, 4),
                 matched_terms=matched_terms or [query.strip()],
-                source_excerpt=_excerpt(memory, query),
+                source_excerpt=_excerpt(
+                    memory,
+                    query,
+                    _memory_context_excerpt(long_term_memory_md, memory.id),
+                ),
             )
         )
     return sorted(results, key=lambda item: item.relevance_score, reverse=True)[:top_k]
 
 
-def _document(memory: MemoryCard) -> str:
+def _document(
+    memory: MemoryCard,
+    long_term_memory_md: str,
+    short_term_memory_md: str,
+) -> str:
     return "\n".join(
         item
         for item in [
@@ -73,6 +86,9 @@ def _document(memory: MemoryCard) -> str:
             memory.content,
             memory.source_quote,
             memory.user_correction,
+            memory.source_location,
+            _memory_context_excerpt(long_term_memory_md, memory.id),
+            _memory_context_excerpt(short_term_memory_md, memory.id),
         ]
         if item
     )
@@ -115,13 +131,18 @@ def _cosine(left: dict[str, float], right: dict[str, float]) -> float:
     return numerator / (left_norm * right_norm)
 
 
-def _excerpt(memory: MemoryCard, query: str) -> str | None:
-    source = memory.source_quote or memory.content
+def _excerpt(memory: MemoryCard, query: str, context_excerpt: str = "") -> str | None:
+    source = memory.source_quote or memory.content or memory.source_location or context_excerpt
     if not source:
         return None
     normalized_query = _normalize(query)
     normalized_source = _normalize(source)
     index = normalized_source.find(normalized_query)
+    if index < 0 and context_excerpt:
+        normalized_context = _normalize(context_excerpt)
+        context_index = normalized_context.find(normalized_query)
+        if context_index >= 0:
+            return context_excerpt[:160]
     if index < 0:
         return source[:80]
     start = max(0, index - 20)
@@ -131,3 +152,14 @@ def _excerpt(memory: MemoryCard, query: str) -> str | None:
 
 def _normalize(text: Any) -> str:
     return re.sub(r"\s+", "", str(text or "").lower())
+
+
+def _memory_context_excerpt(markdown: str, memory_id: str) -> str:
+    if not markdown or memory_id not in markdown:
+        return ""
+    index = markdown.find(memory_id)
+    start = max(0, markdown.rfind("\n### ", 0, index))
+    end = markdown.find("\n### ", index + len(memory_id))
+    if end < 0:
+        end = min(len(markdown), index + 1000)
+    return markdown[start:end]

@@ -1,3 +1,8 @@
+from app.models.ai_job import AIJob
+from app.models.source_material import SourceMaterial
+from app.services import parsing
+
+
 def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
@@ -34,14 +39,22 @@ def create_persona(client, token: str, name: str = "外婆") -> dict:
     return response.json()
 
 
-def create_manual_material(client, token: str, persona_id: str) -> dict:
+def create_manual_material(client, token: str, persona_id: str, db_session=None) -> dict:
     response = client.post(
         f"/api/personas/{persona_id}/materials/manual",
         headers=auth(token),
         json={"manual_text": "外婆喜欢包馄饨，也常说慢慢来。", "importance": "important"},
     )
     assert response.status_code == 201
-    return response.json()
+    body = response.json()
+    if db_session is not None:
+        material = db_session.get(SourceMaterial, body["id"])
+        job = db_session.get(AIJob, body["jobs"][0]["id"])
+        assert material is not None
+        assert job is not None
+        parsing.run_parse_job(db_session, material, job)
+        db_session.commit()
+    return body
 
 
 def list_memories(client, token: str, persona_id: str) -> list[dict]:
@@ -86,11 +99,11 @@ def assert_profile_export_includes_age(body: dict, age: int = 72):
     } in body["profile"]["basic_facts"]
 
 
-def test_export_profile_returns_watermarked_profile_snapshot(client):
+def test_export_profile_returns_watermarked_profile_snapshot(client, db_session):
     token = register_user(client, "export-profile@example.com")
     other_token = register_user(client, "export-profile-other@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session)
     for memory in list_memories(client, token, persona["id"]):
         confirm_memory(client, token, memory["id"])
 
@@ -117,11 +130,11 @@ def test_export_profile_returns_watermarked_profile_snapshot(client):
     assert blocked.status_code == 404
 
 
-def test_export_memories_returns_active_source_backed_memories_only(client):
+def test_export_memories_returns_active_source_backed_memories_only(client, db_session):
     token = register_user(client, "export-memories@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session)
+    create_manual_material(client, token, persona["id"], db_session)
     memories = list_memories(client, token, persona["id"])
     confirm_memory(client, token, memories[0]["id"])
     deleted_id = memories[1]["id"]
@@ -144,10 +157,10 @@ def test_export_memories_returns_active_source_backed_memories_only(client):
     assert body["items"][0]["source_quote"]
 
 
-def test_export_conversation_returns_ordered_messages_with_citations(client):
+def test_export_conversation_returns_ordered_messages_with_citations(client, db_session):
     token = register_user(client, "export-conversation@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session)
     memory = list_memories(client, token, persona["id"])[0]
     confirm_memory(client, token, memory["id"])
     conversation = create_conversation(client, token, persona["id"])

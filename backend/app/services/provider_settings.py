@@ -8,6 +8,7 @@ from app.schemas.provider_settings import ProviderSettingsResponse, ProviderStat
 SECRET_KEYS = {
     "OPENAI_COMPATIBLE_API_KEY",
     "OPENAI_API_KEY",
+    "OPENAI_NEXT_API_KEY",
     "DASHSCOPE_API_KEY",
     "MINIMAX_API_KEY",
     "TRIPO_API_KEY",
@@ -21,6 +22,10 @@ ALLOWED_RUNTIME_KEYS = {
     "OPENAI_BASE_URL",
     "OPENAI_API_KEY",
     "OPENAI_MODEL",
+    "OPENAI_NEXT_API_KEY",
+    "OPENAI_NEXT_BASE_URL",
+    "OPENAI_NEXT_MODEL",
+    "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS",
     "DASHSCOPE_API_KEY",
     "DASHSCOPE_REGION",
     "DASHSCOPE_WORKSPACE_ID",
@@ -30,6 +35,7 @@ ALLOWED_RUNTIME_KEYS = {
     "QWEN_VISION_MODEL",
     "QWEN_OCR_MODEL",
     "QWEN_ASR_MODEL",
+    "DASHSCOPE_REQUEST_TIMEOUT_SECONDS",
     "MINIMAX_API_KEY",
     "MINIMAX_BASE_URL",
     "MINIMAX_TTS_MODEL",
@@ -90,6 +96,9 @@ def provider_settings_report(settings: Settings | None = None) -> ProviderSettin
                     "qwen_vision_model": active_settings.qwen_vision_model,
                     "qwen_ocr_model": active_settings.qwen_ocr_model,
                     "qwen_asr_model": active_settings.qwen_asr_model,
+                    "request_timeout_seconds": str(
+                        active_settings.dashscope_request_timeout_seconds
+                    ),
                 },
             ),
             ProviderStatus(
@@ -124,6 +133,31 @@ def provider_settings_report(settings: Settings | None = None) -> ProviderSettin
                 settings={
                     "base_url": active_settings.openai_compatible_base_url,
                     "model": active_settings.openai_compatible_model,
+                },
+            ),
+            ProviderStatus(
+                id="openai_next_text_fallback",
+                label="OpenAI-Next Text Fallback",
+                configured=bool(
+                    active_settings.openai_next_api_key
+                    and active_settings.openai_next_base_url
+                    and active_settings.openai_next_model
+                ),
+                secret_status=_secret_status(active_settings.openai_next_api_key),
+                capabilities=[
+                    "chat_llm",
+                    "story_generation",
+                    "memory_context_compression",
+                    "persona_profile_analysis",
+                    "memory_document_generation",
+                ],
+                settings={
+                    "base_url": active_settings.openai_next_base_url,
+                    "model": active_settings.openai_next_model,
+                    "request_timeout_seconds": str(
+                        active_settings.openai_next_request_timeout_seconds
+                    ),
+                    "fallback_after": "minimax",
                 },
             ),
             ProviderStatus(

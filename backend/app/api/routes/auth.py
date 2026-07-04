@@ -15,7 +15,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserRead,
 )
-from app.services.materials import create_manual_material
+from app.services.materials import create_manual_material, run_material_parse_job
 from app.services.profile import refresh_profile_and_trust
 
 
@@ -133,7 +133,7 @@ def demo_session(db: Session = Depends(get_db)):
     db.refresh(persona)
 
     for material in DEMO_MATERIALS:
-        create_manual_material(
+        _material, job = create_manual_material(
             db,
             user,
             persona,
@@ -144,6 +144,7 @@ def demo_session(db: Session = Depends(get_db)):
             people_tags=["外婆", "小铭"],
             location_hint=material["location_hint"],
         )
+        run_material_parse_job(db, job)
 
     memories = db.scalars(
         select(MemoryCard).where(MemoryCard.persona_id == persona.id)

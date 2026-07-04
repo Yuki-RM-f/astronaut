@@ -131,6 +131,14 @@ export async function getPersona(id: string): Promise<PersonaRead> {
   return readApiJson<PersonaRead>(response, "无法加载人物。");
 }
 
+export async function deletePersona(id: string): Promise<void> {
+  const response = await fetch(buildApiUrl(API_PATHS.personas.detail(id)), {
+    method: "DELETE",
+    headers: authHeaders()
+  });
+  await readApiJson<never>(response, "无法删除星星。");
+}
+
 export async function createPersona(draft: PersonaDraft): Promise<PersonaRead> {
   const response = await fetch(buildApiUrl(API_PATHS.personas.list), {
     method: "POST",
@@ -158,6 +166,55 @@ export function buildPersonaCreatePayload(draft: PersonaDraft): PersonaCreatePay
     emotional_style: DEFAULT_PERSONA_EMOTIONAL_STYLE,
     forbidden_expressions: DEFAULT_PERSONA_FORBIDDEN_EXPRESSIONS
   };
+}
+
+export function buildCreatePersonaShortBio({
+  birthDate,
+  message
+}: {
+  birthDate: string;
+  message: string;
+}): string {
+  return [
+    birthDate.trim() ? `${birthDate.trim()} 出生` : "",
+    message.trim() ? `有关TA的一切：${message.trim()}` : "",
+    "由星记创建的专属星星。"
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export type CreatePersonaProcessingStage =
+  | "demo_session"
+  | "persona_card"
+  | "upload_memories"
+  | "review_entry";
+
+export type CreatePersonaProgress = {
+  label: string;
+  percent: number;
+};
+
+export function buildCreatePersonaProgress(
+  stage: CreatePersonaProcessingStage,
+  uploadCount = 0
+): CreatePersonaProgress {
+  if (stage === "demo_session") {
+    return { label: "正在准备演示会话...", percent: 20 };
+  }
+
+  if (stage === "persona_card") {
+    return { label: "正在保存资料卡片...", percent: 45 };
+  }
+
+  if (stage === "upload_memories") {
+    return {
+      label: `正在上传 ${uploadCount} 个回忆文件...`,
+      percent: 75
+    };
+  }
+
+  return { label: "正在进入资料审核...", percent: 95 };
 }
 
 function isValidAge(value: PersonaDraft["age"] | undefined): boolean {

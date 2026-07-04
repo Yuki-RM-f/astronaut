@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from app.core.config import Settings
@@ -105,3 +107,64 @@ async def test_dashscope_video_frames_use_dashscope_minimum_safe_fps():
     video_item = captured["messages"][0]["content"][1]
     assert video_item["type"] == "video"
     assert video_item["fps"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_dashscope_memory_extraction_returns_strict_module_json():
+    provider = DashScopeProvider(
+        Settings(
+            dashscope_api_key="sk-test",
+            qwen_text_model="qwen-plus",
+        )
+    )
+    captured = {}
+
+    async def fake_chat_completion(model, messages, **request_options):
+        captured["model"] = model
+        captured["messages"] = messages
+        captured["request_options"] = request_options
+        return json.dumps(
+            {
+                "modules": {
+                    "basic_fact": [],
+                    "relationship": [],
+                    "preference": [
+                        {
+                            "title": "喜欢包馄饨",
+                            "content": "外婆喜欢包馄饨。",
+                            "category": "preference",
+                            "confidence_level": "high",
+                            "confidence_score": 92,
+                            "source_quote": "外婆喜欢包馄饨",
+                            "source_location": "manual:body#1",
+                        }
+                    ],
+                    "habit": [],
+                    "expression_style": [],
+                    "shared_event": [],
+                },
+                "unclassified": [],
+                "warnings": [],
+            },
+            ensure_ascii=False,
+        )
+
+    provider._chat_completion = fake_chat_completion
+
+    result = await provider._memory_extraction(
+        {
+            "source_material_id": "src-1",
+            "source_location": "manual:body",
+            "content": "外婆喜欢包馄饨。",
+            "persona_card": {"name": "外婆"},
+            "source_material": {"id": "src-1", "file_type": "manual"},
+        }
+    )
+
+    prompt = captured["messages"][0]["content"]
+    assert captured["model"] == "qwen-plus"
+    assert "只输出严格 JSON 对象" in prompt
+    assert "basic_fact、relationship、preference、habit、expression_style、shared_event" in prompt
+    assert result["structured_memory_json"]["source_material_id"] == "src-1"
+    assert result["structured_memory_json"]["modules"]["preference"][0]["category"] == "preference"
+    assert result["memories"][0]["source_quote"] == "外婆喜欢包馄饨"

@@ -83,6 +83,154 @@ def confirm_memory(client, token: str, memory_id: str) -> dict:
     return response.json()
 
 
+def test_generate_story_payload_uses_memory_markdown_and_filters_model_sources(
+    client,
+    monkeypatch,
+):
+    from app.services import stories as story_service
+
+    captured: dict[str, dict] = {}
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            if capability == "story_generation":
+                captured["payload"] = payload
+                return {
+                    "provider_name": "fake_story",
+                    "capability": capability,
+                    "status": "succeeded",
+                    "input": payload,
+                    "output": {
+                        "title": "生日馄饨",
+                        "content": "<think>private reasoning</think>小铭，我还记得生日那天那碗馄饨。",
+                        "source_memory_ids": [
+                            payload["retrieved_memories"][0]["id"],
+                            "pending-memory-id",
+                        ],
+                        "source_memories": [
+                            {
+                                "memory_card_id": payload["retrieved_memories"][0]["id"],
+                                "title": "生日馄饨",
+                                "quote": "外婆在生日那天给小铭包馄饨。",
+                                "source_location": "manual:story-test",
+                            },
+                            {
+                                "memory_card_id": "pending-memory-id",
+                                "title": "未审核秘密",
+                                "quote": "不应被引用",
+                                "source_location": "manual:pending",
+                            },
+                        ],
+                    },
+                }
+            return {
+                "provider_name": "fake_tts",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {"audio_url": "mock://tts/story-clean"},
+            }
+
+    monkeypatch.setattr(story_service, "ProviderGateway", lambda: FakeGateway())
+
+    token = register_user(client, "story-markdown-payload@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    reviewed = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆在生日那天给小铭包馄饨。",
+        title="生日馄饨",
+    )
+    confirm_memory(client, token, reviewed["id"])
+    pending = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "这条待审核记忆不能进故事。",
+        title="未审核秘密",
+    )
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "生日 馄饨"},
+    )
+
+    assert response.status_code == 201
+    story = response.json()
+    assert "<think>" not in story["content"]
+    assert "private reasoning" not in story["content"]
+    assert story["source_memory_ids"] == [reviewed["id"]]
+    assert pending["id"] not in story["source_memory_ids"]
+    assert reviewed["id"] in captured["payload"]["long_term_memory_md"]
+    assert "short_term_memory_md" in captured["payload"]
+    assert captured["payload"]["story_theme"] == "生日 馄饨"
+    assert captured["payload"]["source_memory_ids"] == [reviewed["id"]]
+
+
+def test_generate_story_falls_back_when_model_thinking_leaves_empty_content(
+    client,
+    monkeypatch,
+):
+    from app.services import stories as story_service
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            if capability == "story_generation":
+                return {
+                    "provider_name": "fake_story",
+                    "capability": capability,
+                    "status": "succeeded",
+                    "input": payload,
+                    "output": {
+                        "title": "生日",
+                        "content": "<think>only hidden reasoning",
+                        "source_memory_ids": [payload["retrieved_memories"][0]["id"]],
+                        "source_memories": [],
+                    },
+                }
+            return {
+                "provider_name": "fake_tts",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {"audio_url": "mock://tts/story-fallback"},
+            }
+
+    monkeypatch.setattr(story_service, "ProviderGateway", lambda: FakeGateway())
+
+    token = register_user(client, "story-empty-thinking@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    reviewed = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆生日那天给小铭煮了热汤。",
+        title="生日热汤",
+    )
+    confirm_memory(client, token, reviewed["id"])
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "生日"},
+    )
+
+    assert response.status_code == 201
+    story = response.json()
+    assert "<think>" not in story["content"]
+    assert "only hidden reasoning" not in story["content"]
+    assert "小铭" in story["content"]
+    assert "热汤" in story["content"]
+    assert story["source_memory_ids"] == [reviewed["id"]]
+
+
 def test_generate_story_uses_reviewed_memories_and_creates_audio_jobs(client):
     token = register_user(client, "story-generate@example.com")
     persona = create_persona(client, token)
@@ -138,6 +286,46 @@ def test_generate_story_uses_reviewed_memories_and_creates_audio_jobs(client):
     assert job_types["generate_story"] == "succeeded"
     assert job_types["synthesize_speech"] == "succeeded"
     assert pending["id"] not in story["source_memory_ids"]
+
+
+def test_generate_story_prioritizes_important_reviewed_memories(client):
+    token = register_user(client, "story-important-memory@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    important = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "important reviewed memory",
+        title="important reviewed memory",
+    )
+    assert client.patch(
+        f"/api/memories/{important['id']}",
+        headers=auth(token),
+        json={"is_important": True},
+    ).status_code == 200
+    confirm_memory(client, token, important["id"])
+    ordinary = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "ordinary reviewed memory",
+        title="ordinary reviewed memory",
+    )
+    confirm_memory(client, token, ordinary["id"])
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "priority"},
+    )
+
+    assert response.status_code == 201
+    story = response.json()
+    assert story["source_memory_ids"][0] == important["id"]
+    assert story["source_memories"][0]["memory_card_id"] == important["id"]
 
 
 def test_generate_story_requires_confirmed_or_corrected_memory(client):

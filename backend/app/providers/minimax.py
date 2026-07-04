@@ -5,6 +5,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 
@@ -14,6 +15,29 @@ from app.services.persona_engine_prompt import PERSONA_ENGINE_SYSTEM_PROMPT
 
 class MiniMaxProviderError(RuntimeError):
     pass
+
+
+MEMORY_DOCUMENT_REPAIR_ATTEMPTS = 3
+MEMORY_DOCUMENT_REQUIRED_FIELDS = (
+    "profile_summary",
+    "trust_score",
+    "trust_level",
+    "trust_rationale",
+    "suggestions",
+)
+MEMORY_DOCUMENT_TRUST_LEVELS = {"initial", "usable", "trusted", "high_trust"}
+MEMORY_DOCUMENT_MODULES = (
+    "basic_fact",
+    "relationship",
+    "preference",
+    "habit",
+    "expression_style",
+    "shared_event",
+)
+MEMORY_DOCUMENT_MODULE_SET = set(MEMORY_DOCUMENT_MODULES)
+THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
+THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*", re.IGNORECASE | re.DOTALL)
+THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
 
 
 class MiniMaxProvider:
@@ -52,6 +76,8 @@ class MiniMaxProvider:
             return await self._memory_context_compression(payload)
         if capability == "persona_profile_analysis":
             return await self._persona_profile_analysis(payload)
+        if capability == "memory_document_generation":
+            return await self._memory_document_generation(payload)
         raise MiniMaxProviderError(f"MiniMax does not support capability: {capability}")
 
     async def _chat_llm(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -69,6 +95,7 @@ class MiniMaxProvider:
                 "user_nickname_by_persona": payload.get("user_nickname_by_persona"),
                 "speaking_style": payload.get("speaking_style"),
                 "emotional_style": payload.get("emotional_style"),
+                "conversation_kind": payload.get("conversation_kind"),
                 "confidence_score": payload.get("confidence_score"),
             },
             "trace_id": raw.get("id"),
@@ -114,6 +141,32 @@ class MiniMaxProvider:
             raise MiniMaxProviderError("MiniMax Persona Engine response must be a JSON object")
         data["trace_id"] = raw.get("id")
         return data
+
+    async def _memory_document_generation(self, payload: dict[str, Any]) -> dict[str, Any]:
+        messages = _memory_document_generation_messages(payload)
+        last_error = ""
+        for attempt in range(MEMORY_DOCUMENT_REPAIR_ATTEMPTS + 1):
+            content, raw = await self._chat_completion(
+                messages,
+                response_format={"type": "json_object"},
+            )
+            try:
+                data = _parse_memory_document_json(content)
+            except MiniMaxProviderError as exc:
+                last_error = str(exc)
+                if attempt >= MEMORY_DOCUMENT_REPAIR_ATTEMPTS:
+                    raise MiniMaxProviderError(
+                        "MiniMax memory document response must be strict JSON after "
+                        f"{MEMORY_DOCUMENT_REPAIR_ATTEMPTS} repair attempts: {last_error}"
+                    ) from exc
+                messages = _memory_document_repair_messages(payload, content, last_error)
+                continue
+            data["trace_id"] = raw.get("id")
+            return data
+        raise MiniMaxProviderError(
+            "MiniMax memory document response must be strict JSON after "
+            f"{MEMORY_DOCUMENT_REPAIR_ATTEMPTS} repair attempts: {last_error}"
+        )
 
     async def _tts(self, payload: dict[str, Any]) -> dict[str, Any]:
         text = _clean_text(str(payload.get("text") or ""))
@@ -261,6 +314,7 @@ class MiniMaxProvider:
     async def _chat_completion(
         self,
         messages: list[dict[str, str]],
+        **request_options: Any,
     ) -> tuple[str, dict[str, Any]]:
         if not self.settings.openai_compatible_model:
             raise MiniMaxProviderError("MiniMax chat model is not configured")
@@ -270,6 +324,7 @@ class MiniMaxProvider:
                 "model": self.settings.openai_compatible_model,
                 "messages": messages,
                 "stream": False,
+                **request_options,
             },
         )
         choices = data.get("choices")
@@ -287,6 +342,8 @@ def _voice_id_from_payload(payload: dict[str, Any], default_voice_id: str) -> st
     if voice_id:
         return voice_id
     artifact = str(payload.get("model_artifact_url") or "").strip()
+    if artifact.startswith("minimax://system-voice/"):
+        return unquote(artifact.removeprefix("minimax://system-voice/"))
     if artifact.startswith("minimax://voice/"):
         return artifact.rsplit("/", 1)[-1]
     return default_voice_id
@@ -302,6 +359,7 @@ def _clean_text(value: str) -> str:
 
 
 def _chat_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
+    guided_system_prompt = _clean_text(str(payload.get("guided_system_prompt") or ""))
     system = "\n".join(
         [
             f"You are {payload.get('persona_name') or 'the persona'}.",
@@ -311,6 +369,7 @@ def _chat_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
             "If evidence is insufficient, say you cannot be certain.",
             "Do not claim to be an AI assistant or a resurrected real person.",
         ]
+        + ([guided_system_prompt] if guided_system_prompt else [])
     )
     messages = [{"role": "system", "content": system}]
     for item in payload.get("conversation_history") or []:
@@ -329,6 +388,10 @@ def _chat_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                     "speaking_style": payload.get("speaking_style"),
                     "emotional_style": payload.get("emotional_style"),
                     "forbidden_expressions": payload.get("forbidden_expressions"),
+                    "context_kind": payload.get("context_kind") or "general",
+                    "conversation_kind": payload.get("conversation_kind") or "chat",
+                    "system_prompt_kind": payload.get("system_prompt_kind") or "general",
+                    "guided_system_prompt": guided_system_prompt,
                     "profile_summary": payload.get("profile_summary"),
                     "long_term_memory_md": payload.get("long_term_memory_md") or "",
                     "short_term_memory_md": payload.get("short_term_memory_md") or "",
@@ -345,9 +408,11 @@ def _story_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
     system = "\n".join(
         [
             f"You are {payload.get('persona_name') or 'the persona'}.",
-            "Generate a warm first-person memory story for the user.",
-            "Use only the provided reviewed memories.",
-            "Return strict JSON with title, content, source_memory_ids, and source_memories.",
+            "用中文第一人称给用户讲一段温暖的回忆故事。",
+            "只使用用户消息提供的长期记忆 Markdown、短期记忆 Markdown 和 retrieved_memories，不要补造事实。",
+            "source_memory_ids 只能从提供的 source_memory_ids 或 retrieved_memories.id 中复制。",
+            "只返回一个 strict JSON object，字段为 title、content、source_memory_ids、source_memories。",
+            "不要输出 Markdown 代码块、解释、思考过程或 <think> 标签。",
         ]
     )
     return [
@@ -358,6 +423,9 @@ def _story_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
                 {
                     "story_theme": payload.get("story_theme"),
                     "user_nickname_by_persona": payload.get("user_nickname_by_persona"),
+                    "long_term_memory_md": payload.get("long_term_memory_md") or "",
+                    "short_term_memory_md": payload.get("short_term_memory_md") or "",
+                    "source_memory_ids": payload.get("source_memory_ids") or [],
                     "retrieved_memories": payload.get("retrieved_memories") or [],
                 }
             ),
@@ -411,15 +479,224 @@ def _persona_profile_analysis_messages(payload: dict[str, Any]) -> list[dict[str
     ]
 
 
+def _parse_memory_document_json(content: str) -> dict[str, Any]:
+    raw_content = _first_json_object(_strip_json_fence(_strip_model_thinking(content)))
+    try:
+        data = json.loads(raw_content)
+    except json.JSONDecodeError as exc:
+        raise MiniMaxProviderError(
+            "MiniMax memory document response must be strict JSON"
+        ) from exc
+    if not isinstance(data, dict):
+        raise MiniMaxProviderError("MiniMax memory document response must be a JSON object")
+    for field in MEMORY_DOCUMENT_REQUIRED_FIELDS:
+        if field not in data:
+            raise MiniMaxProviderError(f"MiniMax memory document missing field: {field}")
+
+    profile_summary = _required_string(data.get("profile_summary"), "profile_summary")
+    trust_score = data.get("trust_score")
+    if not isinstance(trust_score, int) or isinstance(trust_score, bool):
+        raise MiniMaxProviderError("MiniMax memory document trust_score must be an integer")
+    if trust_score < 0 or trust_score > 100:
+        raise MiniMaxProviderError("MiniMax memory document trust_score must be between 0 and 100")
+    trust_level = _required_string(data.get("trust_level"), "trust_level")
+    if trust_level not in MEMORY_DOCUMENT_TRUST_LEVELS:
+        raise MiniMaxProviderError(
+            "MiniMax memory document trust_level must be one of: "
+            + ", ".join(sorted(MEMORY_DOCUMENT_TRUST_LEVELS))
+        )
+    trust_rationale = _required_string(data.get("trust_rationale"), "trust_rationale")
+    suggestions = data.get("suggestions")
+    if not isinstance(suggestions, list) or not suggestions:
+        raise MiniMaxProviderError("MiniMax memory document suggestions must be a non-empty array")
+    normalized_suggestions = [
+        str(item).strip() for item in suggestions if str(item).strip()
+    ]
+    if not normalized_suggestions:
+        raise MiniMaxProviderError("MiniMax memory document suggestions must include text")
+
+    return {
+        "profile_summary": profile_summary,
+        "trust_score": trust_score,
+        "trust_level": trust_level,
+        "trust_rationale": trust_rationale,
+        "suggestions": normalized_suggestions,
+    }
+
+
+def _normalize_memory_document_json(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise MiniMaxProviderError(
+            "MiniMax memory document structured_memory_document_json must be a JSON object"
+        )
+    raw_modules = value.get("modules")
+    if not isinstance(raw_modules, dict):
+        raise MiniMaxProviderError(
+            "MiniMax memory document structured_memory_document_json.modules must be an object"
+        )
+    unknown_modules = sorted(set(raw_modules) - MEMORY_DOCUMENT_MODULE_SET)
+    if unknown_modules:
+        raise MiniMaxProviderError(
+            "MiniMax memory document modules contains unknown module: "
+            + ", ".join(unknown_modules)
+        )
+
+    modules: dict[str, list[dict[str, Any]]] = {}
+    for module in MEMORY_DOCUMENT_MODULES:
+        raw_items = raw_modules.get(module, [])
+        if not isinstance(raw_items, list):
+            raise MiniMaxProviderError(
+                f"MiniMax memory document module {module} must be an array"
+            )
+        modules[module] = [
+            _normalize_memory_document_item(item, module, index)
+            for index, item in enumerate(raw_items, start=1)
+        ]
+
+    sources = value.get("sources")
+    normalized_sources = [
+        source for source in sources if isinstance(source, dict)
+    ] if isinstance(sources, list) else []
+    unclassified = value.get("unclassified")
+    warnings = value.get("warnings")
+    return {
+        "sources": normalized_sources,
+        "modules": modules,
+        "unclassified": unclassified if isinstance(unclassified, list) else [],
+        "warnings": [str(item) for item in warnings or [] if str(item).strip()]
+        if isinstance(warnings, list)
+        else [],
+    }
+
+
+def _normalize_memory_document_item(
+    value: object,
+    module: str,
+    index: int,
+) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise MiniMaxProviderError(
+            f"MiniMax memory document module {module} item {index} must be an object"
+        )
+    title = _required_string(value.get("title"), f"{module}[{index}].title")
+    content = _required_string(value.get("content"), f"{module}[{index}].content")
+    category = str(value.get("category") or "").strip()
+    if category != module:
+        raise MiniMaxProviderError(
+            f"MiniMax memory document module {module} item {index} category must equal {module}"
+        )
+    confidence_level = str(value.get("confidence_level") or "").strip()
+    if confidence_level not in {"high", "medium", "low"}:
+        raise MiniMaxProviderError(
+            f"MiniMax memory document module {module} item {index} confidence_level is invalid"
+        )
+    confidence_score = value.get("confidence_score")
+    if not isinstance(confidence_score, int) or isinstance(confidence_score, bool):
+        raise MiniMaxProviderError(
+            f"MiniMax memory document module {module} item {index} confidence_score must be an integer"
+        )
+    if confidence_score < 0 or confidence_score > 100:
+        raise MiniMaxProviderError(
+            f"MiniMax memory document module {module} item {index} confidence_score must be between 0 and 100"
+        )
+    source_quote = _required_string(
+        value.get("source_quote"),
+        f"{module}[{index}].source_quote",
+    )
+    source_location = _required_string(
+        value.get("source_location"),
+        f"{module}[{index}].source_location",
+    )
+    normalized = {
+        **value,
+        "title": title,
+        "content": content,
+        "category": module,
+        "confidence_level": confidence_level,
+        "confidence_score": confidence_score,
+        "source_quote": source_quote,
+        "source_location": source_location,
+    }
+    if "is_important" in value:
+        normalized["is_important"] = bool(value.get("is_important"))
+    if value.get("id"):
+        normalized["id"] = str(value.get("id"))
+    if value.get("status"):
+        normalized["status"] = str(value.get("status"))
+    return normalized
+
+
+def _required_string(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise MiniMaxProviderError(f"MiniMax memory document {field} must be a non-empty string")
+    return value.strip()
+
+
+def _memory_document_generation_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
+    system = "\n".join(
+        [
+            "You evaluate the current persona memory evidence and produce profile summary and trust metadata.",
+            "Use only provided persona, material, parsed chunk, and active memory card evidence.",
+            "ONLY return one strict JSON object. Do not wrap it in Markdown fences. Do not add prose before or after JSON.",
+            "The JSON object must exactly use these required top-level fields: profile_summary, trust_score, trust_level, trust_rationale, suggestions.",
+            "profile_summary must be a non-empty Chinese string grounded in uploaded evidence and reviewed memory cards.",
+            "Do not output Markdown or structured_memory_document_json. The backend will render structured document JSON and Markdown deterministically from active MemoryCard records.",
+            "trust_score must be an integer from 0 to 100.",
+            "trust_level must be one of: initial, usable, trusted, high_trust.",
+            "trust_rationale must be a non-empty Chinese string.",
+            "suggestions must be a non-empty array of Chinese strings.",
+            "Memory cards marked is_important=true must be prioritized in profile_summary and trust rationale.",
+        ]
+    )
+    return [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": _json_context(
+                {
+                    "persona_card": payload.get("persona_card") or {},
+                    "parsed_chunks": payload.get("parsed_chunks") or [],
+                    "active_memory_cards": payload.get("active_memory_cards") or [],
+                    "source_metadata": payload.get("source_metadata") or [],
+                    "current_profile": payload.get("current_profile") or {},
+                }
+            ),
+        },
+    ]
+
+
+def _memory_document_repair_messages(
+    payload: dict[str, Any],
+    invalid_output: str,
+    validation_error: str,
+) -> list[dict[str, str]]:
+    return _memory_document_generation_messages(payload) + [
+        {
+            "role": "user",
+            "content": "\n".join(
+                [
+                    "JSON validation error:",
+                    validation_error,
+                    "Previous invalid output:",
+                    invalid_output[:4000],
+                    "Return the corrected strict JSON object only. Do not include Markdown, Markdown fences, explanation, or <think>.",
+                    "Remember: do not include structured_memory_document_json or structured_memory_md.",
+                ]
+            ),
+        }
+    ]
+
+
 def _json_context(value: dict[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, default=str)
 
 
 def _parse_story_output(content: str, payload: dict[str, Any]) -> dict[str, Any]:
+    cleaned_content = _strip_model_thinking(content)
     try:
-        data = json.loads(_strip_json_fence(content))
+        data = json.loads(_first_json_object(_strip_json_fence(cleaned_content)))
     except json.JSONDecodeError:
-        return _fallback_story_output(content, payload)
+        return _fallback_story_output(cleaned_content, payload)
     if not isinstance(data, dict):
         raise MiniMaxProviderError("MiniMax story response must be a JSON object")
     memories = payload.get("retrieved_memories") or []
@@ -430,9 +707,14 @@ def _parse_story_output(content: str, payload: dict[str, Any]) -> dict[str, Any]
     source_memories = data.get("source_memories")
     if not isinstance(source_memories, list):
         source_memories = []
+    story_content = _clean_text(_strip_model_thinking(str(data.get("content") or "")))
+    if not story_content:
+        story_content = _deterministic_story_content(payload)
     return {
-        "title": _clean_text(str(data.get("title") or payload.get("story_theme") or "")),
-        "content": _clean_text(str(data.get("content") or "")),
+        "title": _clean_text(
+            _strip_model_thinking(str(data.get("title") or payload.get("story_theme") or ""))
+        ),
+        "content": story_content,
         "source_memory_ids": [str(item) for item in source_memory_ids],
         "source_memories": source_memories,
     }
@@ -440,9 +722,12 @@ def _parse_story_output(content: str, payload: dict[str, Any]) -> dict[str, Any]
 
 def _fallback_story_output(content: str, payload: dict[str, Any]) -> dict[str, Any]:
     source_memories = _source_memories_from_payload(payload)
+    story_content = _clean_text(_strip_model_thinking(content))
+    if not story_content:
+        story_content = _deterministic_story_content(payload)
     return {
         "title": _clean_text(str(payload.get("story_theme") or "memory story")),
-        "content": _clean_text(content),
+        "content": story_content,
         "source_memory_ids": [item["memory_card_id"] for item in source_memories],
         "source_memories": source_memories,
     }
@@ -472,3 +757,70 @@ def _strip_json_fence(content: str) -> str:
         stripped = re.sub(r"^```(?:json)?\s*", "", stripped, flags=re.IGNORECASE)
         stripped = re.sub(r"\s*```$", "", stripped)
     return stripped
+
+
+def _strip_model_thinking(text: str) -> str:
+    stripped = THINK_BLOCK_RE.sub("", text)
+    stripped = THINK_CLOSE_RE.sub("", stripped)
+    if re.search(r"<think\b", stripped, re.IGNORECASE):
+        stripped = THINK_OPEN_RE.sub("", stripped)
+    return stripped.strip()
+
+
+def _first_json_object(content: str) -> str:
+    stripped = content.strip()
+    if stripped.startswith("{"):
+        candidate = _json_object_slice(stripped, 0)
+        if candidate:
+            return candidate
+    start = stripped.find("{")
+    while start >= 0:
+        candidate = _json_object_slice(stripped, start)
+        if candidate:
+            return candidate
+        start = stripped.find("{", start + 1)
+    return stripped
+
+
+def _json_object_slice(text: str, start: int) -> str | None:
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return None
+
+
+def _deterministic_story_content(payload: dict[str, Any]) -> str:
+    nickname = _clean_text(str(payload.get("user_nickname_by_persona") or "你"))
+    theme = _clean_text(str(payload.get("story_theme") or "共同回忆"))
+    lines = []
+    for memory in payload.get("retrieved_memories") or []:
+        text = _clean_text(
+            str(memory.get("content") or memory.get("quote") or memory.get("title") or "")
+        )
+        if text:
+            lines.append(text)
+    if not lines:
+        return f"{nickname}，这段关于{theme}的回忆，我还需要更多已确认的资料，不能硬说成真的。"
+    return (
+        f"{nickname}，我想给你讲一段关于{theme}的回忆。我记得"
+        f"{'；'.join(lines[:3])}。这些话只来自已经整理好的记忆来源。"
+    )

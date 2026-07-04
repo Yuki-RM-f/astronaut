@@ -58,6 +58,16 @@ CATEGORY_ALIASES = {
     "回忆素材": "story_material",
 }
 
+STRICT_MEMORY_MODULES = (
+    "basic_fact",
+    "relationship",
+    "preference",
+    "habit",
+    "expression_style",
+    "shared_event",
+)
+STRICT_MEMORY_MODULE_SET = set(STRICT_MEMORY_MODULES)
+
 
 class DashScopeProvider:
     provider_name = "dashscope"
@@ -319,20 +329,34 @@ class DashScopeProvider:
     async def _memory_extraction(self, payload: dict[str, Any]) -> dict[str, Any]:
         content = _clean_text(str(payload.get("content") or ""))
         if not content:
-            return {"memories": []}
+            return _empty_structured_memory_extraction(payload)
         prompt = (
-            "你是记忆抽取器。请从输入资料中抽取关于人物的结构化记忆。"
-            "只输出 JSON 数组，不要输出 Markdown。每条包含 title、content、category、"
-            "confidence_level、confidence_score、source_quote、source_location。"
+            "你是资料解析器。四类多模态识别结果已经被归一成文本；"
+            "你的任务是只基于输入文本，把可验证信息整理到固定资料模块。"
+            "只输出严格 JSON 对象，不要输出 Markdown、解释或多余文字。"
+            "顶层必须包含 modules、unclassified、warnings。"
+            "modules 必须且只能包含 basic_fact、relationship、preference、habit、"
+            "expression_style、shared_event 六个键，每个键的值都是数组。"
+            "每条模块记录必须包含 title、content、category、confidence_level、"
+            "confidence_score、source_quote、source_location；category 必须等于所在模块键。"
+            "source_quote 必须来自输入文本，不允许编造；证据不足或无法归类放入 unclassified。"
             "不要把推测当事实。\n\n"
-            f"来源位置：{payload.get('source_location') or ''}\n资料：\n{content}"
+            "输出示例："
+            "长文本要拆成多条可审核的原子记忆，分别放入基础事实、人物关系、偏好、习惯、表达习惯和共同经历，不要把一大段故事只总结成一个主题。"
+            '{"modules":{"basic_fact":[],"relationship":[],"preference":[],"habit":[],'
+            '"expression_style":[],"shared_event":[]},"unclassified":[],"warnings":[]}'
+            f"\n\n人物资料：{json.dumps(payload.get('persona_card') or {}, ensure_ascii=False)}"
+            f"\n来源资料：{json.dumps(payload.get('source_material') or {}, ensure_ascii=False)}"
+            f"\n来源位置：{payload.get('source_location') or ''}\n识别文本：\n{content}"
         )
         response = await self._chat_completion(
             self.settings.qwen_text_model,
             [{"role": "user", "content": prompt}],
         )
-        candidates = _json_list(response)
-        return {"memories": _normalize_memory_candidates(candidates, payload)}
+        parsed = _json_object(response)
+        if not parsed:
+            raise ProviderRequestError("DashScope memory_extraction response must be JSON object")
+        return _normalize_structured_memory_extraction(parsed, payload)
 
     async def _describe_video_frames(
         self,
@@ -496,6 +520,105 @@ def _json_value(content: str, *, default: Any) -> Any:
             return json.loads(text[start : end + 1])
         except json.JSONDecodeError:
             return default
+
+
+def _empty_structured_memory_extraction(payload: dict[str, Any]) -> dict[str, Any]:
+    structured_memory_json = {
+        "source_material_id": str(payload.get("source_material_id") or ""),
+        "modules": {module: [] for module in STRICT_MEMORY_MODULES},
+        "unclassified": [],
+        "warnings": ["识别文本为空，未生成模块化记忆"],
+    }
+    return {"structured_memory_json": structured_memory_json, "memories": []}
+
+
+def _normalize_structured_memory_extraction(
+    parsed: dict[str, Any],
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    raw_modules = parsed.get("modules")
+    if not isinstance(raw_modules, dict):
+        raise ProviderRequestError("DashScope memory_extraction JSON must include modules")
+
+    modules: dict[str, list[dict[str, Any]]] = {
+        module: [] for module in STRICT_MEMORY_MODULES
+    }
+    warnings = [str(item) for item in parsed.get("warnings") or [] if str(item).strip()]
+    unclassified = parsed.get("unclassified")
+    if not isinstance(unclassified, list):
+        unclassified = []
+
+    for raw_module, raw_items in raw_modules.items():
+        module = _strict_memory_module(raw_module)
+        if module not in STRICT_MEMORY_MODULE_SET:
+            warnings.append(f"跳过未知模块：{raw_module}")
+            if isinstance(raw_items, list):
+                unclassified.extend(raw_items)
+            continue
+        if not isinstance(raw_items, list):
+            raise ProviderRequestError(
+                f"DashScope memory_extraction module {module} must be a list"
+            )
+        for index, raw_item in enumerate(raw_items[:8], start=1):
+            normalized = _normalize_structured_memory_item(raw_item, module, payload)
+            if normalized is None:
+                warnings.append(f"跳过 {module} 第 {index} 条：缺少必填字段或来源摘录")
+                continue
+            modules[module].append(normalized)
+
+    memories = [memory for module in STRICT_MEMORY_MODULES for memory in modules[module]]
+    structured_memory_json = {
+        "source_material_id": str(
+            parsed.get("source_material_id") or payload.get("source_material_id") or ""
+        ),
+        "modules": modules,
+        "unclassified": unclassified,
+        "warnings": warnings,
+    }
+    return {"structured_memory_json": structured_memory_json, "memories": memories}
+
+
+def _normalize_structured_memory_item(
+    raw_item: Any,
+    module: str,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not isinstance(raw_item, dict):
+        return None
+    title = _clean_text(str(raw_item.get("title") or ""))
+    content = _clean_text(str(raw_item.get("content") or ""))
+    source_quote = _clean_text(str(raw_item.get("source_quote") or ""))
+    if not title or not content or not source_quote:
+        return None
+    confidence_score = raw_item.get("confidence_score", 70)
+    try:
+        confidence_score = int(confidence_score)
+    except (TypeError, ValueError):
+        confidence_score = 70
+    confidence_score = max(0, min(confidence_score, 100))
+    return {
+        "title": title,
+        "content": content,
+        "category": module,
+        "confidence_level": _confidence_level(
+            str(raw_item.get("confidence_level") or ""),
+            confidence_score,
+        ),
+        "confidence_score": confidence_score,
+        "source_quote": source_quote,
+        "source_location": str(
+            raw_item.get("source_location") or payload.get("source_location") or ""
+        ),
+    }
+
+
+def _strict_memory_module(value: Any) -> str:
+    category = _memory_category(value)
+    if category in STRICT_MEMORY_MODULE_SET:
+        return category
+    if category in {"story_material", "value", "emotional_pattern", "unknown"}:
+        return "shared_event"
+    return category
 
 
 def _normalize_memory_candidates(

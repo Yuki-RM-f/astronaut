@@ -1,6 +1,15 @@
+from types import SimpleNamespace
+
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.ai_job import AIJob
+from app.models.memory_card import MemoryCard
+from app.models.persona import Persona
+from app.models.persona_profile import PersonaProfile
+from app.models.source_material import SourceMaterial
+from app.services import parsing
+from app.services.profile import generate_memory_document_trust, get_or_create_profile
 
 
 def auth(token: str) -> dict[str, str]:
@@ -44,6 +53,7 @@ def create_manual_material(
     token: str,
     persona_id: str,
     manual_text: str = "外婆喜欢包馄饨。她常说慢慢来。",
+    db_session=None,
 ) -> dict:
     response = client.post(
         f"/api/personas/{persona_id}/materials/manual",
@@ -51,7 +61,17 @@ def create_manual_material(
         json={"manual_text": manual_text, "importance": "very_important"},
     )
     assert response.status_code == 201
-    return response.json()
+    body = response.json()
+    if db_session is not None:
+        material = db_session.get(SourceMaterial, body["id"])
+        assert material is not None
+        job = db_session.get(AIJob, body["jobs"][0]["id"])
+        assert job is not None
+        assert material.parse_status == "pending"
+        assert job.status == "pending"
+        parsing.run_parse_job(db_session, material, job)
+        db_session.commit()
+    return body
 
 
 def list_memories(client, token: str, persona_id: str) -> list[dict]:
@@ -87,6 +107,178 @@ def assert_basic_facts_include_age(body: dict, age: int = 72):
     } in body["basic_facts"]
 
 
+def test_memory_document_modules_are_rendered_from_active_memory_cards_only(
+    client,
+    db_session,
+):
+    token = register_user(client, "profile-card-source@example.com")
+    persona_body = create_persona(client, token)
+    persona = db_session.get(Persona, persona_body["id"])
+    assert persona is not None
+
+    succeeded_material = SourceMaterial(
+        user_id=persona.user_id,
+        persona_id=persona.id,
+        file_type="manual",
+        manual_text="外婆喜欢包馄饨，也常说慢慢来。",
+        importance="normal",
+        parse_status="succeeded",
+    )
+    failed_material = SourceMaterial(
+        user_id=persona.user_id,
+        persona_id=persona.id,
+        file_type="manual",
+        manual_text="失败资料不应进入结构化文档来源。",
+        importance="normal",
+        parse_status="failed",
+    )
+    db_session.add_all([succeeded_material, failed_material])
+    db_session.flush()
+
+    card = MemoryCard(
+        persona_id=persona.id,
+        title="外婆喜欢包馄饨",
+        content="外婆喜欢包馄饨。",
+        category="preference",
+        confidence_level="high",
+        confidence_score=92,
+        source_material_id=succeeded_material.id,
+        source_type="manual",
+        source_quote="外婆喜欢包馄饨",
+        source_location="manual:body",
+        evidence_json={},
+        status="pending_review",
+        is_important=False,
+        created_by="system",
+    )
+    db_session.add(card)
+    db_session.flush()
+
+    def fake_runner(capability: str, payload: dict):
+        assert capability == "memory_document_generation"
+        return {
+            "provider_type": "third_party",
+            "provider_name": "minimax",
+            "output": {
+                "profile_summary": "外婆的档案摘要来自模型。",
+                "structured_memory_document_json": {
+                    "sources": [
+                        {
+                            "id": failed_material.id,
+                            "file_type": "manual",
+                            "label": "失败资料",
+                            "parse_status": "failed",
+                        }
+                    ],
+                    "modules": {
+                        "basic_fact": [
+                            {
+                                "id": "rogue-parsed-chunk",
+                                "title": "模型额外总结",
+                                "content": "这条没有对应 MemoryCard。",
+                                "category": "basic_fact",
+                                "confidence_level": "medium",
+                                "confidence_score": 70,
+                                "source_quote": "没有对应 MemoryCard",
+                                "source_location": "parsed_chunk:1",
+                                "status": "pending_review",
+                                "is_important": False,
+                            }
+                        ],
+                        "relationship": [],
+                        "preference": [],
+                        "habit": [],
+                        "expression_style": [],
+                        "shared_event": [],
+                    },
+                    "unclassified": [],
+                    "warnings": [],
+                },
+                "trust_score": 80,
+                "trust_level": "trusted",
+                "trust_rationale": "模型返回的可信度仍可使用。",
+                "suggestions": ["继续补充资料"],
+            },
+        }
+
+    _report, _payload, output, _provider_type, _provider_name = generate_memory_document_trust(
+        db_session,
+        persona,
+        runner=fake_runner,
+    )
+
+    document_json = output["structured_memory_document_json"]
+    module_items = [
+        item
+        for items in document_json["modules"].values()
+        for item in items
+    ]
+    assert [item["id"] for item in module_items] == [card.id]
+    assert document_json["sources"] == [
+        {
+            "id": succeeded_material.id,
+            "file_type": "manual",
+            "label": "外婆喜欢包馄饨，也常说慢慢来。",
+            "parse_status": "succeeded",
+        }
+    ]
+    assert "rogue-parsed-chunk" not in output["structured_memory_md"]
+    assert "这条没有对应 MemoryCard" not in output["structured_memory_md"]
+    assert "外婆喜欢包馄饨" in output["structured_memory_md"]
+
+
+class RacingProfileSession:
+    def __init__(self, existing_profile: PersonaProfile):
+        self.existing_profile = existing_profile
+        self.scalar_calls = 0
+        self.added_profiles: list[PersonaProfile] = []
+
+    def scalar(self, _statement):
+        self.scalar_calls += 1
+        if self.scalar_calls == 1:
+            return None
+        return self.existing_profile
+
+    def add(self, profile: PersonaProfile):
+        self.added_profiles.append(profile)
+
+    def flush(self):
+        raise IntegrityError("insert persona profile", {}, Exception("duplicate key"))
+
+    def begin_nested(self):
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback):
+        return False
+
+
+def test_get_or_create_profile_recovers_from_concurrent_insert():
+    persona = SimpleNamespace(id="persona-race")
+    existing_profile = PersonaProfile(
+        persona_id=persona.id,
+        basic_facts=[],
+        relationships=[],
+        preferences=[],
+        habits=[],
+        expression_style=[],
+        shared_events=[],
+        values_json=[],
+        emotional_patterns=[],
+        profile_summary=None,
+        source_memory_ids={},
+    )
+    db = RacingProfileSession(existing_profile)
+
+    profile = get_or_create_profile(db, persona)
+
+    assert profile is existing_profile
+    assert db.scalar_calls == 2
+    assert len(db.added_profiles) == 1
+
+
 def test_profile_basic_facts_include_user_filled_age_from_persona_card(client):
     token = register_user(client, "m4-profile-age@example.com")
     persona = create_persona(client, token)
@@ -98,18 +290,19 @@ def test_profile_basic_facts_include_user_filled_age_from_persona_card(client):
     assert_basic_facts_include_age(body)
 
 
-def test_confirmed_memory_generates_profile_and_changes_trust(client):
+def test_confirmed_memory_generates_profile_without_recalculating_trust(client, db_session):
     token = register_user(client, "m4-profile@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session=db_session)
     memories = list_memories(client, token, persona["id"])
 
     before = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token)).json()
     confirmed = client.post(f"/api/memories/{memories[0]['id']}/confirm", headers=auth(token)).json()
     after = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token)).json()
 
+    assert before["trust_score"] > 0
     assert confirmed["status"] == "confirmed"
-    assert after["trust_score"] > before["trust_score"]
+    assert after["trust_score"] == before["trust_score"]
     assert after["source_memory_ids"]
     assert after["profile_summary"]
     assert memories[0]["id"] in source_memory_ids(after)
@@ -162,10 +355,10 @@ def test_patch_profile_rejects_explicit_null_dimension(client):
     assert response.status_code == 422
 
 
-def test_manual_profile_edits_survive_memory_audit_refresh(client):
+def test_manual_profile_edits_survive_memory_audit_refresh(client, db_session):
     token = register_user(client, "m4-profile-manual-survives@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session=db_session)
     memories = list_memories(client, token, persona["id"])
     for memory in memories:
         confirmed = client.post(f"/api/memories/{memory['id']}/confirm", headers=auth(token))
@@ -200,14 +393,39 @@ def test_manual_profile_edits_survive_memory_audit_refresh(client):
     assert body["profile_summary"] == manual_summary
 
 
+def test_upload_generated_profile_summary_overwrites_manual_summary(client, db_session):
+    token = register_user(client, "m4-profile-summary-overwrite@example.com")
+    persona = create_persona(client, token)
+    create_manual_material(client, token, persona["id"], "first uploaded memory", db_session)
+
+    patched = client.patch(
+        f"/api/personas/{persona['id']}/profile",
+        headers=auth(token),
+        json={"profile_summary": "temporary manual summary"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["profile_summary"] == "temporary manual summary"
+
+    create_manual_material(client, token, persona["id"], "second uploaded memory", db_session)
+
+    refreshed = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token))
+    assert refreshed.status_code == 200
+    body = refreshed.json()
+    assert body["profile_summary"]
+    assert body["profile_summary"] != "temporary manual summary"
+
+
 def test_profile_regenerate_rebuilds_from_confirmed_and_corrected_memories(
     client,
     db_session,
 ):
     token = register_user(client, "m4-profile-regenerate@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session=db_session)
     memories = list_memories(client, token, persona["id"])
+    before = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token))
+    assert before.status_code == 200
+    before_summary = before.json()["profile_summary"]
     client.post(f"/api/memories/{memories[0]['id']}/confirm", headers=auth(token))
     corrected = client.patch(
         f"/api/memories/{memories[1]['id']}",
@@ -225,15 +443,18 @@ def test_profile_regenerate_rebuilds_from_confirmed_and_corrected_memories(
     assert response.status_code == 200
     assert memories[0]["id"] in source_memory_ids(body)
     assert memories[1]["id"] in source_memory_ids(body)
-    assert "慢慢来" in body["profile_summary"]
+    assert body["profile_summary"] == before_summary
     assert job_count(db_session, persona["id"], "update_profile") == 1
 
 
 def test_profile_regenerate_stores_persona_engine_json_and_records_job(client, db_session):
     token = register_user(client, "m4-profile-engine@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session=db_session)
     memories = list_memories(client, token, persona["id"])
+    before = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token))
+    assert before.status_code == 200
+    before_summary = before.json()["profile_summary"]
     client.post(f"/api/memories/{memories[0]['id']}/confirm", headers=auth(token))
 
     response = client.post(
@@ -246,7 +467,7 @@ def test_profile_regenerate_stores_persona_engine_json_and_records_job(client, d
     assert body["persona_engine_json"]["persona_version"] == "persona_engine_v2_mock"
     assert body["persona_engine_json"]["overall_confidence"] >= 0
     assert body["persona_engine_generated_at"] is not None
-    assert memories[0]["content"] in body["profile_summary"]
+    assert body["profile_summary"] == before_summary
 
     job = db_session.scalars(
         select(AIJob)
@@ -259,10 +480,10 @@ def test_profile_regenerate_stores_persona_engine_json_and_records_job(client, d
     assert job.output_json["persona_engine_json"]["persona_version"] == "persona_engine_v2_mock"
 
 
-def test_recalculate_trust_returns_breakdown_and_records_job(client, db_session):
+def test_recalculate_trust_reruns_memory_document_generation_and_records_job(client, db_session):
     token = register_user(client, "m4-profile-trust@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
+    create_manual_material(client, token, persona["id"], db_session=db_session)
     for memory in list_memories(client, token, persona["id"]):
         client.post(f"/api/memories/{memory['id']}/confirm", headers=auth(token))
 
@@ -273,25 +494,55 @@ def test_recalculate_trust_returns_breakdown_and_records_job(client, db_session)
     body = response.json()
 
     assert response.status_code == 200
-    assert 0 <= body["trust_score"] <= 100
-    assert 61 <= body["trust_score"] <= 80
-    assert body["trust_level"] == "trusted"
+    assert 0 < body["trust_score"] <= 100
+    assert body["trust_level"] in {"initial", "usable", "trusted", "high_trust"}
     assert body["suggestions"]
     assert {component["name"] for component in body["components"]} == {
-        "material_coverage",
-        "memory_review_rate",
-        "source_traceability",
-        "expression_habit_completeness",
-        "multimodal_completeness",
+        "memory_document_generation"
     }
-    assert {component["name"]: component["weight"] for component in body["components"]} == {
-        "material_coverage": 0.25,
-        "memory_review_rate": 0.25,
-        "source_traceability": 0.2,
-        "expression_habit_completeness": 0.15,
-        "multimodal_completeness": 0.15,
-    }
-    assert job_count(db_session, persona["id"], "calculate_trust_score") == 1
+    job = db_session.scalars(
+        select(AIJob)
+        .where(AIJob.persona_id == persona["id"], AIJob.job_type == "calculate_trust_score")
+        .order_by(AIJob.created_at.desc())
+    ).first()
+    assert job is not None
+    assert "## 资料来源" in job.output_json["structured_memory_md"]
+    assert job.output_json["trust_score"] == body["trust_score"]
+
+
+def test_profile_get_displays_persona_trust_score_when_job_output_differs(client, db_session):
+    token = register_user(client, "m4-profile-single-trust-field@example.com")
+    persona = create_persona(client, token)
+    stored_persona = db_session.get(Persona, persona["id"])
+    assert stored_persona is not None
+    stored_persona.trust_score = 37
+    db_session.add(
+        AIJob(
+            user_id=stored_persona.user_id,
+            persona_id=stored_persona.id,
+            job_type="parse_material",
+            provider_type="mock",
+            provider_name="mock",
+            status="succeeded",
+            input_json={},
+            output_json={
+                "profile_summary": "job summary",
+                "structured_memory_md": "## 资料来源\n- old",
+                "trust_score": 88,
+                "trust_level": "high_trust",
+                "trust_rationale": "old job output",
+                "suggestions": ["old suggestion"],
+            },
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/personas/{persona['id']}/profile", headers=auth(token))
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["trust_score"] == 37
+    assert body["trust_level"] == "usable"
 
 
 def test_profile_routes_are_user_scoped(client):
@@ -327,11 +578,17 @@ def test_profile_routes_are_user_scoped(client):
     )
 
 
-def test_disabled_rejected_deleted_memories_do_not_enter_generated_profile(client):
+def test_disabled_rejected_deleted_memories_do_not_enter_generated_profile(client, db_session):
     token = register_user(client, "m4-profile-exclude@example.com")
     persona = create_persona(client, token)
-    create_manual_material(client, token, persona["id"])
-    create_manual_material(client, token, persona["id"], "我们一起过生日。外婆喜欢桂花糕。")
+    create_manual_material(client, token, persona["id"], db_session=db_session)
+    create_manual_material(
+        client,
+        token,
+        persona["id"],
+        "我们一起过生日。外婆喜欢桂花糕。",
+        db_session,
+    )
     memories = list_memories(client, token, persona["id"])
     for memory in memories:
         client.post(f"/api/memories/{memory['id']}/confirm", headers=auth(token))

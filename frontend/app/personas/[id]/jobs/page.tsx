@@ -9,6 +9,7 @@ import {
   StarPanel,
   StarShell
 } from "@/src/components/StarSite";
+import { PersonaBackLink } from "@/src/components/PersonaBackLink";
 import { ensureDemoSession } from "@/src/lib/auth";
 import {
   AIJobRead,
@@ -109,12 +110,12 @@ export default function PersonaJobsPage() {
     <StarShell>
       <StarNav />
       <main className="mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8 lg:px-10">
-        <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-starGold">
-          <Link href={personaId ? ROUTES.personaDetail(personaId) : ROUTES.dashboard}>
-            返回星星
+        {!personaId ? (
+          <Link href={ROUTES.dashboard} className="text-sm font-bold text-starGold">
+            返回我的星空
           </Link>
-          {personaId ? <Link href={ROUTES.personaUploads(personaId)}>上传资料</Link> : null}
-        </div>
+        ) : null}
+        {personaId ? <PersonaBackLink personaId={personaId} /> : null}
 
         <PageTitle
           className="mt-6"
@@ -129,6 +130,22 @@ export default function PersonaJobsPage() {
           <div className="mt-8 grid gap-6">
             {error ? <Alert tone="error" text={error} /> : null}
             {notice ? <Alert tone="success" text={notice} /> : null}
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <StatusSummary label="全部任务" value={jobs.length} />
+              <StatusSummary
+                label="进行中"
+                value={jobs.filter((job) => ["pending", "running"].includes(job.status)).length}
+              />
+              <StatusSummary
+                label="已完成"
+                value={jobs.filter((job) => job.status === "succeeded").length}
+              />
+              <StatusSummary
+                label="需处理"
+                value={jobs.filter((job) => ["failed", "canceled"].includes(job.status)).length}
+              />
+            </div>
 
             <StarPanel className="p-5">
               <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -214,6 +231,15 @@ function JobCard({
         </div>
       </div>
     </article>
+  );
+}
+
+function StatusSummary({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/6 p-4">
+      <dt className="text-xs font-bold text-starMist/52">{label}</dt>
+      <dd className="mt-1 text-2xl font-bold text-starCream">{value}</dd>
+    </div>
   );
 }
 

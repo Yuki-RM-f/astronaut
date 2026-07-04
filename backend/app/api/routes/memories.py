@@ -139,6 +139,7 @@ def create_memory(
         source_location=payload.source_location,
         evidence_json=payload.evidence_json,
         status=payload.status,
+        is_important=payload.is_important,
         created_by="user",
     )
     db.add(memory)

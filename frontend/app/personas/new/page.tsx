@@ -2,7 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { CalendarDays, FileText, ImageIcon, Mic, Sparkles, Video } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  FileText,
+  ImageIcon,
+  Mic,
+  Sparkles,
+  Video
+} from "lucide-react";
 import {
   PageTitle,
   StarButton,
@@ -12,12 +20,21 @@ import {
   StarShell,
   TwinkleLabel
 } from "@/src/components/StarSite";
+import { UploadMemoryTile } from "@/src/components/UploadMemoryTile";
 import { ensureDemoSession } from "@/src/lib/auth";
-import { createPersona, PersonaDraft } from "@/src/lib/persona";
-import { uploadMaterials } from "@/src/lib/materials";
+import {
+  buildCreatePersonaProgress,
+  buildCreatePersonaShortBio,
+  createPersona,
+  type CreatePersonaProcessingStage,
+  type PersonaDraft
+} from "@/src/lib/persona";
+import { describeSelectedUploadFiles, uploadMaterials } from "@/src/lib/materials";
 import { ROUTES } from "@/src/lib/routes";
 
 type UploadKind = "照片" | "视频" | "声音" | "文字";
+
+const CREATION_STEPS = ["资料卡片", "上传回忆", "保存并进入审核"] as const;
 
 export default function NewPersonaPage() {
   const router = useRouter();
@@ -38,13 +55,20 @@ export default function NewPersonaPage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadRecoveryPersonaId, setUploadRecoveryPersonaId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [processingStage, setProcessingStage] = useState<CreatePersonaProcessingStage | null>(null);
+  const selectedUploadFiles = describeSelectedUploadFiles(uploads);
+  const processingProgress = processingStage
+    ? buildCreatePersonaProgress(processingStage, selectedUploadFiles.length)
+    : null;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setUploadRecoveryPersonaId(null);
+    setProcessingStage(null);
 
     if (!name.trim() || !relationship.trim() || !nickname.trim() || !isValidAge(age)) {
-      setError("请至少填写姓名、与我的关系、TA 对你的称谓和 1-150 之间的年龄/享年。");
+      setError("请至少填写姓名、TA 是我的、TA 对你的称谓和 1-150 之间的年龄/享年。");
       return;
     }
 
@@ -58,36 +82,34 @@ export default function NewPersonaPage() {
       user_nickname_by_persona: nickname,
       age,
       gender,
-      short_bio: [
-        birthDate ? `${birthDate} 出生` : "",
-        message ? `想对TA说：${message}` : "",
-        "由星记创建的专属星星。"
-      ]
-        .filter(Boolean)
-        .join("\n")
+      short_bio: buildCreatePersonaShortBio({ birthDate, message })
     };
 
     setIsSubmitting(true);
     try {
+      setProcessingStage("demo_session");
       await ensureDemoSession();
+      setProcessingStage("persona_card");
       const created = await createPersona(draft);
       const files = Object.values(uploads).flat();
       if (files.length > 0) {
+        setProcessingStage("upload_memories");
         try {
           await uploadMaterials(created.id, {
-            files,
-            importance: "important",
-            user_description: "创建星星页上传的珍贵回忆"
+            files
           });
         } catch {
           setUploadRecoveryPersonaId(created.id);
           setError("星星已保存，但资料上传失败。请进入资料上传页继续补传。");
+          setProcessingStage(null);
           return;
         }
       }
-      router.push(ROUTES.personaMemories(created.id));
+      setProcessingStage("review_entry");
+      router.push(ROUTES.personaUploads(created.id));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "无法保存这颗星星。");
+      setProcessingStage(null);
     } finally {
       setIsSubmitting(false);
     }
@@ -102,7 +124,9 @@ export default function NewPersonaPage() {
           title="为TA创建专属星星"
         />
 
-        <form onSubmit={handleSubmit} className="mt-7 grid gap-5 md:grid-cols-[0.95fr_1.05fr]">
+        <CreationStepStrip />
+
+        <form onSubmit={handleSubmit} className="mt-7 grid gap-5 pb-32 md:grid-cols-[0.95fr_1.05fr] md:pb-0">
           <StarPanel className="p-6 sm:p-8">
             <h2 className="font-serif text-2xl font-bold text-starGold">TA的资料卡片</h2>
             <div className="mt-7 grid gap-5">
@@ -115,18 +139,13 @@ export default function NewPersonaPage() {
                 />
               </StarInput>
 
-              <StarInput label="与我的关系">
-                <select
+              <StarInput label="TA是我的">
+                <input
                   value={relationship}
                   onChange={(event) => setRelationship(event.target.value)}
                   className="star-input"
-                >
-                  <option value="">选择你们的关系</option>
-                  <option value="家人">家人</option>
-                  <option value="朋友">朋友</option>
-                  <option value="爱人">爱人</option>
-                  <option value="老师">老师</option>
-                </select>
+                  placeholder="例如：妈妈、外婆、朋友、老师"
+                />
               </StarInput>
 
               <StarInput label="TA对你的称谓">
@@ -192,13 +211,13 @@ export default function NewPersonaPage() {
                 </div>
               </div>
 
-              <StarInput label="想对TA说的话（选填）">
+              <StarInput label="有关TA的一切都可以写在这里">
                 <div className="relative">
                   <textarea
                     value={message}
                     onChange={(event) => setMessage(event.target.value.slice(0, 200))}
                     className="star-input min-h-24 resize-none pb-8"
-                    placeholder="写下你想对TA说的话..."
+                    placeholder="TA的兴趣爱好、性格特征等"
                   />
                   <span className="absolute bottom-3 right-4 text-xs text-starMist/46">
                     {message.length}/200
@@ -216,7 +235,7 @@ export default function NewPersonaPage() {
               </span>
             </div>
             <div className="mt-7 grid gap-4 sm:grid-cols-2">
-              <UploadTile
+              <UploadMemoryTile
                 kind="照片"
                 label="上传照片"
                 icon={ImageIcon}
@@ -224,7 +243,7 @@ export default function NewPersonaPage() {
                 accept="image/*"
                 onPick={(files) => setUploads((current) => ({ ...current, 照片: files }))}
               />
-              <UploadTile
+              <UploadMemoryTile
                 kind="视频"
                 label="上传视频"
                 icon={Video}
@@ -232,7 +251,7 @@ export default function NewPersonaPage() {
                 accept="video/*"
                 onPick={(files) => setUploads((current) => ({ ...current, 视频: files }))}
               />
-              <UploadTile
+              <UploadMemoryTile
                 kind="声音"
                 label="上传音频"
                 icon={Mic}
@@ -240,7 +259,7 @@ export default function NewPersonaPage() {
                 accept="audio/*"
                 onPick={(files) => setUploads((current) => ({ ...current, 声音: files }))}
               />
-              <UploadTile
+              <UploadMemoryTile
                 kind="文字"
                 label="记录文字"
                 icon={FileText}
@@ -249,12 +268,35 @@ export default function NewPersonaPage() {
                 onPick={(files) => setUploads((current) => ({ ...current, 文字: files }))}
               />
             </div>
+            {selectedUploadFiles.length > 0 ? (
+              <div className="mt-6 rounded-2xl border border-starGold/14 bg-indigo-950/24 p-4">
+                <h3 className="text-sm font-bold text-starGold">已选择待上传的回忆</h3>
+                <ul className="mt-3 grid gap-2">
+                  {selectedUploadFiles.map((file, index) => (
+                    <li
+                      key={`${file.kind}-${file.name}-${index}`}
+                      className="grid gap-2 rounded-xl border border-white/8 bg-white/[0.04] px-3 py-3 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                    >
+                      <span className="w-fit rounded-full border border-starGold/18 bg-starGold/10 px-3 py-1 text-xs font-bold text-starGold">
+                        {file.kind}
+                      </span>
+                      <span className="min-w-0 break-all font-semibold text-starCream">
+                        {file.name}
+                      </span>
+                      <span className="text-xs font-semibold text-starMist/54 sm:text-right">
+                        {file.typeLabel} · {file.sizeLabel}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <p className="mt-6 text-sm font-semibold leading-7 text-starMist/58">
               文件内容严格保密，仅您可见
             </p>
           </StarPanel>
 
-          <div className="md:col-span-2">
+          <div className="fixed inset-x-4 bottom-4 z-40 rounded-[1.5rem] border border-white/10 bg-indigo-950/88 p-4 shadow-[0_-18px_52px_rgba(0,0,0,0.28)] backdrop-blur md:static md:col-span-2 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-0">
             {error ? (
               <div className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-500/15 p-4 text-center text-sm font-semibold text-rose-100">
                 {error}
@@ -275,6 +317,25 @@ export default function NewPersonaPage() {
                 <Sparkles className="ml-3 h-5 w-5" />
               </StarButton>
             </div>
+            {processingProgress ? (
+              <div className="mx-auto mt-4 w-full max-w-xl" aria-live="polite">
+                <div className="h-3 overflow-hidden rounded-full border border-starGold/24 bg-indigo-950/48 shadow-inner shadow-black/20">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-starGold via-amber-200 to-starGold transition-[width] duration-300 ease-out"
+                    role="progressbar"
+                    aria-label="保存星星进度"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={processingProgress.percent}
+                    aria-valuetext={processingProgress.label}
+                    style={{ width: `${processingProgress.percent}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-center text-sm font-semibold text-starMist/66">
+                  {processingProgress.label}
+                </p>
+              </div>
+            ) : null}
             <p className="mt-3 text-center text-xs font-semibold text-starMist/42">
               保存后可继续补充和修改，让这颗星星更完整。
             </p>
@@ -302,38 +363,26 @@ function Radio({
   );
 }
 
-function UploadTile({
-  kind,
-  label,
-  icon: Icon,
-  count,
-  accept,
-  onPick
-}: {
-  kind: UploadKind;
-  label: string;
-  icon: typeof ImageIcon;
-  count: number;
-  accept: string;
-  onPick: (files: File[]) => void;
-}) {
+function CreationStepStrip() {
   return (
-    <label className="grid min-h-[8.6rem] cursor-pointer place-items-center rounded-2xl border border-dashed border-starGold/20 bg-indigo-950/18 p-5 text-center transition hover:border-starGold/50 hover:bg-indigo-900/24">
-      <input
-        type="file"
-        accept={accept}
-        multiple
-        className="sr-only"
-        onChange={(event) => onPick(Array.from(event.target.files ?? []))}
-      />
-      <span className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/22 text-violet-200 shadow-[0_0_30px_rgba(181,128,255,0.35)]">
-        <Icon className="h-8 w-8" />
-      </span>
-      <span className="mt-3 block text-lg font-bold text-starCream">{kind}</span>
-      <span className="block text-sm font-semibold text-starMist/52">
-        {count > 0 ? `已选择 ${count} 个文件` : label}
-      </span>
-    </label>
+    <section
+      className="mx-auto mt-6 grid max-w-4xl gap-3 rounded-[1.4rem] border border-starGold/14 bg-indigo-950/28 p-3 shadow-[0_12px_34px_rgba(0,0,0,0.18)] sm:grid-cols-3"
+      aria-label="创建档案流程"
+    >
+      {CREATION_STEPS.map((step, index) => (
+        <div key={step} className="flex items-center gap-3 rounded-2xl bg-white/[0.04] px-4 py-3">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-starGold/14 text-starGold">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span>
+            <span className="block text-xs font-black tracking-[0.12em] text-starGold/78">
+              STEP {index + 1}
+            </span>
+            <span className="block text-sm font-bold text-starCream">{step}</span>
+          </span>
+        </div>
+      ))}
+    </section>
   );
 }
 

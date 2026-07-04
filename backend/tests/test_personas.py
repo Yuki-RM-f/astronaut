@@ -14,6 +14,7 @@ from app.models.source_material import SourceMaterial
 from app.models.user import User
 from app.models.voice_avatar import AvatarModel, VoiceModel
 from app.services import memory_markdown
+from app.services import avatar as avatar_service
 
 
 PATCH_REQUIRED_FIELDS = [
@@ -417,10 +418,29 @@ def test_delete_persona_soft_deletes_prd_related_records(
     )
     assert context_dir.exists()
 
+    monkeypatch.setattr(
+        avatar_service,
+        "LOCAL_AVATAR_MODELS_ROOT",
+        tmp_path / "avatar_models",
+        raising=False,
+    )
+    avatar_upload = client.post(
+        f"/api/personas/{created['id']}/avatar/upload",
+        headers=auth(token),
+        files={"file": ("waipo.glb", b"glb-model-bytes", "model/gltf-binary")},
+    )
+    assert avatar_upload.status_code == 201
+    uploaded_avatar_id = avatar_upload.json()["selected_avatar_model"]["id"]
+    uploaded_avatar_path = next(
+        (tmp_path / "avatar_models").rglob(f"{uploaded_avatar_id}-*.glb")
+    )
+    assert uploaded_avatar_path.exists()
+
     response = client.delete(f"/api/personas/{created['id']}", headers=auth(token))
 
     assert response.status_code == 204
     assert not storage_path.exists()
+    assert not uploaded_avatar_path.exists()
     assert not context_dir.exists()
     assert client.get(f"/api/jobs/{job.id}", headers=auth(token)).status_code == 404
     db_session.expire_all()

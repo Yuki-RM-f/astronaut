@@ -74,6 +74,7 @@ def test_settings_accept_dashscope_and_tripo_runtime_values(monkeypatch):
         "QWEN_VISION_MODEL",
         "QWEN_OCR_MODEL",
         "QWEN_ASR_MODEL",
+        "DASHSCOPE_REQUEST_TIMEOUT_SECONDS",
         "TRIPO_API_KEY",
         "TRIPO_BASE_URL",
     ]:
@@ -91,6 +92,7 @@ def test_settings_accept_dashscope_and_tripo_runtime_values(monkeypatch):
             "QWEN_VISION_MODEL": "qwen3.7-plus",
             "QWEN_OCR_MODEL": "qwen-vl-ocr-latest",
             "QWEN_ASR_MODEL": "qwen3-asr-flash",
+            "DASHSCOPE_REQUEST_TIMEOUT_SECONDS": "240",
             "TRIPO_API_KEY": "tripo-secret",
             "TRIPO_BASE_URL": "https://api.tripo3d.ai",
         },
@@ -111,10 +113,24 @@ def test_settings_accept_dashscope_and_tripo_runtime_values(monkeypatch):
     assert settings.qwen_vision_model == "qwen3.7-plus"
     assert settings.qwen_ocr_model == "qwen-vl-ocr-latest"
     assert settings.qwen_asr_model == "qwen3-asr-flash"
+    assert settings.dashscope_request_timeout_seconds == 240
     assert settings.tripo_api_key == "tripo-secret"
     assert settings.tripo_base_url == "https://api.tripo3d.ai"
     assert "dashscope-secret" not in repr(settings)
     assert "tripo-secret" not in repr(settings)
+
+
+def test_settings_use_longer_dashscope_timeout_default(monkeypatch):
+    monkeypatch.delenv("DASHSCOPE_REQUEST_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setattr(config, "_load_runtime_env", dict)
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+    finally:
+        get_settings.cache_clear()
+
+    assert settings.dashscope_request_timeout_seconds == 180
 
 
 def test_settings_accept_minimax_voice_runtime_from_openai_aliases(monkeypatch):
@@ -151,6 +167,38 @@ def test_settings_accept_minimax_voice_runtime_from_openai_aliases(monkeypatch):
     assert settings.minimax_clone_model == "speech-2.8-hd"
     assert settings.minimax_default_voice_id == "male-qn-qingse"
     assert "minimax-secret" not in repr(settings)
+
+
+def test_settings_accept_openai_next_text_fallback_runtime_values(monkeypatch):
+    for key in [
+        "OPENAI_NEXT_API_KEY",
+        "OPENAI_NEXT_BASE_URL",
+        "OPENAI_NEXT_MODEL",
+        "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS",
+    ]:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(
+        config,
+        "_load_runtime_env",
+        lambda: {
+            "OPENAI_NEXT_API_KEY": "openai-next-secret",
+            "OPENAI_NEXT_BASE_URL": "https://api.openai-next.com/v1",
+            "OPENAI_NEXT_MODEL": "gpt-5",
+            "OPENAI_NEXT_REQUEST_TIMEOUT_SECONDS": "75",
+        },
+    )
+    get_settings.cache_clear()
+
+    try:
+        settings = get_settings()
+    finally:
+        get_settings.cache_clear()
+
+    assert settings.openai_next_api_key == "openai-next-secret"
+    assert settings.openai_next_base_url == "https://api.openai-next.com/v1"
+    assert settings.openai_next_model == "gpt-5"
+    assert settings.openai_next_request_timeout_seconds == 75
+    assert "openai-next-secret" not in repr(settings)
 
 
 def test_settings_no_longer_exposes_local_embedding_runtime_values(monkeypatch):

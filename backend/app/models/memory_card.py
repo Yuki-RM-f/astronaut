@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -32,6 +32,11 @@ class MemoryCard(Base):
     source_location: Mapped[str | None] = mapped_column(Text)
     evidence_json: Mapped[dict | list | None] = mapped_column(JSON)
     status: Mapped[str] = mapped_column(String(50), default="pending_review")
+    is_important: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default="false",
+    )
     user_correction: Mapped[str | None] = mapped_column(Text)
     created_by: Mapped[str] = mapped_column(String(50), default="system")
     embedding: Mapped[list | None] = mapped_column(JSON)

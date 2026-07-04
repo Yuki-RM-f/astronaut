@@ -166,6 +166,77 @@ def test_create_and_list_conversations_are_user_scoped(client):
     assert blocked.status_code == 404
 
 
+def test_conversation_kind_defaults_and_filters_by_guided_room(client):
+    token = register_user(client, "chat-kind@example.com")
+    persona = create_persona(client, token)
+
+    default_conversation = create_conversation(client, token, persona["id"], "普通对话")
+    regrets_response = client.post(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+        json={"title": "遗憾对话室", "kind": "regrets"},
+    )
+    assert regrets_response.status_code == 201
+    regrets_conversation = regrets_response.json()
+
+    assert default_conversation["kind"] == "chat"
+    assert regrets_conversation["kind"] == "regrets"
+
+    all_conversations = client.get(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+    )
+    assert all_conversations.status_code == 200
+    assert {item["kind"] for item in all_conversations.json()["items"]} == {
+        "chat",
+        "regrets",
+    }
+
+    filtered = client.get(
+        f"/api/personas/{persona['id']}/conversations?kind=regrets",
+        headers=auth(token),
+    )
+    assert filtered.status_code == 200
+    assert [item["id"] for item in filtered.json()["items"]] == [regrets_conversation["id"]]
+
+
+def test_context_kind_alias_supports_wishes_filter(client):
+    token = register_user(client, "chat-context-kind-wishes@example.com")
+    persona = create_persona(client, token)
+    default_conversation = create_conversation(client, token, persona["id"], "普通对话")
+    wishes_response = client.post(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+        json={"title": "心愿延续系统", "context_kind": "wishes"},
+    )
+    assert wishes_response.status_code == 201
+    wishes_conversation = wishes_response.json()
+
+    assert default_conversation["context_kind"] == "general"
+    assert wishes_conversation["kind"] == "wishes"
+    assert wishes_conversation["context_kind"] == "wishes"
+
+    filtered = client.get(
+        f"/api/personas/{persona['id']}/conversations?context_kind=wishes",
+        headers=auth(token),
+    )
+    assert filtered.status_code == 200
+    assert [item["id"] for item in filtered.json()["items"]] == [wishes_conversation["id"]]
+
+
+def test_invalid_conversation_kind_is_rejected(client):
+    token = register_user(client, "chat-kind-invalid@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+        json={"title": "未知对话", "kind": "memory_room"},
+    )
+
+    assert response.status_code == 422
+
+
 def test_delete_conversation_soft_deletes_messages_and_citations(client, db_session):
     token = register_user(client, "chat-delete@example.com")
     persona = create_persona(client, token)
@@ -593,9 +664,11 @@ def test_send_voice_message_runs_asr_chat_tts_and_keeps_citations(client):
 
     jobs = client.get(f"/api/personas/{persona['id']}/jobs", headers=auth(token))
     assert jobs.status_code == 200
-    job_types = {item["job_type"]: item["status"] for item in jobs.json()["items"]}
-    assert job_types["asr_audio"] == "succeeded"
-    assert job_types["synthesize_speech"] == "succeeded"
+    job_statuses: dict[str, list[str]] = {}
+    for item in jobs.json()["items"]:
+        job_statuses.setdefault(item["job_type"], []).append(item["status"])
+    assert "succeeded" in job_statuses["asr_audio"]
+    assert "succeeded" in job_statuses["synthesize_speech"]
 
 
 def test_voice_message_rejects_non_audio_source_material(client):
@@ -662,6 +735,185 @@ def test_send_text_message_passes_markdown_context_to_gateway_and_cites_selected
     assert payload["used_memory_ids"] == [memory["id"]]
     assert reply["citations"][0]["memory_card_id"] == memory["id"]
     assert reply["metadata_json"]["memory_context"]["source"] == "memory_markdown"
+
+
+def test_regrets_message_uses_guided_prompt_and_omits_normal_chat_short_context(
+    client,
+    monkeypatch,
+):
+    captured: dict[str, dict] = {}
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            assert capability == "chat_llm"
+            captured["payload"] = payload
+            return {
+                "provider_type": "third_party",
+                "provider_name": "minimax",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {
+                    "reply_text": "小铭，我在。那些以前没说出口的话，可以今天慢慢告诉我。",
+                    "used_memory_ids": payload["selected_memory_ids"],
+                },
+            }
+
+    monkeypatch.setattr(chat_service, "ProviderGateway", lambda: FakeGateway())
+    monkeypatch.setattr(memory_markdown, "ProviderGateway", lambda: FakeGateway())
+    token = register_user(client, "chat-regrets-kind@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    memory = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆以前总说心里话可以慢慢讲。",
+    )
+    confirm_memory(client, token, memory["id"])
+    normal_conversation = create_conversation(client, token, persona["id"], "普通对话")
+    normal_reply = send_message(client, token, normal_conversation["id"], "浏览器烟测消息")
+    assert normal_reply["role"] == "persona"
+
+    regrets_response = client.post(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+        json={"title": "遗憾对话室", "kind": "regrets"},
+    )
+    assert regrets_response.status_code == 201
+    regrets_conversation = regrets_response.json()
+
+    reply = send_message(client, token, regrets_conversation["id"], "你好")
+
+    payload = captured["payload"]
+    assert payload["conversation_kind"] == "regrets"
+    assert "有没有什么以前没说的话" in payload["guided_system_prompt"]
+    assert "道歉、感谢、想念、告别或心结" in payload["guided_system_prompt"]
+    assert memory["id"] in payload["long_term_memory_md"]
+    assert "外婆以前总说心里话可以慢慢讲。" in payload["long_term_memory_md"]
+    assert "浏览器烟测消息" not in payload["short_term_memory_md"]
+    assert reply["metadata_json"]["conversation_kind"] == "regrets"
+
+
+def test_wishes_message_uses_dedicated_prompt_and_omits_other_chat_context(
+    client,
+    monkeypatch,
+):
+    captured: dict[str, dict] = {}
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            assert capability == "chat_llm"
+            captured["payload"] = payload
+            return {
+                "provider_type": "third_party",
+                "provider_name": "minimax",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {
+                    "reply_text": "小铭，我听见这个心愿了。我们先把它放成今天能做的一小步。",
+                    "used_memory_ids": payload["selected_memory_ids"],
+                },
+            }
+
+    monkeypatch.setattr(chat_service, "ProviderGateway", lambda: FakeGateway())
+    monkeypatch.setattr(memory_markdown, "ProviderGateway", lambda: FakeGateway())
+    token = register_user(client, "chat-wishes-kind@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    memory = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆喜欢包馄饨给小铭吃。",
+    )
+    confirm_memory(client, token, memory["id"])
+    normal_conversation = create_conversation(client, token, persona["id"], "普通对话")
+    normal_reply = send_message(client, token, normal_conversation["id"], "普通聊天里提到的秘密上下文")
+    assert normal_reply["role"] == "persona"
+    captured.clear()
+
+    wishes_response = client.post(
+        f"/api/personas/{persona['id']}/conversations",
+        headers=auth(token),
+        json={"title": "心愿延续系统", "context_kind": "wishes"},
+    )
+    assert wishes_response.status_code == 201
+    wishes_conversation = wishes_response.json()
+
+    reply = send_message(client, token, wishes_conversation["id"], "我想替你把花园重新种起来")
+
+    payload = captured["payload"]
+    assert payload["conversation_kind"] == "wishes"
+    assert payload["system_prompt_kind"] == "wishes"
+    assert "你现在有什么想完成的心愿，或者想替我继续做的一件事吗？" in payload["guided_system_prompt"]
+    assert "努力生活，早日实现愿望" in payload["guided_system_prompt"]
+    assert "普通聊天里提到的秘密上下文" not in str(payload["conversation_history"])
+    assert "普通聊天里提到的秘密上下文" not in payload["short_term_memory_md"]
+    assert payload["long_term_memory_md"] == ""
+    assert payload["short_term_memory_md"] == ""
+    assert payload["selected_memory_ids"] == []
+    assert reply["metadata_json"]["conversation_kind"] == "wishes"
+    assert reply["metadata_json"]["system_prompt_kind"] == "wishes"
+    assert reply["citations"] == []
+
+
+def test_chat_memory_context_prioritizes_important_memories(client, monkeypatch):
+    captured: dict[str, dict] = {}
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            assert capability == "chat_llm"
+            captured["payload"] = payload
+            return {
+                "provider_type": "third_party",
+                "provider_name": "minimax",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {
+                    "reply_text": "I remember the important memory.",
+                    "used_memory_ids": payload["selected_memory_ids"],
+                },
+            }
+
+    monkeypatch.setattr(chat_service, "ProviderGateway", lambda: FakeGateway())
+    monkeypatch.setattr(memory_markdown, "ProviderGateway", lambda: FakeGateway())
+    token = register_user(client, "chat-important-memory@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    important = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "important memory content",
+        title="important memory",
+    )
+    assert client.patch(
+        f"/api/memories/{important['id']}",
+        headers=auth(token),
+        json={"is_important": True},
+    ).status_code == 200
+    confirm_memory(client, token, important["id"])
+    ordinary = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "ordinary memory content",
+        title="ordinary memory",
+    )
+    confirm_memory(client, token, ordinary["id"])
+    conversation = create_conversation(client, token, persona["id"])
+
+    reply = send_message(client, token, conversation["id"], "what matters most?")
+
+    assert captured["payload"]["selected_memory_ids"][0] == important["id"]
+    assert reply["citations"][0]["memory_card_id"] == important["id"]
 
 
 def test_long_memory_markdown_compression_selected_ids_drive_citations(

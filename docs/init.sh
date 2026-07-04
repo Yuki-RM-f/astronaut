@@ -86,4 +86,10 @@ fi
 echo "=== Optional real multimodal smoke ==="
 echo "Manual only: python backend/scripts/real_multimodal_smoke.py --sample-mode public --backend-url http://localhost:8000"
 
+echo "=== Optional ECS direct deployment ==="
+echo "Manual only: create .env/runtime.env with FRONTEND_URL=http://<ECS公网IP>:3000, BACKEND_URL=http://<ECS公网IP>:8000, NEXT_PUBLIC_API_BASE_URL=http://<ECS公网IP>:8000, JWT_SECRET=<生成强随机字符串>"
+echo "Manual only: docker compose --env-file .env/runtime.env up --build -d"
+echo "Remote page template: http://<ECS公网IP>:3000"
+echo "Remote health template: http://<ECS公网IP>:8000/health"
+
 echo "=== Real Multimodal Provider harness complete ==="

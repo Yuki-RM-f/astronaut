@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +10,8 @@ from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.chat import (
     ConversationCreate,
+    ConversationContextKind,
+    ConversationKind,
     ConversationListResponse,
     ConversationRead,
     MemoryCorrectionCreate,
@@ -42,17 +44,24 @@ router = APIRouter(tags=["chat"])
 )
 def list_conversations(
     persona_id: str,
+    kind: ConversationKind | None = Query(default=None),
+    context_kind: ConversationContextKind | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     persona = get_persona_or_404(persona_id, current_user, db)
+    conditions = [
+        Conversation.user_id == current_user.id,
+        Conversation.persona_id == persona.id,
+        Conversation.deleted_at.is_(None),
+    ]
+    if kind is not None:
+        conditions.append(Conversation.kind == kind)
+    if context_kind is not None:
+        conditions.append(Conversation.context_kind == context_kind)
     conversations = db.scalars(
         select(Conversation)
-        .where(
-            Conversation.user_id == current_user.id,
-            Conversation.persona_id == persona.id,
-            Conversation.deleted_at.is_(None),
-        )
+        .where(*conditions)
         .order_by(Conversation.updated_at.desc(), Conversation.id.desc())
     ).all()
     return ConversationListResponse(
@@ -75,15 +84,36 @@ def create_conversation(
     db: Session = Depends(get_db),
 ):
     persona = get_persona_or_404(persona_id, current_user, db)
+    kind = _conversation_kind(payload)
+    context_kind = _conversation_context_kind(kind, payload.context_kind)
     conversation = Conversation(
         user_id=current_user.id,
         persona_id=persona.id,
         title=payload.title or f"和 {persona.name} 的对话",
+        kind=kind,
+        context_kind=context_kind,
     )
     db.add(conversation)
     db.commit()
     db.refresh(conversation)
     return ConversationRead.model_validate(conversation)
+
+
+def _conversation_kind(payload: ConversationCreate) -> ConversationKind:
+    if payload.context_kind == "wishes":
+        return "wishes"
+    return payload.kind
+
+
+def _conversation_context_kind(
+    kind: ConversationKind,
+    context_kind: ConversationContextKind | None,
+) -> ConversationContextKind:
+    if context_kind is not None:
+        return context_kind
+    if kind == "wishes":
+        return "wishes"
+    return "general"
 
 
 @router.get(

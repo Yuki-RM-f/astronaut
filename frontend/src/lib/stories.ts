@@ -38,7 +38,9 @@ export function storySourceSummary(story: MemoryStoryRead): string {
 
   return story.source_memories
     .slice(0, 2)
-    .map((source) => source.title)
+    .map((source) =>
+      source.source_location ? `${source.title}（${source.source_location}）` : source.title
+    )
     .join(" · ");
 }
 

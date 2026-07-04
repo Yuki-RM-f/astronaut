@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.ai_job import AIJob
@@ -44,7 +45,36 @@ TRUST_WEIGHTS = {
     "multimodal_completeness": 0.15,
 }
 MANUAL_OVERRIDE_KEY = "_manual_overrides"
-MANUAL_OVERRIDE_FIELDS = (*PROFILE_DIMENSION_FIELDS, "profile_summary")
+MANUAL_OVERRIDE_FIELDS = PROFILE_DIMENSION_FIELDS
+MEMORY_DOCUMENT_COMPONENT_NAME = "memory_document_generation"
+MEMORY_DOCUMENT_TRUST_LEVELS = {"initial", "usable", "trusted", "high_trust"}
+STRUCTURED_MEMORY_SECTIONS = (
+    "资料来源",
+    "基础信息",
+    "人物关系",
+    "兴趣偏好",
+    "生活习惯",
+    "表达习惯",
+    "共同经历",
+    "待用户确认",
+)
+MEMORY_DOCUMENT_MODULES = (
+    "basic_fact",
+    "relationship",
+    "preference",
+    "habit",
+    "expression_style",
+    "shared_event",
+)
+MEMORY_DOCUMENT_MODULE_SET = set(MEMORY_DOCUMENT_MODULES)
+MEMORY_DOCUMENT_SECTION_BY_MODULE = {
+    "basic_fact": "基础信息",
+    "relationship": "人物关系",
+    "preference": "兴趣偏好",
+    "habit": "生活习惯",
+    "expression_style": "表达习惯",
+    "shared_event": "共同经历",
+}
 
 
 def get_or_create_profile(db: Session, persona: Persona) -> PersonaProfile:
@@ -60,9 +90,18 @@ def get_or_create_profile(db: Session, persona: Persona) -> PersonaProfile:
         profile_summary=None,
         source_memory_ids={},
     )
-    db.add(profile)
-    db.flush()
-    return profile
+    try:
+        with db.begin_nested():
+            db.add(profile)
+            db.flush()
+        return profile
+    except IntegrityError:
+        profile = db.scalar(
+            select(PersonaProfile).where(PersonaProfile.persona_id == persona.id)
+        )
+        if profile is not None:
+            return profile
+        raise
 
 
 def build_profile_from_memories(
@@ -90,7 +129,6 @@ def build_profile_from_memories(
 
     dimensions = {field: [] for field in PROFILE_DIMENSION_FIELDS}
     source_memory_ids: dict[str, list[str]] = {}
-    entries: list[dict] = []
     for memory in sorted(memories, key=_memory_priority):
         dimension = CATEGORY_TO_DIMENSION.get(memory.category)
         if dimension is None:
@@ -105,7 +143,6 @@ def build_profile_from_memories(
         ).model_dump()
         dimensions[dimension].append(entry)
         source_memory_ids.setdefault(dimension, []).append(memory.id)
-        entries.append(entry)
 
     for field in manual_fields:
         if field in PROFILE_DIMENSION_FIELDS:
@@ -118,10 +155,6 @@ def build_profile_from_memories(
         source_memory_ids,
         manual_fields,
     )
-    profile.profile_summary = manual_values.get(
-        "profile_summary",
-        _build_profile_summary(persona, entries),
-    )
     db.add(profile)
     db.flush()
     return profile
@@ -129,71 +162,82 @@ def build_profile_from_memories(
 
 def calculate_trust_report(db: Session, persona: Persona) -> TrustReport:
     db.flush()
-    materials = db.scalars(
-        select(SourceMaterial).where(
-            SourceMaterial.persona_id == persona.id,
-            SourceMaterial.deleted_at.is_(None),
+    trust_score = _bounded_score(persona.trust_score, 0)
+    jobs = db.scalars(
+        select(AIJob)
+        .where(
+            AIJob.persona_id == persona.id,
+            AIJob.status == "succeeded",
+            AIJob.deleted_at.is_(None),
         )
+        .order_by(AIJob.created_at.desc(), AIJob.id.desc())
     ).all()
-    active_memories = db.scalars(
-        select(MemoryCard).where(
-            MemoryCard.persona_id == persona.id,
-            MemoryCard.deleted_at.is_(None),
-            MemoryCard.status.not_in(INACTIVE_STATUSES),
-        )
-    ).all()
-    reviewed_memories = [
-        memory for memory in active_memories if memory.status in REVIEWED_STATUSES
-    ]
+    for job in jobs:
+        if isinstance(job.output_json, dict) and _is_memory_document_output(job.output_json):
+            return _memory_document_report_from_output(
+                {
+                    **job.output_json,
+                    "trust_score": trust_score,
+                    "trust_level": _trust_level(trust_score),
+                }
+            )
 
-    components = [
-        _component(
-            "material_coverage",
-            _material_coverage_score(materials),
-            f"{len(materials)} active materials across "
-            f"{len(_material_types(materials))} PRD material type(s)",
-        ),
-        _component(
-            "memory_review_rate",
-            _rate_score(len(reviewed_memories), len(active_memories)),
-            f"{len(reviewed_memories)} confirmed/corrected active memories out of "
-            f"{len(active_memories)}",
-        ),
-        _component(
-            "source_traceability",
-            _source_traceability_score(active_memories),
-            "active memories with both source_quote and source_location",
-        ),
-        _component(
-            "expression_habit_completeness",
-            _expression_habit_score(persona, reviewed_memories),
-            "persona speaking/calling style plus confirmed expression memories",
-        ),
-        _component(
-            "multimodal_completeness",
-            _multimodal_score(materials),
-            "text, image, audio, video coverage; voice/avatar are not available yet",
-        ),
-    ]
-    trust_score = max(
-        0,
-        min(100, round(sum(component.weighted_score for component in components))),
-    )
-    return TrustReport(
-        trust_score=trust_score,
-        trust_level=_trust_level(trust_score),
-        components=components,
-        suggestions=_suggestions(materials, reviewed_memories, active_memories),
+    return _memory_document_report_from_output(
+        {
+            "trust_score": trust_score,
+            "trust_level": _trust_level(trust_score),
+            "trust_rationale": "尚未生成结构化记忆文档，当前仅返回人物已存可信度。",
+            "suggestions": ["继续上传资料，生成结构化记忆文档"],
+        }
     )
 
 
 def refresh_profile_and_trust(db: Session, persona: Persona) -> TrustReport:
     build_profile_from_memories(db, persona, preserve_manual_overrides=True)
     report = calculate_trust_report(db, persona)
-    persona.trust_score = report.trust_score
-    db.add(persona)
-    db.flush()
     return report
+
+
+def generate_memory_document_trust(
+    db: Session,
+    persona: Persona,
+    *,
+    runner=None,
+) -> tuple[TrustReport, dict[str, Any], dict[str, Any], str, str]:
+    profile = get_or_create_profile(db, persona)
+    payload = build_memory_document_payload(db, persona, profile)
+    run = runner or _run_provider
+    provider_type = "local"
+    provider_name = "deterministic_memory_document_renderer"
+    try:
+        result = run("memory_document_generation", payload)
+        output = _normalize_memory_document_output(
+            result.get("output"),
+            persona.trust_score,
+            payload=payload,
+        )
+        output.setdefault("memory_document_generation_status", "succeeded")
+        provider_type = str(result.get("provider_type") or "local")
+        provider_name = str(result.get("provider_name") or "mock")
+    except Exception as exc:
+        output = _normalize_memory_document_output(
+            {},
+            persona.trust_score,
+            payload=payload,
+            provider_error=str(exc),
+        )
+    report = _memory_document_report_from_output(output)
+    profile.profile_summary = output["profile_summary"]
+    persona.trust_score = report.trust_score
+    db.add_all([persona, profile])
+    db.flush()
+    return (
+        report,
+        payload,
+        output,
+        provider_type,
+        provider_name,
+    )
 
 
 def mark_manual_overrides(profile: PersonaProfile, fields: set[str]) -> None:
@@ -299,7 +343,6 @@ def regenerate_with_persona_engine(
 ) -> tuple[PersonaProfile, TrustReport, dict[str, Any]]:
     profile = build_profile_from_memories(db, persona)
     report = calculate_trust_report(db, persona)
-    persona.trust_score = report.trust_score
     payload = build_persona_engine_payload(db, persona, profile)
     try:
         result = _run_provider("persona_profile_analysis", payload)
@@ -341,6 +384,103 @@ def regenerate_with_persona_engine(
     return profile, report, job_extra
 
 
+def build_memory_document_payload(
+    db: Session,
+    persona: Persona,
+    profile: PersonaProfile,
+) -> dict[str, Any]:
+    materials = db.scalars(
+        select(SourceMaterial)
+        .where(
+            SourceMaterial.persona_id == persona.id,
+            SourceMaterial.deleted_at.is_(None),
+            SourceMaterial.parse_status == "succeeded",
+        )
+        .order_by(SourceMaterial.created_at.desc(), SourceMaterial.id.desc())
+    ).all()
+    chunks = db.scalars(
+        select(ParsedChunk)
+        .where(ParsedChunk.persona_id == persona.id, ParsedChunk.deleted_at.is_(None))
+        .order_by(ParsedChunk.created_at.desc(), ParsedChunk.id.desc())
+        .limit(120)
+    ).all()
+    memories = db.scalars(
+        select(MemoryCard)
+        .where(
+            MemoryCard.persona_id == persona.id,
+            MemoryCard.deleted_at.is_(None),
+            MemoryCard.status.not_in(INACTIVE_STATUSES),
+        )
+        .order_by(
+            MemoryCard.is_important.desc(),
+            MemoryCard.updated_at.desc(),
+            MemoryCard.id.desc(),
+        )
+        .limit(160)
+    ).all()
+    return {
+        "persona_card": {
+            "id": persona.id,
+            "name": persona.name,
+            "persona_type": persona.persona_type,
+            "status": persona.status,
+            "relationship_to_user": persona.relationship_to_user,
+            "user_nickname_by_persona": persona.user_nickname_by_persona,
+            "age": persona.age,
+            "gender": persona.gender,
+            "language": persona.language,
+            "short_bio": persona.short_bio,
+            "speaking_style": persona.speaking_style,
+            "emotional_style": persona.emotional_style,
+            "forbidden_expressions": persona.forbidden_expressions,
+        },
+        "parsed_chunks": [
+            {
+                "id": chunk.id,
+                "source_material_id": chunk.source_material_id,
+                "chunk_type": chunk.chunk_type,
+                "content": _clip(chunk.content, 2000),
+                "summary": chunk.summary,
+                "source_location": chunk.source_location,
+                "metadata_json": chunk.metadata_json,
+            }
+            for chunk in chunks
+        ],
+        "active_memory_cards": [
+            {
+                "id": memory.id,
+                "title": memory.title,
+                "content": memory.user_correction or memory.content,
+                "category": memory.category,
+                "confidence_level": memory.confidence_level,
+                "confidence_score": memory.confidence_score,
+                "status": memory.status,
+                "is_important": memory.is_important,
+                "source_quote": memory.source_quote,
+                "source_location": memory.source_location,
+            }
+            for memory in memories
+        ],
+        "source_metadata": [
+            {
+                "id": material.id,
+                "file_name": material.file_name,
+                "file_type": material.file_type,
+                "importance": material.importance,
+                "parse_status": material.parse_status,
+                "user_description": material.user_description,
+                "manual_text_excerpt": _clip(material.manual_text, 1000),
+            }
+            for material in materials
+        ],
+        "current_profile": {
+            "profile_summary": profile.profile_summary,
+            "source_memory_ids": profile.source_memory_ids,
+            **{field: getattr(profile, field) for field in PROFILE_DIMENSION_FIELDS},
+        },
+    }
+
+
 def build_persona_engine_payload(
     db: Session,
     persona: Persona,
@@ -364,7 +504,11 @@ def build_persona_engine_payload(
             MemoryCard.deleted_at.is_(None),
             MemoryCard.status.in_(REVIEWED_STATUSES),
         )
-        .order_by(MemoryCard.updated_at.desc(), MemoryCard.id.desc())
+        .order_by(
+            MemoryCard.is_important.desc(),
+            MemoryCard.updated_at.desc(),
+            MemoryCard.id.desc(),
+        )
         .limit(120)
     ).all()
     return {
@@ -404,6 +548,7 @@ def build_persona_engine_payload(
                 "confidence_level": memory.confidence_level,
                 "confidence_score": memory.confidence_score,
                 "status": memory.status,
+                "is_important": memory.is_important,
                 "source_quote": memory.source_quote,
                 "source_location": memory.source_location,
             }
@@ -433,8 +578,6 @@ def _apply_persona_engine_output(profile: PersonaProfile, output: dict[str, Any]
     output.setdefault("persona_version", "persona_engine_v2")
     profile.persona_engine_json = output
     profile.persona_engine_generated_at = _utcnow()
-    if isinstance(output.get("profile_summary"), str) and output["profile_summary"].strip():
-        profile.profile_summary = output["profile_summary"].strip()
     if not profile.relationships and isinstance(output.get("relationships"), list):
         profile.relationships = output["relationships"]
     if not profile.expression_style and isinstance(output.get("speech_style"), dict):
@@ -472,6 +615,337 @@ def _is_persona_age_fact(value: object) -> bool:
         and value.get("field") == "age"
         and value.get("source") == "persona_card"
     )
+
+
+def _is_memory_document_output(output: dict[str, Any]) -> bool:
+    return "structured_memory_md" in output and "trust_score" in output
+
+
+def _normalize_memory_document_output(
+    output: object,
+    fallback_score: int | None = 0,
+    *,
+    payload: dict[str, Any] | None = None,
+    provider_error: str | None = None,
+) -> dict[str, Any]:
+    data = output if isinstance(output, dict) else {}
+    document_json = (
+        _structured_memory_document_json_from_payload(payload)
+        if payload is not None
+        else _normalize_structured_memory_document_json(
+            data.get("structured_memory_document_json"),
+            payload=payload,
+        )
+    )
+    score_fallback = (
+        _memory_document_payload_score(payload)
+        if payload is not None
+        else fallback_score or 0
+    )
+    trust_score = _bounded_score(data.get("trust_score"), score_fallback)
+    trust_level = str(data.get("trust_level") or _trust_level(trust_score))
+    if trust_level not in MEMORY_DOCUMENT_TRUST_LEVELS:
+        trust_level = _trust_level(trust_score)
+    suggestions = data.get("suggestions")
+    if not isinstance(suggestions, list) or not suggestions:
+        suggestions = ["继续上传资料，补充更多可追溯的记忆证据"]
+    structured_memory_md = (
+        ""
+        if payload is not None
+        else str(data.get("structured_memory_md") or "").strip()
+    )
+    if not structured_memory_md:
+        structured_memory_md = _render_structured_memory_md(document_json, payload=payload)
+    profile_summary = str(data.get("profile_summary") or "").strip()
+    if not profile_summary:
+        profile_summary = _profile_summary_from_document(document_json, payload)
+    normalized = {
+        **data,
+        "profile_summary": profile_summary,
+        "structured_memory_document_json": document_json,
+        "structured_memory_md": structured_memory_md,
+        "trust_score": trust_score,
+        "trust_level": trust_level,
+        "trust_rationale": str(
+            data.get("trust_rationale") or "由结构化记忆文档生成链路计算。"
+        ),
+        "suggestions": [str(item) for item in suggestions],
+    }
+    if provider_error:
+        normalized["memory_document_generation_status"] = "fallback"
+        normalized["memory_document_provider_error"] = provider_error
+    return normalized
+
+
+def _normalize_structured_memory_document_json(
+    value: object,
+    *,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    if not isinstance(value, dict) or not isinstance(value.get("modules"), dict):
+        return _structured_memory_document_json_from_payload(payload)
+
+    raw_modules = value["modules"]
+    modules: dict[str, list[dict[str, Any]]] = {
+        module: [] for module in MEMORY_DOCUMENT_MODULES
+    }
+    warnings = [str(item) for item in value.get("warnings") or [] if str(item).strip()]
+    unclassified = value.get("unclassified")
+    if not isinstance(unclassified, list):
+        unclassified = []
+
+    for raw_module, raw_items in raw_modules.items():
+        module = str(raw_module)
+        if module not in MEMORY_DOCUMENT_MODULE_SET:
+            warnings.append(f"跳过未知模块：{raw_module}")
+            if isinstance(raw_items, list):
+                unclassified.extend(raw_items)
+            continue
+        if not isinstance(raw_items, list):
+            warnings.append(f"跳过非数组模块：{raw_module}")
+            continue
+        for raw_item in raw_items:
+            normalized = _normalize_memory_document_item(raw_item, module)
+            if normalized is None:
+                warnings.append(f"跳过字段不完整的 {module} 记忆")
+                continue
+            modules[module].append(normalized)
+
+    sources = value.get("sources")
+    normalized_sources = [
+        _normalize_memory_document_source(source)
+        for source in sources
+        if isinstance(source, dict)
+    ] if isinstance(sources, list) else []
+    if not normalized_sources and payload is not None:
+        normalized_sources = _memory_document_sources_from_payload(payload)
+    return {
+        "sources": normalized_sources,
+        "modules": modules,
+        "unclassified": unclassified,
+        "warnings": warnings,
+    }
+
+
+def _structured_memory_document_json_from_payload(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    modules: dict[str, list[dict[str, Any]]] = {
+        module: [] for module in MEMORY_DOCUMENT_MODULES
+    }
+    if payload is None:
+        return {
+            "sources": [],
+            "modules": modules,
+            "unclassified": [],
+            "warnings": [],
+        }
+
+    for memory in payload.get("active_memory_cards") or []:
+        if not isinstance(memory, dict):
+            continue
+        category = str(memory.get("category") or "")
+        module = category if category in MEMORY_DOCUMENT_MODULE_SET else "shared_event"
+        item = _normalize_memory_document_item(memory, module)
+        if item is not None:
+            modules[module].append(item)
+
+    return {
+        "sources": _memory_document_sources_from_payload(payload),
+        "modules": modules,
+        "unclassified": [],
+        "warnings": [],
+    }
+
+
+def _memory_document_sources_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    for material in payload.get("source_metadata") or []:
+        if not isinstance(material, dict):
+            continue
+        sources.append(_normalize_memory_document_source(material))
+    return sources
+
+
+def _normalize_memory_document_source(source: dict[str, Any]) -> dict[str, Any]:
+    label = (
+        source.get("label")
+        or source.get("file_name")
+        or source.get("manual_text_excerpt")
+        or source.get("id")
+        or "未命名资料"
+    )
+    return {
+        "id": str(source.get("id") or ""),
+        "file_type": str(source.get("file_type") or "material"),
+        "label": _clip(str(label), 80) or "未命名资料",
+        "parse_status": source.get("parse_status"),
+    }
+
+
+def _normalize_memory_document_item(
+    value: object,
+    module: str,
+) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    title = _clip(str(value.get("title") or ""), 120)
+    content = str(value.get("content") or "").strip()
+    source_quote = str(value.get("source_quote") or content[:120]).strip()
+    source_location = str(value.get("source_location") or "").strip()
+    if not title or not content:
+        return None
+    confidence_score = _bounded_score(value.get("confidence_score"), 70)
+    confidence_level = str(value.get("confidence_level") or "")
+    if confidence_level not in {"high", "medium", "low"}:
+        confidence_level = (
+            "high" if confidence_score >= 80 else "medium" if confidence_score >= 50 else "low"
+        )
+    normalized = {
+        "id": str(value.get("id") or ""),
+        "title": title,
+        "content": content,
+        "category": module,
+        "confidence_level": confidence_level,
+        "confidence_score": confidence_score,
+        "source_quote": source_quote,
+        "source_location": source_location,
+        "status": str(value.get("status") or "pending_review"),
+        "is_important": bool(value.get("is_important")),
+    }
+    return normalized
+
+
+def _render_structured_memory_md(
+    document_json: dict[str, Any],
+    *,
+    payload: dict[str, Any] | None = None,
+) -> str:
+    section_lines = {section: [] for section in STRUCTURED_MEMORY_SECTIONS}
+    for source in document_json.get("sources") or []:
+        if not isinstance(source, dict):
+            continue
+        label = source.get("label") or source.get("id") or "未命名资料"
+        section_lines["资料来源"].append(
+            f"- {source.get('file_type') or 'material'}: {label}"
+        )
+
+    modules = document_json.get("modules") if isinstance(document_json.get("modules"), dict) else {}
+    for module in MEMORY_DOCUMENT_MODULES:
+        section = MEMORY_DOCUMENT_SECTION_BY_MODULE[module]
+        for item in modules.get(module) or []:
+            if not isinstance(item, dict):
+                continue
+            content = str(item.get("content") or "").strip()
+            if not content:
+                continue
+            title = str(item.get("title") or "未命名记忆").strip()
+            status = str(item.get("status") or "pending_review")
+            source_location = str(item.get("source_location") or "").strip()
+            importance = "[important] " if bool(item.get("is_important")) else ""
+            suffix = f"（来源：{source_location}）" if source_location else ""
+            line = f"- {importance}[{status}] {title}: {content}{suffix}"
+            section_lines[section].append(line)
+            if status not in REVIEWED_STATUSES:
+                section_lines["待用户确认"].append(line)
+
+    if not section_lines["资料来源"]:
+        section_lines["资料来源"].append("- 暂无已解析资料")
+    for section in STRUCTURED_MEMORY_SECTIONS:
+        if not section_lines[section]:
+            section_lines[section].append("- 暂无明确资料")
+    return "\n\n".join(
+        f"## {section}\n" + "\n".join(section_lines[section])
+        for section in STRUCTURED_MEMORY_SECTIONS
+    )
+
+
+def _profile_summary_from_document(
+    document_json: dict[str, Any],
+    payload: dict[str, Any] | None,
+) -> str:
+    persona_card = payload.get("persona_card") if isinstance(payload, dict) else {}
+    name = "TA"
+    if isinstance(persona_card, dict) and persona_card.get("name"):
+        name = str(persona_card["name"])
+
+    items: list[dict[str, Any]] = []
+    modules = document_json.get("modules") if isinstance(document_json.get("modules"), dict) else {}
+    for module in MEMORY_DOCUMENT_MODULES:
+        for item in modules.get(module) or []:
+            if isinstance(item, dict) and item.get("content"):
+                items.append(item)
+    items.sort(
+        key=lambda item: (
+            0 if bool(item.get("is_important")) else 1,
+            0 if item.get("status") in REVIEWED_STATUSES else 1,
+            str(item.get("id") or item.get("title") or ""),
+        )
+    )
+    contents = [str(item["content"]).strip() for item in items[:3] if str(item["content"]).strip()]
+    if contents:
+        return f"{name}的档案摘要：" + "；".join(contents) + "。"
+    if isinstance(persona_card, dict) and persona_card.get("short_bio"):
+        return str(persona_card["short_bio"])
+    return "档案摘要将在新的资料解析后自动生成。"
+
+
+def _memory_document_payload_score(payload: dict[str, Any] | None) -> int:
+    if payload is None:
+        return 0
+    source_count = len([item for item in payload.get("source_metadata") or [] if isinstance(item, dict)])
+    chunk_count = len([item for item in payload.get("parsed_chunks") or [] if isinstance(item, dict)])
+    memories = [item for item in payload.get("active_memory_cards") or [] if isinstance(item, dict)]
+    traceable_count = len(
+        [
+            item
+            for item in memories
+            if item.get("source_quote") and item.get("source_location")
+        ]
+    )
+    reviewed_count = len(
+        [item for item in memories if item.get("status") in REVIEWED_STATUSES]
+    )
+    if not memories:
+        return 0
+    score = 15
+    score += min(source_count, 4) * 8
+    score += min(chunk_count, 6) * 4
+    score += round(traceable_count / len(memories) * 24)
+    score += round(reviewed_count / len(memories) * 20)
+    return max(0, min(100, score))
+
+
+def _memory_document_report_from_output(output: dict[str, Any]) -> TrustReport:
+    normalized = _normalize_memory_document_output(output)
+    score = normalized["trust_score"]
+    rationale = normalized["trust_rationale"]
+    return TrustReport(
+        trust_score=score,
+        trust_level=normalized["trust_level"],
+        components=[
+            TrustComponent(
+                name=MEMORY_DOCUMENT_COMPONENT_NAME,
+                score=score,
+                weight=1.0,
+                weighted_score=float(score),
+                evidence=rationale,
+            )
+        ],
+        suggestions=normalized["suggestions"],
+    )
+
+
+def _bounded_score(value: object, fallback: int = 0) -> int:
+    try:
+        score = round(float(value))
+    except (TypeError, ValueError):
+        score = fallback
+    return max(0, min(100, score))
+
+
+def _empty_structured_memory_md() -> str:
+    return "\n\n".join(f"## {section}\n- 暂无明确资料" for section in STRUCTURED_MEMORY_SECTIONS)
 
 
 def _component(name: str, score: int, evidence: str) -> TrustComponent:
@@ -616,8 +1090,9 @@ def _build_profile_summary(persona: Persona, entries: list[dict]) -> str:
 
 
 def _memory_priority(memory: MemoryCard) -> tuple[int, int, str]:
+    importance_priority = 0 if memory.is_important else 1
     status_priority = 0 if memory.status == "corrected" else 1
-    return (status_priority, -memory.confidence_score, memory.id)
+    return (importance_priority, status_priority, -memory.confidence_score, memory.id)
 
 
 def _utcnow() -> datetime:

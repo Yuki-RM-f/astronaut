@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Heart, Plus, Sparkles, Star } from "lucide-react";
+import { Plus, Sparkles, Star, Trash2 } from "lucide-react";
 import {
   PageTitle,
   PlanetStar,
@@ -11,7 +11,12 @@ import {
   StarShell
 } from "@/src/components/StarSite";
 import { ensureDemoSession } from "@/src/lib/auth";
-import { listPersonas, personaTypeLabel, PersonaRead } from "@/src/lib/persona";
+import {
+  deletePersona,
+  listPersonas,
+  personaTypeLabel,
+  PersonaRead
+} from "@/src/lib/persona";
 import { ROUTES } from "@/src/lib/routes";
 
 type DashboardState = "loading" | "ready" | "error";
@@ -20,6 +25,8 @@ export default function DashboardPage() {
   const [state, setState] = useState<DashboardState>("loading");
   const [personas, setPersonas] = useState<PersonaRead[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingPersonaId, setDeletingPersonaId] = useState<string | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -48,6 +55,26 @@ export default function DashboardPage() {
     };
   }, []);
 
+  async function handleDeletePersona(persona: PersonaRead) {
+    const confirmed = window.confirm(
+      `确定删除「${persona.name}」这颗星星吗？相关资料、记忆和对话入口会一并移除。`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleteError(null);
+    setDeletingPersonaId(persona.id);
+    try {
+      await deletePersona(persona.id);
+      setPersonas((current) => current.filter((item) => item.id !== persona.id));
+    } catch (caught) {
+      setDeleteError(caught instanceof Error ? caught.message : "无法删除星星。");
+    } finally {
+      setDeletingPersonaId(null);
+    }
+  }
+
   return (
     <StarShell>
       <StarNav />
@@ -60,7 +87,7 @@ export default function DashboardPage() {
             <PageTitle
               className="text-left"
               title="我的星空"
-              subtitle="这里保存你创建的星星、资料、可信记忆、人格档案和对话入口。"
+              subtitle="这里保存你创建的星星、资料、可信记忆、档案摘要和对话入口。"
             />
             <Link href={ROUTES.personasNew} className="star-button w-fit gap-2">
               <Plus className="h-4 w-4" aria-hidden="true" />
@@ -71,8 +98,15 @@ export default function DashboardPage() {
 
         {state === "loading" ? <Notice text="正在点亮你的星空..." /> : null}
         {state === "error" ? <Notice text={error ?? "无法加载人物列表。"} /> : null}
+        {deleteError ? <Notice text={deleteError} /> : null}
         {state === "ready" && personas.length === 0 ? <EmptyState /> : null}
-        {state === "ready" && personas.length > 0 ? <PersonaGrid personas={personas} /> : null}
+        {state === "ready" && personas.length > 0 ? (
+          <PersonaGrid
+            deletingPersonaId={deletingPersonaId}
+            personas={personas}
+            onDelete={handleDeletePersona}
+          />
+        ) : null}
       </main>
     </StarShell>
   );
@@ -104,17 +138,24 @@ function EmptyState() {
   );
 }
 
-function PersonaGrid({ personas }: { personas: PersonaRead[] }) {
+function PersonaGrid({
+  deletingPersonaId,
+  personas,
+  onDelete
+}: {
+  deletingPersonaId: string | null;
+  personas: PersonaRead[];
+  onDelete: (persona: PersonaRead) => void;
+}) {
   return (
     <section className="mt-8 grid gap-5 md:grid-cols-2">
       {personas.map((persona) => (
-        <Link
+        <article
           key={persona.id}
-          href={ROUTES.personaDetail(persona.id)}
           className="group rounded-[1.75rem] border border-starGold/14 bg-indigo-950/36 p-5 shadow-[0_18px_52px_rgba(0,0,0,0.26)] backdrop-blur transition hover:-translate-y-1 hover:border-starGold/32 hover:bg-indigo-900/42"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+            <Link href={ROUTES.personaDetail(persona.id)} className="min-w-0 flex-1">
               <p className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.08em] text-starGold">
                 <Star className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                 {personaTypeLabel(persona.persona_type)}
@@ -125,18 +166,40 @@ function PersonaGrid({ personas }: { personas: PersonaRead[] }) {
               <p className="mt-2 text-sm font-semibold leading-7 text-starMist/68">
                 {persona.relationship_to_user}会称呼你为「{persona.user_nickname_by_persona}」。
               </p>
+            </Link>
+            <div className="flex w-fit flex-col items-start gap-3 sm:items-end">
+              <span className="inline-flex w-fit items-center gap-2 rounded-full bg-starGold/14 px-3 py-2 text-sm font-bold text-starGold">
+                <Star className="h-4 w-4 fill-current" aria-hidden="true" />
+                已创建
+              </span>
+              <Link
+                href={ROUTES.personaDetail(persona.id)}
+                aria-label={`进入星星 ${persona.name}`}
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-starGold/28 bg-starGold/14 px-4 py-2 text-sm font-bold text-starCream transition hover:bg-starGold/22"
+              >
+                进入星星
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <button
+                type="button"
+                aria-label={`删除星星 ${persona.name}`}
+                disabled={deletingPersonaId === persona.id}
+                onClick={() => onDelete(persona)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-full border border-rose-200/24 bg-rose-400/10 px-3 py-2 text-sm font-bold text-rose-100 transition hover:border-rose-200/44 hover:bg-rose-400/18 disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                {deletingPersonaId === persona.id ? "删除中..." : "删除星星"}
+              </button>
             </div>
-            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-starGold/14 px-3 py-2 text-sm font-bold text-starGold">
-              <Heart className="h-4 w-4 fill-current" aria-hidden="true" />
-              {persona.trust_score}%
-            </span>
           </div>
-          <dl className="mt-5 grid grid-cols-3 gap-3">
-            <Stat label="资料" value={persona.stats.materials_count} />
-            <Stat label="记忆" value={persona.stats.memories_count} />
-            <Stat label="对话" value={persona.stats.conversations_count} />
-          </dl>
-        </Link>
+          <Link href={ROUTES.personaDetail(persona.id)} className="mt-5 block">
+            <dl className="grid grid-cols-3 gap-3">
+              <Stat label="资料" value={persona.stats.materials_count} />
+              <Stat label="记忆" value={persona.stats.memories_count} />
+              <Stat label="对话" value={persona.stats.conversations_count} />
+            </dl>
+          </Link>
+        </article>
       ))}
     </section>
   );

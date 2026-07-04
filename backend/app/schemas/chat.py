@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.memory import MemoryRead
+
+
+ConversationKind = Literal["chat", "regrets", "wishes"]
+ConversationContextKind = Literal["general", "wishes"]
 
 
 def _reject_blank(value: str, field_name: str) -> str:
@@ -15,6 +20,8 @@ def _reject_blank(value: str, field_name: str) -> str:
 
 class ConversationCreate(BaseModel):
     title: str | None = Field(default=None, min_length=1)
+    kind: ConversationKind = "chat"
+    context_kind: ConversationContextKind | None = None
 
     @field_validator("title")
     @classmethod
@@ -31,6 +38,8 @@ class ConversationRead(BaseModel):
     user_id: str
     persona_id: str
     title: str | None
+    kind: ConversationKind
+    context_kind: ConversationContextKind
     created_at: datetime
     updated_at: datetime
 

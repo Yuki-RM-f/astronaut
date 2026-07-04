@@ -151,6 +151,50 @@ def test_semantic_search_returns_ranked_results_and_writes_search_audit(client):
     assert audit_events(client, token, persona["id"], "memory.searched")
 
 
+def test_semantic_search_can_match_long_term_memory_context_location(client):
+    token = register_user(client, "audit-search-context@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    memory = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆给小铭准备了一碗热汤。",
+        title="热汤",
+        source_location="manual:生日线索",
+    )
+    confirm_memory(client, token, memory["id"])
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/audit/search",
+        headers=auth(token),
+        json={"query": "生日线索", "top_k": 5},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["items"]
+    assert body["items"][0]["memory"]["id"] == memory["id"]
+    assert body["items"][0]["memory"]["source_location"] == "manual:生日线索"
+
+
+def test_semantic_search_does_not_return_short_term_context_as_result(client):
+    token = register_user(client, "audit-search-short-term-only@example.com")
+    persona = create_persona(client, token)
+    conversation = create_conversation(client, token, persona["id"])
+    send_message(client, token, conversation["id"], "这是一段只在短期对话里的生日线索。")
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/audit/search",
+        headers=auth(token),
+        json={"query": "生日线索", "top_k": 5},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
 def test_conflict_detection_and_resolution_are_user_scoped(client, db_session):
     owner_token = register_user(client, "audit-conflict-owner@example.com")
     other_token = register_user(client, "audit-conflict-other@example.com")

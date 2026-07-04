@@ -211,19 +211,20 @@ MVP 只围绕以下闭环验收：
 | 注册页 | `/register` | P0 | 邮箱/密码注册 |
 | 首页 | `/dashboard` | P0 | 人物列表、最近对话、资料统计 |
 | 创建人物 | `/personas/new` | P0 | 创建亲友/公众人物/虚拟角色 |
-| 人物工作台 | `/personas/:id` | P0 | 人物总览、可信度、资料、记忆、对话入口 |
-| 资料上传 | `/personas/:id/uploads` | P0 | 文本/图片/音频/视频上传 |
+| 人物工作台 | `/personas/:id` | P0 | 人物总览、资料、记忆、对话入口 |
+| 资料上传 | `/personas/:id/uploads` | P0 | 文本/图片/音频/视频上传、解析结果审核、结构化记忆星标、自动档案摘要生成、唯一可信度展示 |
 | 解析任务 | `/personas/:id/jobs` | P0 | 异步 AI 任务状态 |
-| 记忆审计 | `/personas/:id/memories` | P0 | 记忆卡片审核和修正 |
-| 人格档案 | `/personas/:id/profile` | P0 | 基础事实、关系、偏好等 |
-| 数字人对话 | `/personas/:id/chat` | P0 | 文字/语音对话 + 3D 数字人 |
-| 回忆讲述 | `/personas/:id/stories` | P0 | 让 TA 讲述某段记忆 |
+| 记忆档案馆 | `/personas/:id/memories` | P0 | 回忆讲述和语义搜索 |
+| 人格档案数据 | `/personas/:id/profile` | P0 | 兼容深链重定向到资料上传页；后端 profile API 保留供档案摘要、对话和导出使用 |
+| 数字人对话 | `/personas/:id/chat` | P0 | 文字/手势/语音对话 + 侧边 3D 数字人 |
+| 遗憾对话室 | `/personas/:id/regrets` | P0 | 让 TA 先问用户有什么以前没说的话 |
+| 心愿延续引导 | `/personas/:id/wishes` | P0 | 让 TA 先问用户有什么想完成的心愿，鼓励下一步行动 |
 | 声音设置 | `/personas/:id/voice` | P0 | 声音复刻、默认 TTS 选择 |
 | 形象设置 | `/personas/:id/avatar` | P0 | 3D 数字人生成与预览 |
 | 数据设置 | `/settings/data` | P0 | 删除人物/资料/对话，导出数据 |
 | 模型设置 | `/settings/providers` | P0 | 第三方 API Key、本地服务地址 |
 | 主动关怀 | `/personas/:id/care` | P1 | AI 先发起关心，再由用户回复 |
-| 心愿延续 | `/personas/:id/wishes` | P1 | 录入 TA 未完成心愿并长期鼓励行动 |
+| 心愿延续系统（完整） | `/personas/:id/wishes` | P1 | 录入 TA 未完成心愿并长期鼓励行动 |
 | 邀请家人 | `/personas/:id/share` | P1 | 只读邀请链接，后续开发 |
 | 付费页 | `/pricing` | P2 | 买断制展示，MVP 可占位 |
 
@@ -241,16 +242,17 @@ MVP 只围绕以下闭环验收：
    - TA 对我的角色：外婆/父亲/母亲/朋友/老师等；
    - TA 对我的称呼：小铭、儿子、闺女、乖孙等；
    - 系统默认使用温和自然的说话风格、安慰鼓励但不替用户做重大决定的情绪边界，并禁止暗示本人复生。
-6. 进入资料上传页，上传文本、图片、音频、视频。
+6. 创建成功后进入资料上传页，上传文本、图片、音频、视频。
 7. 系统创建 AI 解析任务，用户在任务页查看进度。
 8. 解析完成后，系统生成：
    - 记忆卡片；
+   - 结构化记忆 Markdown；
    - 人格档案；
    - 人格可信度；
    - 音色样本候选；
    - 图片/视频摘要；
    - 3D 数字人生成候选。
-9. 用户进入记忆审计面板，对记忆卡片确认、修改、删除、禁用。
+9. 用户在资料上传页的解析结果审查区，对记忆卡片确认、修改、删除、禁用，并点击“完成审核，点亮星星”。
 10. 用户进入声音设置，选择克隆音色或默认 TTS。
 11. 用户进入形象设置，生成或选择 3D 头像/半身数字人。
 12. 用户进入数字人对话页，以文字或语音与 TA 交流。
@@ -262,9 +264,9 @@ MVP 只围绕以下闭环验收：
 1. 用户在人物工作台上传新资料。
 2. 系统自动生成解析任务。
 3. 解析完成后生成新的待审核记忆。
-4. 首页和人物工作台显示「有 X 条新记忆待确认」。
-5. 用户审核后，数字人下次回复立即使用新记忆。
-6. 人格可信度重新计算。
+4. 首页和人物工作台引导用户进入资料解析与审核页。
+5. 用户审核后，数字人下次回复立即使用已确认或已修正记忆。
+6. 人格可信度只由资料解析后的结构化记忆文档生成链路更新；普通记忆审核不另算第二套分数。
 
 ### 6.3 用户修正错误记忆流程
 
@@ -423,19 +425,19 @@ MVP 只围绕以下闭环验收：
 | mime_type | 文件 MIME |
 | file_size | 文件大小 |
 | storage_url | 对象存储地址 |
-| user_description | 用户对资料的描述 |
+| user_description | 用户对资料的描述，后端兼容旧调用，当前 uploads 前端不再暴露备注输入 |
 | material_time | 资料发生时间，可选 |
 | people_tags | 用户手动标记资料中的人 |
 | location_hint | 地点线索，可选 |
-| importance | 普通/重要/非常重要 |
+| importance | 普通/重要/非常重要，后端兼容旧调用；当前用户重要性操作迁移到解析后的 `MemoryCard.is_important` 星标 |
 | parse_status | pending/running/succeeded/failed |
 
 ### 7.3.3 上传页交互
 
 - 拖拽上传；
 - 多文件批量上传；
-- 文件上传后可补充描述；
-- 上传完成后自动创建解析任务；
+- 当前 uploads 前端不暴露资料级备注或重要程度；
+- 上传或手动资料提交后立即创建 pending 解析任务并返回，页面轮询后台 job 状态；
 - 展示每类资料数量；
 - 解析失败允许重试。
 
@@ -444,7 +446,7 @@ MVP 只围绕以下闭环验收：
 - 文本、图片、音频、视频均可上传；
 - 文件存储到 MinIO/S3 或本地 storage；
 - 数据库生成 SourceMaterial；
-- 每个文件至少生成一个 AI Job；
+- 每个文件至少生成一个 pending AI Job，解析由后台任务执行；
 - 上传失败展示原因。
 
 ---
@@ -466,8 +468,8 @@ MVP 只围绕以下闭环验收：
 3. 按语义分块；
 4. 抽取人物、关系、时间、地点、事件、偏好、口头禅；
 5. 生成 ParsedChunk；
-6. 对 chunk 向量化；
-7. 调用 Memory Extraction Prompt 生成记忆卡片。
+6. 调用 Memory Extraction Prompt 生成多条原子记忆卡片；
+7. 由当前 active MemoryCard 确定性生成结构化记忆文档 JSON/Markdown。
 
 当前实现边界：PDF/DOC/DOCX 只做本地文本抽取后进入文本解析，不做扫描 PDF 转图片 OCR；扫描件类 PDF 需要后续单独定义 OCR 流程。
 
@@ -649,7 +651,7 @@ memory_card
 - 删除/禁用；
 - 查看来源文件；
 - 查看与该记忆相关的对话；
-- 修改后立即重新计算人格可信度；
+- 修改后刷新人格档案维度和长期 Markdown，但不单独重新计算第二套可信度；
 - 修改后下一轮对话立即生效。
 
 ### 7.5.7 验收标准
@@ -682,19 +684,19 @@ memory_card
 ### 7.6.2 档案生成规则
 
 - 人格档案由多个记忆卡片聚合而成；
-- 用户手动填写内容优先级最高；
+- 用户手动修正的记忆优先级最高；
 - 用户修正后的记忆优先级高于模型生成；
 - 用户可新增、编辑、删除自定义档案维度；
 - 自定义维度优先视为用户手动补充内容；
 - 档案项需要保存来源记忆 ID；
-- 每次用户审核记忆后，系统重新生成档案摘要。
+- 每次资料解析后，结构化记忆文档 JSON/Markdown 由当前 active MemoryCard 确定性生成，`memory_document_generation` 只自动生成 `profile_summary`、唯一 trust、理由和建议；前端资料上传页不提供摘要保存或从已审核记忆重生成入口。
 
 ### 7.6.3 验收标准
 
 - 人格档案可自动生成；
-- 用户可编辑每个维度；
-- 用户可补充自定义维度；
-- 每个维度可以看到来源记忆；
+- 档案摘要由上传解析后的 `memory_document_generation` 自动生成并在人物详情页展示；
+- 后端 profile 数据保留维度和来源记忆供 API、导出和对话使用；
+- 独立 `/personas/:id/profile` 页面不再展示编辑 UI；
 - 档案更新后对话风格发生变化。
 
 ---
@@ -703,7 +705,7 @@ memory_card
 
 ### 7.7.1 展示形式
 
-人物工作台展示「人格可信度」总分，范围 0-100。
+资料解析与审核页展示唯一「人格可信度」总分，范围 0-100；人物详情、Dashboard、profile 深链和记忆档案馆不展示第二套可信度。
 
 示例：
 
@@ -737,7 +739,7 @@ memory_card
 
 ### 7.7.4 验收标准
 
-- 可信度随资料上传、记忆审核、音色/3D 完成自动变化；
+- 可信度随资料上传后的 `memory_document_generation` 或兼容的重新计算接口变化，记忆审核、音色或 3D 完成不单独计算第二套可信度；
 - 页面给出提升建议；
 - 可信度不是模型主观评分，而是可解释指标。
 
@@ -1230,6 +1232,7 @@ CREATE TABLE memory_cards (
   category VARCHAR(50) NOT NULL,
   confidence_level VARCHAR(20) NOT NULL,
   confidence_score INTEGER DEFAULT 50,
+  is_important BOOLEAN DEFAULT false,
   source_material_id UUID REFERENCES source_materials(id),
   parsed_chunk_id UUID REFERENCES parsed_chunks(id),
   source_type VARCHAR(50),
@@ -1245,7 +1248,7 @@ CREATE TABLE memory_cards (
 );
 ```
 
-说明：当前代码保留 `parsed_chunks.embedding` 以及历史迁移加入的 `memory_cards.embedding*` 元数据列以兼容旧库，但运行时不再写入或读取 embedding；聊天上下文使用长期/短期记忆 Markdown。
+说明：当前代码保留 `parsed_chunks.embedding` 以及历史迁移加入的 `memory_cards.embedding*` 元数据列以兼容旧库，但运行时不再写入或读取 embedding；`is_important` 由用户在结构化记忆卡片上星标，聊天上下文使用长期/短期记忆 Markdown 并优先携带重要记忆。
 
 ### 8.6 persona_profiles
 
@@ -1505,11 +1508,14 @@ AI Capability Gateway
 ├── video_understanding
 ├── memory_extraction
 ├── memory_context_compression
+├── memory_document_generation
 ├── chat_llm
 ├── tts
 ├── voice_clone
 └── avatar_3d
 ```
+
+`memory_document_generation` 的模型输出只负责 `profile_summary`、`trust_score`、`trust_level`、`trust_rationale` 和 `suggestions`；`structured_memory_document_json` 与 `structured_memory_md` 由后端根据当前 active MemoryCard 和 succeeded SourceMaterial 确定性生成，供 uploads 展示和 AI job output 兼容读取。其中 `profile_summary` 是人物详情顶部摘要的权威来源，缺失时后端使用安全空态兜底。
 
 ### 10.2 Provider 抽象
 
@@ -1589,7 +1595,7 @@ convert_avatar_format
 9. 涉及事实时，在内部输出引用 memory_card_id，供系统展示「查看依据」。
 10. 不要向用户输出 `<think>`、推理过程或草稿分析，只输出最终对话内容。
 
-人物档案：
+人物档案（来自最近一次上传解析链路自动生成的 profile_summary）：
 {profile_summary}
 
 长期记忆 Markdown：
@@ -1607,6 +1613,14 @@ convert_avatar_format
 用户说：
 {user_message}
 ```
+
+### 11.1.1 引导式对话 Prompt 边界
+
+当前 `/personas/:id/regrets` 和 `/personas/:id/wishes` 仍复用既有 Chat message API，但 conversation 会按 `kind` / `context_kind` 隔离：
+
+- 普通对话：`kind=chat`，读取普通短期 Markdown `short_term_memory.md`。
+- 遗憾对话室：`kind=regrets`，使用专门 system prompt，核心引导为“有没有什么以前没说的话，今天想慢慢告诉我？”。该 prompt 只围绕以前没说的话、道歉、感谢、想念、告别或心结展开；保留人物基础设定、profile summary 和已确认/已修正长期记忆，但短期上下文只读取 regrets 同类会话，不读取普通 chat 消息。
+- 心愿延续引导：`kind=wishes` / `context_kind=wishes`，使用专门 system prompt，核心引导为“你现在有什么想完成的心愿，或者想替我继续做的一件事吗？”。当前只做轻量对话引导和上下文隔离，不实现 P1 心愿持久化、提醒策略或长期行动系统。
 
 ### 11.2 Memory Extraction Prompt 模板
 
@@ -1726,6 +1740,8 @@ docker-compose services:
 - worker-avatar
 ```
 
+ECS Demo 部署当前采用直连端口方案，不引入 Nginx、域名或 HTTPS：前端对外 `http://<ECS公网IP>:3000`，后端健康检查对外 `http://<ECS公网IP>:8000/health`。`<ECS公网IP>` 是部署文档占位符，实际部署时必须替换为阿里云 ECS 公网 IPv4；PostgreSQL、Redis 和 MinIO 宿主端口默认只绑定到 `127.0.0.1`，不要在安全组对公网放行。
+
 ---
 
 ## 13. 前端页面详细设计
@@ -1754,7 +1770,6 @@ docker-compose services:
 
 - 人物头像/3D 预览；
 - 基础信息；
-- 人格可信度；
 - 资料统计；
 - 待审核记忆；
 - 声音状态；
@@ -1772,6 +1787,10 @@ docker-compose services:
 - 上传列表；
 - 解析状态；
 - 失败重试；
+- 结构化记忆 Markdown；
+- 记忆卡片确认、修改、删除、禁用；
+- 唯一记忆可信度展示；
+- 完成审核，点亮星星；
 - 上传建议。
 
 #### 上传建议文案
@@ -1784,16 +1803,13 @@ docker-compose services:
 4. TA 常说的话、喜欢的事、生活习惯。
 ```
 
-### 13.4 记忆审计页
+### 13.4 记忆档案馆
 
 #### 模块
 
-- 顶部统计：总记忆、待审核、高置信、中置信、低置信；
-- 筛选器：分类、状态、来源类型、置信度；
-- 记忆卡片列表；
-- 右侧详情抽屉；
-- 来源预览；
-- 操作按钮：确认、修改、删除、禁用。
+- 回忆讲述；
+- 语义搜索；
+- 搜索结果内联展示标题、分类和来源摘录。
 
 ### 13.5 数字人对话页
 
@@ -1920,14 +1936,14 @@ docker-compose services:
 交付：
 
 - PersonaProfile 聚合；
-- 可信度计算；
-- 可信度展示；
+- 资料解析后的结构化记忆文档与可信度生成；
+- 可信度只在资料解析与审核页展示；
 - 上传建议。
 
 验收：
 
-- 审核记忆后可信度变化；
-- 人格档案可编辑；
+- 上传资料解析后可信度写入人物唯一 trust 值；
+- 档案摘要由资料上传解析后的 `memory_document_generation` 自动生成并写入 `profile.profile_summary`；
 - 对话能读取档案。
 
 ### Milestone 5：第一人称对话 Agent
@@ -2119,6 +2135,7 @@ docker-compose services:
 APP_ENV=development
 FRONTEND_URL=http://localhost:3000
 BACKEND_URL=http://localhost:8000
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/persona_memory
 REDIS_URL=redis://redis:6379/0
@@ -2144,6 +2161,17 @@ AVATAR_3D_PROVIDER=hunyuan3d_or_third_party
 THIRD_PARTY_VOICE_API_KEY=
 THIRD_PARTY_3D_API_KEY=
 ```
+
+ECS 直连端口部署时，`.env/runtime.env` 至少覆盖：
+
+```env
+FRONTEND_URL=http://<ECS公网IP>:3000
+BACKEND_URL=http://<ECS公网IP>:8000
+NEXT_PUBLIC_API_BASE_URL=http://<ECS公网IP>:8000
+JWT_SECRET=<生成强随机字符串>
+```
+
+其中 `NEXT_PUBLIC_API_BASE_URL` 会在 Next.js Docker build 期写入客户端包；公网 IP 或后端端口变化后必须重新执行带 `--build` 的 Compose 启动命令。
 
 ---
 
@@ -2192,7 +2220,7 @@ Demo 成功标准不是模型效果完美，而是完整体验闭环成立：
 2. 用户能上传文字、图片、音频、视频；
 3. 系统能解析资料并生成记忆卡片；
 4. 用户能审计和修正记忆；
-5. 人格档案和可信度能自动更新；
+5. 人格档案能随审核记忆更新，可信度能随资料解析生成的结构化记忆文档更新；
 6. 用户能与 TA 第一人称对话；
 7. TA 能使用用户称呼并给出情绪价值；
 8. 用户能查看回答依据；

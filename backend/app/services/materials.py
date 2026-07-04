@@ -8,12 +8,14 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.ai_job import AIJob
 from app.models.persona import Persona
 from app.models.source_material import SourceMaterial
 from app.models.user import User, uuid_str
 from app.schemas.job import AIJobRead
 from app.schemas.material import MaterialRead
+from app.db.session import SessionLocal
 from app.services.material_storage import remove_local_material_file
 from app.services.parsing import run_parse_job
 
@@ -115,7 +117,6 @@ def create_manual_material(
     db.flush()
     job = create_parse_job(db, material)
     db.flush()
-    run_parse_job(db, material, job)
     db.commit()
     db.refresh(material)
     db.refresh(job)
@@ -159,7 +160,6 @@ def create_uploaded_material(
     db.flush()
     job = create_parse_job(db, material)
     db.flush()
-    run_parse_job(db, material, job)
     db.commit()
     db.refresh(material)
     db.refresh(job)
@@ -172,10 +172,35 @@ def queue_material_parse(
 ) -> AIJob:
     job = create_parse_job(db, material)
     db.flush()
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def run_material_parse_job(db: Session, job: AIJob) -> AIJob:
+    if job.status not in {"pending", "retrying"}:
+        return job
+    if job.deleted_at is not None or job.source_material_id is None:
+        return job
+    material = db.get(SourceMaterial, job.source_material_id)
+    if material is None or material.deleted_at is not None or job.status == "canceled":
+        return job
     run_parse_job(db, material, job)
     db.commit()
     db.refresh(job)
     return job
+
+
+def run_material_parse_job_by_id(job_id: str) -> None:
+    if get_settings().app_env == "test":
+        return
+    db = SessionLocal()
+    try:
+        job = db.get(AIJob, job_id)
+        if job is not None:
+            run_material_parse_job(db, job)
+    finally:
+        db.close()
 
 
 def soft_delete_material(db: Session, material: SourceMaterial) -> None:

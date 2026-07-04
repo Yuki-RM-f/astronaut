@@ -26,12 +26,12 @@ test("story source summary keeps source titles scannable", () => {
     storySourceSummary({
       ...baseStory,
       source_memories: [
-        { memory_card_id: "m1", title: "海边日落", quote: "一起看日落", source_location: null },
-        { memory_card_id: "m2", title: "生日馄饨", quote: "一起包馄饨", source_location: null },
+        { memory_card_id: "m1", title: "海边日落", quote: "一起看日落", source_location: "相册第 1 页" },
+        { memory_card_id: "m2", title: "生日馄饨", quote: "一起包馄饨", source_location: "手动资料" },
         { memory_card_id: "m3", title: "春天散步", quote: "一起散步", source_location: null }
       ]
     }),
-    "海边日落 · 生日馄饨"
+    "海边日落（相册第 1 页） · 生日馄饨（手动资料）"
   );
   assert.equal(
     storySourceSummary({ ...baseStory, source_memory_ids: [], source_memories: [] }),

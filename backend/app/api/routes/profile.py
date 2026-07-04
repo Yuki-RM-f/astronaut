@@ -7,13 +7,14 @@ from app.models.user import User
 from app.schemas.profile import PersonaProfileRead, PersonaProfileUpdate
 from app.services.materials import get_persona_or_404
 from app.services.profile import (
+    build_profile_from_memories,
     calculate_trust_report,
+    generate_memory_document_trust,
     get_or_create_profile,
     mark_manual_overrides,
     profile_response,
     record_profile_job,
     regenerate_with_persona_engine,
-    refresh_profile_and_trust,
 )
 from app.services.audit import snapshot_entity, write_audit_event
 
@@ -30,9 +31,6 @@ def get_profile(
     persona = get_persona_or_404(persona_id, current_user, db)
     profile = get_or_create_profile(db, persona)
     report = calculate_trust_report(db, persona)
-    persona.trust_score = report.trust_score
-    db.add(persona)
-    db.commit()
     db.refresh(profile)
     return profile_response(profile, report, persona)
 
@@ -47,14 +45,12 @@ def update_profile(
     persona = get_persona_or_404(persona_id, current_user, db)
     profile = get_or_create_profile(db, persona)
     before_profile = snapshot_entity(profile)
-    previous_trust = persona.trust_score
     updates = payload.model_dump(exclude_unset=True)
     for field, value in updates.items():
         setattr(profile, field, value)
     mark_manual_overrides(profile, set(updates))
     report = calculate_trust_report(db, persona)
-    persona.trust_score = report.trust_score
-    db.add_all([persona, profile])
+    db.add(profile)
     db.flush()
     write_audit_event(
         db,
@@ -67,13 +63,6 @@ def update_profile(
         before_snapshot=before_profile,
         after_snapshot=snapshot_entity(profile),
         metadata_json={"fields": sorted(updates.keys())},
-    )
-    _write_trust_changed_if_needed(
-        db,
-        current_user.id,
-        persona.id,
-        previous_trust,
-        report.trust_score,
     )
     db.commit()
     db.refresh(profile)
@@ -90,7 +79,6 @@ def regenerate_profile(
     db: Session = Depends(get_db),
 ):
     persona = get_persona_or_404(persona_id, current_user, db)
-    previous_trust = persona.trust_score
     profile, report, job_extra = regenerate_with_persona_engine(db, persona)
     write_audit_event(
         db,
@@ -102,13 +90,6 @@ def regenerate_profile(
         action="显式重生成人格画像",
         after_snapshot=snapshot_entity(profile),
         metadata_json=job_extra,
-    )
-    _write_trust_changed_if_needed(
-        db,
-        current_user.id,
-        persona.id,
-        previous_trust,
-        report.trust_score,
     )
     db.commit()
     db.refresh(profile)
@@ -127,8 +108,21 @@ def recalculate_trust(
     persona = get_persona_or_404(persona_id, current_user, db)
     profile = get_or_create_profile(db, persona)
     previous_trust = persona.trust_score
-    report = refresh_profile_and_trust(db, persona)
-    record_profile_job(db, persona, "calculate_trust_score", report)
+    build_profile_from_memories(db, persona, preserve_manual_overrides=True)
+    report, input_json, output_json, provider_type, provider_name = generate_memory_document_trust(
+        db,
+        persona,
+    )
+    record_profile_job(
+        db,
+        persona,
+        "calculate_trust_score",
+        report,
+        provider_type=provider_type,
+        provider_name=provider_name,
+        input_json=input_json,
+        output_json_extra=output_json,
+    )
     _write_trust_changed_if_needed(
         db,
         current_user.id,
