@@ -15,7 +15,7 @@ import { formatRelevanceScore, searchAuditMemories, SearchResultItem } from "@/s
 import { memoryCategoryLabel } from "@/src/lib/memories";
 import {
   createStory,
-  listStories,
+  ensureDefaultStories,
   MemoryStoryRead,
   storySourceSummary,
   updateStoryFavorite
@@ -52,7 +52,7 @@ export default function PersonaMemoriesPage() {
     setError(null);
 
     ensureDemoSession()
-      .then(() => listStories(personaId))
+      .then(() => ensureDefaultStories(personaId))
       .then((items) => {
         if (!isCurrent) {
           return;
@@ -142,7 +142,7 @@ export default function PersonaMemoriesPage() {
           subtitle="让TA讲几段回忆，或在已整理的记忆里做语义搜索。"
         />
 
-        {state === "loading" ? <Notice text="正在读取回忆..." /> : null}
+        {state === "loading" ? <Notice text="正在整理三段回忆..." /> : null}
         {state === "error" ? <Notice text={error ?? "无法加载回忆讲述。"} /> : null}
 
         {state === "ready" ? (
@@ -228,7 +228,7 @@ function StoryArchivePanel({
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {stories.slice(0, 3).map((story) => (
+            {stories.map((story) => (
               <StoryCard
                 key={story.id}
                 story={story}
@@ -236,32 +236,9 @@ function StoryArchivePanel({
                 onToggleFavorite={onToggleFavorite}
               />
             ))}
-            {false ? stories.slice(0, 3).map((story) => (
-              <article
-                key={story.id}
-                className="rounded-3xl border border-white/8 bg-white/6 p-4"
-              >
-                <p className="text-xs font-bold text-starMist/48">{story.theme}</p>
-                <h3 className="mt-2 font-serif text-xl font-bold text-starGold">
-                  {story.title}
-                </h3>
-                <p className="mt-2 line-clamp-5 text-sm font-semibold leading-7 text-starMist/74">
-                  {story.content}
-                </p>
-                <p className="mt-3 text-xs font-semibold leading-5 text-starMist/48">
-                  来源：{storySourceSummary(story)}
-                </p>
-                {story.audio_url ? (
-                  <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-starGold/12 px-3 py-1 text-xs font-bold text-starGold">
-                    <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    已生成语音讲述
-                  </p>
-                ) : null}
-              </article>
-            )) : null}
             {stories.length === 0 ? (
               <p className="rounded-3xl border border-white/8 bg-white/6 p-4 text-sm font-semibold leading-7 text-starMist/68 md:col-span-3">
-                还没有回忆讲述。输入主题后生成第一段。
+                还没有已审核记忆，先去资料页审核记忆后，TA 才能讲出可追溯的回忆。
               </p>
             ) : null}
           </div>

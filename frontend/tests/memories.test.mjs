@@ -54,6 +54,11 @@ test("memories page keeps only story telling and semantic search", () => {
   assert.equal(source.includes("语义搜索"), true);
   assert.equal(source.includes("让TA讲"), true);
   assert.equal(source.includes("长期/短期记忆"), true);
+  assert.equal(source.includes("ensureDefaultStories"), true);
+  assert.equal(source.includes(".then(() => listStories(personaId))"), false);
+  assert.equal(source.includes("stories.slice(0, 3)"), false);
+  assert.equal(source.includes("false ?"), false);
+  assert.equal(source.includes("先去资料页审核记忆"), true);
   assert.equal(source.includes("metadata_json"), false);
   assert.equal(source.includes("<think>"), false);
 

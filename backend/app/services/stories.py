@@ -31,6 +31,8 @@ from app.services.voice import DEFAULT_TTS_NOTICE
 
 REVIEWED_MEMORY_STATUSES = {"confirmed", "corrected"}
 STORY_SOURCE_LIMIT = 3
+DEFAULT_STORY_LIMIT = 3
+DEFAULT_STORY_KIND = "default_memory_story"
 THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 THINK_OPEN_RE = re.compile(r"<think\b[^>]*>.*", re.IGNORECASE | re.DOTALL)
 THINK_CLOSE_RE = re.compile(r"</think>", re.IGNORECASE)
@@ -58,6 +60,49 @@ def generate_story(
     persona: Persona,
     payload: MemoryStoryCreate,
 ) -> MemoryStoryRead:
+    return _generate_story_for_theme(db, persona, payload.theme)
+
+
+def seed_default_stories(db: Session, persona: Persona) -> list[MemoryStoryRead]:
+    memories = _reviewed_memories(db, persona)
+    if not memories:
+        return list_stories(db, persona)
+
+    existing_defaults = _default_seed_stories(db, persona)
+    needed = max(0, DEFAULT_STORY_LIMIT - len(existing_defaults))
+    if needed <= 0:
+        return list_stories(db, persona)
+
+    used_seed_ids = {
+        str((story.metadata_json or {}).get("seed_memory_id"))
+        for story in existing_defaults
+        if isinstance(story.metadata_json, dict)
+        and (story.metadata_json or {}).get("seed_memory_id")
+    }
+    candidates = [memory for memory in memories if memory.id not in used_seed_ids]
+    start_index = len(existing_defaults) + 1
+    for offset, memory in enumerate(candidates[:needed], start=start_index):
+        _generate_story_for_theme(
+            db,
+            persona,
+            _seed_story_theme(memory),
+            story_kind=DEFAULT_STORY_KIND,
+            anchor_memory_id=memory.id,
+            seed_index=offset,
+        )
+
+    return list_stories(db, persona)
+
+
+def _generate_story_for_theme(
+    db: Session,
+    persona: Persona,
+    theme: str,
+    *,
+    story_kind: str | None = None,
+    anchor_memory_id: str | None = None,
+    seed_index: int | None = None,
+) -> MemoryStoryRead:
     memories = _reviewed_memories(db, persona)
     if not memories:
         raise HTTPException(
@@ -65,19 +110,21 @@ def generate_story(
             detail="Story generation requires confirmed or corrected memories",
         )
 
-    memory_context = build_chat_memory_context(db, persona, payload.theme)
+    memory_context = build_chat_memory_context(db, persona, theme)
     ranked_memories = _rank_story_memories(
         memories,
-        payload.theme,
+        theme,
         memory_context.long_term_memory_md,
         memory_context.short_term_memory_md,
     )
+    if anchor_memory_id:
+        ranked_memories = _with_anchor_first(ranked_memories, memories, anchor_memory_id)
     retrieved_memories = ranked_memories[:STORY_SOURCE_LIMIT] or memories[:STORY_SOURCE_LIMIT]
     story_payload = {
         "persona_id": persona.id,
         "persona_name": persona.name,
         "user_nickname_by_persona": persona.user_nickname_by_persona,
-        "story_theme": payload.theme,
+        "story_theme": theme,
         "long_term_memory_md": memory_context.long_term_memory_md,
         "short_term_memory_md": memory_context.short_term_memory_md,
         "source_memory_ids": [memory.id for memory in retrieved_memories],
@@ -99,7 +146,7 @@ def generate_story(
     story_output = _clean_story_output(
         story_result["output"],
         persona=persona,
-        theme=payload.theme,
+        theme=theme,
         fallback_memories=retrieved_memories,
     )
     story_job.status = "succeeded"
@@ -128,7 +175,7 @@ def generate_story(
 
     story = MemoryStory(
         persona_id=persona.id,
-        theme=payload.theme,
+        theme=theme,
         title=story_output["title"],
         content=story_output["content"],
         audio_url=speech_result["output"]["audio_url"],
@@ -151,6 +198,12 @@ def generate_story(
             },
         },
     )
+    if story_kind:
+        story.metadata_json["story_kind"] = story_kind
+    if anchor_memory_id:
+        story.metadata_json["seed_memory_id"] = anchor_memory_id
+    if seed_index is not None:
+        story.metadata_json["seed_index"] = seed_index
     db.add(story)
     db.flush()
     for memory_id in story.source_memory_ids or []:
@@ -163,7 +216,7 @@ def generate_story(
             event_type="memory.cited_in_story",
             severity="debug",
             action="故事生成引用记忆",
-            metadata_json={"story_id": story.id, "story_theme": payload.theme},
+            metadata_json={"story_id": story.id, "story_theme": theme},
         )
     db.add(story_job)
     db.add(speech_job)
@@ -235,6 +288,39 @@ def _reviewed_memories(db: Session, persona: Persona) -> list[MemoryCard]:
             MemoryCard.id.desc(),
         )
     ).all()
+
+
+def _default_seed_stories(db: Session, persona: Persona) -> list[MemoryStory]:
+    stories = db.scalars(
+        select(MemoryStory)
+        .where(MemoryStory.persona_id == persona.id, MemoryStory.deleted_at.is_(None))
+        .order_by(MemoryStory.created_at.asc(), MemoryStory.id.asc())
+    ).all()
+    return [
+        story
+        for story in stories
+        if isinstance(story.metadata_json, dict)
+        and story.metadata_json.get("story_kind") == DEFAULT_STORY_KIND
+    ]
+
+
+def _seed_story_theme(memory: MemoryCard) -> str:
+    title = _clean_whitespace(memory.title or "")
+    if title:
+        return title[:50]
+    content = _clean_whitespace(memory.user_correction or memory.content or "")
+    return content[:50] or "共同回忆"
+
+
+def _with_anchor_first(
+    ranked_memories: list[MemoryCard],
+    all_memories: list[MemoryCard],
+    anchor_memory_id: str,
+) -> list[MemoryCard]:
+    anchor = next((memory for memory in all_memories if memory.id == anchor_memory_id), None)
+    if anchor is None:
+        return ranked_memories
+    return [anchor, *[memory for memory in ranked_memories if memory.id != anchor.id]]
 
 
 def _rank_story_memories(

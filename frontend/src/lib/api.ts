@@ -98,6 +98,7 @@ export const API_PATHS = {
   stories: {
     list: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories`,
     create: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories`,
+    seed: (personaId: string) => `/api/personas/${encodeURIComponent(personaId)}/stories/seed`,
     favorite: (storyId: string) => `/api/stories/${encodeURIComponent(storyId)}/favorite`,
     export: (personaId: string, storyId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/export/story/${encodeURIComponent(storyId)}`,

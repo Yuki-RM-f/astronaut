@@ -19,6 +19,7 @@ from app.services.stories import (
     export_story_audio,
     generate_story,
     list_stories,
+    seed_default_stories,
     update_story_favorite,
 )
 
@@ -34,6 +35,16 @@ def get_persona_stories(
 ):
     persona = get_persona_or_404(persona_id, current_user, db)
     return MemoryStoryListResponse(items=list_stories(db, persona))
+
+
+@router.post("/personas/{persona_id}/stories/seed", response_model=MemoryStoryListResponse)
+def seed_persona_stories(
+    persona_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    persona = get_persona_or_404(persona_id, current_user, db)
+    return MemoryStoryListResponse(items=seed_default_stories(db, persona))
 
 
 @router.post(

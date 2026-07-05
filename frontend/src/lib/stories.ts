@@ -55,6 +55,20 @@ export async function listStories(personaId: string): Promise<MemoryStoryRead[]>
   return data.items;
 }
 
+export async function ensureDefaultStories(
+  personaId: string
+): Promise<MemoryStoryRead[]> {
+  const response = await fetch(buildApiUrl(API_PATHS.stories.seed(personaId)), {
+    method: "POST",
+    headers: authHeaders()
+  });
+  const data = await readApiJson<MemoryStoryListResponse>(
+    response,
+    "无法整理默认回忆故事。"
+  );
+  return data.items;
+}
+
 export async function createStory(
   personaId: string,
   theme: string

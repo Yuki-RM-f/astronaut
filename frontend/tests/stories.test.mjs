@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeStoryTheme, storySourceSummary } from "../src/lib/stories.js";
+import { API_PATHS } from "../src/lib/api.js";
+import {
+  ensureDefaultStories,
+  normalizeStoryTheme,
+  storySourceSummary
+} from "../src/lib/stories.js";
 
 test("story theme falls back to shared memory when blank", () => {
   assert.equal(normalizeStoryTheme("  "), "共同回忆");
@@ -37,4 +42,30 @@ test("story source summary keeps source titles scannable", () => {
     storySourceSummary({ ...baseStory, source_memory_ids: [], source_memories: [] }),
     "暂无已关联的记忆来源"
   );
+});
+
+test("default story seeding posts to the seed endpoint", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), init });
+    return new Response(JSON.stringify({ items: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+
+  try {
+    assert.equal(
+      API_PATHS.stories.seed("persona id"),
+      "/api/personas/persona%20id/stories/seed"
+    );
+    assert.deepEqual(await ensureDefaultStories("persona id"), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "http://localhost:8000/api/personas/persona%20id/stories/seed");
+  assert.equal(calls[0].init.method, "POST");
 });

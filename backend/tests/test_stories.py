@@ -231,6 +231,230 @@ def test_generate_story_falls_back_when_model_thinking_leaves_empty_content(
     assert story["source_memory_ids"] == [reviewed["id"]]
 
 
+def test_seed_stories_generates_three_default_stories_idempotently(client, monkeypatch):
+    from app.services import stories as story_service
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            if capability == "story_generation":
+                source_id = payload["source_memory_ids"][0]
+                return {
+                    "provider_name": "fake_story",
+                    "capability": capability,
+                    "status": "succeeded",
+                    "input": payload,
+                    "output": {
+                        "title": f"{payload['story_theme']}的回忆",
+                        "content": f"小铭，我还记得{payload['story_theme']}这件事。",
+                        "source_memory_ids": [source_id],
+                        "source_memories": [],
+                    },
+                }
+            return {
+                "provider_name": "fake_tts",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {"audio_url": f"mock://tts/{payload['job_id']}"},
+            }
+
+    monkeypatch.setattr(story_service, "ProviderGateway", lambda: FakeGateway())
+
+    token = register_user(client, "story-seed-defaults@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    memories = [
+        create_memory(
+            client,
+            token,
+            persona["id"],
+            material["id"],
+            "外婆在码头边牵着小铭看船。",
+            title="码头看船",
+            source_location="image:码头.png",
+        ),
+        create_memory(
+            client,
+            token,
+            persona["id"],
+            material["id"],
+            "外婆在生日时给小铭煮热汤。",
+            title="生日热汤",
+            source_location="manual:birthday",
+        ),
+        create_memory(
+            client,
+            token,
+            persona["id"],
+            material["id"],
+            "外婆鼓励小铭遇事慢慢来。",
+            title="慢慢来",
+            source_location="manual:comfort",
+        ),
+    ]
+    for memory in memories:
+        confirm_memory(client, token, memory["id"])
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories/seed",
+        headers=auth(token),
+    )
+
+    assert response.status_code == 200
+    stories = response.json()["items"]
+    default_stories = [
+        story
+        for story in stories
+        if story["metadata_json"].get("story_kind") == "default_memory_story"
+    ]
+    assert len(default_stories) == 3
+    seed_ids = [story["metadata_json"]["seed_memory_id"] for story in default_stories]
+    assert sorted(seed_ids) == sorted(memory["id"] for memory in memories)
+    assert sorted(story["metadata_json"]["seed_index"] for story in default_stories) == [
+        1,
+        2,
+        3,
+    ]
+    for story in default_stories:
+        seed_memory_id = story["metadata_json"]["seed_memory_id"]
+        assert story["source_memory_ids"][0] == seed_memory_id
+        assert story["source_memories"][0]["source_location"]
+
+    repeated = client.post(
+        f"/api/personas/{persona['id']}/stories/seed",
+        headers=auth(token),
+    )
+
+    assert repeated.status_code == 200
+    assert [story["id"] for story in repeated.json()["items"]] == [
+        story["id"] for story in stories
+    ]
+
+
+def test_seed_stories_uses_only_active_reviewed_memories_and_manual_story_does_not_count(
+    client,
+    monkeypatch,
+):
+    from app.services import stories as story_service
+
+    class FakeGateway:
+        async def run(self, capability, payload):
+            if capability == "story_generation":
+                source_id = payload["source_memory_ids"][0]
+                return {
+                    "provider_name": "fake_story",
+                    "capability": capability,
+                    "status": "succeeded",
+                    "input": payload,
+                    "output": {
+                        "title": payload["story_theme"],
+                        "content": f"小铭，我记得{payload['story_theme']}。",
+                        "source_memory_ids": [source_id],
+                        "source_memories": [],
+                    },
+                }
+            return {
+                "provider_name": "fake_tts",
+                "capability": capability,
+                "status": "succeeded",
+                "input": payload,
+                "output": {"audio_url": f"mock://tts/{payload['job_id']}"},
+            }
+
+    monkeypatch.setattr(story_service, "ProviderGateway", lambda: FakeGateway())
+
+    token = register_user(client, "story-seed-filter@example.com")
+    persona = create_persona(client, token)
+    material = create_manual_material(client, token, persona["id"])
+    active = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "外婆给小铭包馄饨。",
+        title="馄饨",
+        source_location="manual:active",
+    )
+    confirm_memory(client, token, active["id"])
+    pending = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "待审核记忆不能默认讲述。",
+        title="待审核",
+    )
+    rejected = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "已拒绝记忆不能默认讲述。",
+        title="已拒绝",
+    )
+    disabled = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "已停用记忆不能默认讲述。",
+        title="已停用",
+    )
+    deleted = create_memory(
+        client,
+        token,
+        persona["id"],
+        material["id"],
+        "已删除记忆不能默认讲述。",
+        title="已删除",
+    )
+    assert client.post(f"/api/memories/{rejected['id']}/reject", headers=auth(token)).status_code == 200
+    assert client.post(f"/api/memories/{disabled['id']}/disable", headers=auth(token)).status_code == 200
+    confirm_memory(client, token, deleted["id"])
+    assert client.delete(f"/api/memories/{deleted['id']}", headers=auth(token)).status_code == 204
+
+    manual = client.post(
+        f"/api/personas/{persona['id']}/stories",
+        headers=auth(token),
+        json={"theme": "用户关键词"},
+    )
+    assert manual.status_code == 201
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories/seed",
+        headers=auth(token),
+    )
+
+    assert response.status_code == 200
+    default_stories = [
+        story
+        for story in response.json()["items"]
+        if story["metadata_json"].get("story_kind") == "default_memory_story"
+    ]
+    assert len(default_stories) == 1
+    assert default_stories[0]["metadata_json"]["seed_memory_id"] == active["id"]
+    assert default_stories[0]["source_memory_ids"] == [active["id"]]
+    excluded_ids = {pending["id"], rejected["id"], disabled["id"], deleted["id"]}
+    assert excluded_ids.isdisjoint(default_stories[0]["source_memory_ids"])
+    manual_story = next(
+        story for story in response.json()["items"] if story["id"] == manual.json()["id"]
+    )
+    assert manual_story["metadata_json"].get("story_kind") != "default_memory_story"
+
+
+def test_seed_stories_without_reviewed_memories_returns_empty_list(client):
+    token = register_user(client, "story-seed-empty@example.com")
+    persona = create_persona(client, token)
+
+    response = client.post(
+        f"/api/personas/{persona['id']}/stories/seed",
+        headers=auth(token),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
 def test_generate_story_uses_reviewed_memories_and_creates_audio_jobs(client):
     token = register_user(client, "story-generate@example.com")
     persona = create_persona(client, token)
