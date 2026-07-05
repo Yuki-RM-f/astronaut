@@ -1,0 +1,16 @@
+# 长期记忆
+
+- persona_id: 671aa353-aeee-4a08-9b16-bc7dc233411f
+- persona_name: 外婆
+- generated_at: 2026-07-04T21:35:55.799585
+
+## shared_event
+
+### 春节热茶
+- memory_card_id: 3253e01f-300d-482d-a6c8-e43399be41ed
+- status: confirmed
+- important: false
+- confidence: high 90
+- content: 外婆常在春节给小铭准备热茶。
+- source_quote: 外婆常在春节给小铭准备热茶。
+- source_location: manual:story-test
