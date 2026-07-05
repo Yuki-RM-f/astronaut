@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>复活亲友 Agent 产品路演</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --night: #080d2a;
+      --gold: #ffd28a;
+      --peach: #f0a875;
+      --cream: #fff0d7;
+      --mist: #d9d2f2;
+      --line: rgba(255, 210, 138, 0.16);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(circle at 76% 20%, rgba(158, 94, 211, 0.35), transparent 28%),
+        radial-gradient(circle at 20% 78%, rgba(240, 168, 117, 0.2), transparent 30%),
+        linear-gradient(135deg, #071033 0%, #121043 46%, #27124f 100%);
+      color: var(--cream);
+      font-family: Inter, "Noto Sans SC", "Microsoft YaHei", "PingFang SC", ui-sans-serif, system-ui, sans-serif;
+    }
+    .star-field {
+      position: fixed;
+      inset: 0;
+      opacity: 0.64;
+      background-image:
+        radial-gradient(circle, rgba(255, 231, 185, 0.95) 0 1px, transparent 1.6px),
+        radial-gradient(circle, rgba(198, 177, 255, 0.9) 0 1px, transparent 1.8px),
+        radial-gradient(circle, rgba(255, 192, 125, 0.88) 0 1px, transparent 1.7px);
+      background-position: 0 0, 38px 68px, 110px 24px;
+      background-size: 150px 150px, 210px 210px, 290px 290px;
+      animation: drift 24s linear infinite;
+    }
+    .deck { position: relative; z-index: 1; height: 100vh; width: 100vw; }
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 4.2vh 5vw 6vh;
+      opacity: 0;
+      transform: translateX(34px) scale(0.985);
+      transition: opacity 420ms ease, transform 420ms ease;
+      pointer-events: none;
+    }
+    .slide.active { opacity: 1; transform: none; pointer-events: auto; }
+    .canvas {
+      position: relative;
+      width: min(92vw, 1420px);
+      aspect-ratio: 16 / 9;
+      max-height: 84vh;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: linear-gradient(145deg, rgba(61, 46, 112, 0.78), rgba(27, 28, 79, 0.68));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 28px 90px rgba(0,0,0,.34);
+      backdrop-filter: blur(18px);
+    }
+    .canvas::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      background:
+        radial-gradient(circle at 82% 15%, rgba(255, 210, 138, 0.16), transparent 18%),
+        radial-gradient(circle at 18% 88%, rgba(181, 128, 255, 0.16), transparent 24%),
+        linear-gradient(120deg, rgba(255, 240, 210, 0.04), transparent 42%);
+      pointer-events: none;
+    }
+    .cover-slide .canvas {
+      background:
+        linear-gradient(90deg, rgba(5, 8, 28, 0.82) 0%, rgba(8, 13, 42, 0.58) 42%, rgba(8, 13, 42, 0.10) 78%),
+        linear-gradient(180deg, rgba(8, 13, 42, 0.10), rgba(8, 13, 42, 0.42)),
+        url("./cover-starry-girl.png");
+      background-position: center;
+      background-size: cover;
+    }
+    .content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 22px;
+      padding: clamp(30px, 3.7vw, 54px);
+      min-width: 0;
+    }
+    .cover-copy { max-width: 58%; text-shadow: 0 4px 28px rgba(0,0,0,.55); }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--gold);
+      font-size: clamp(11px, 1vw, 14px);
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before {
+      width: 12px; height: 12px; border-radius: 50%; content: "";
+      background: var(--gold); box-shadow: 0 0 20px rgba(255,210,138,.82);
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2 {
+      max-width: 980px;
+      color: var(--gold);
+      font-family: "Noto Serif SC", "Songti SC", STSong, SimSun, Georgia, serif;
+      line-height: 1.08;
+      letter-spacing: 0;
+      text-shadow: 0 0 26px rgba(255,210,138,.12);
+    }
+    h1 { font-size: clamp(40px, 5.2vw, 76px); }
+    h2 { font-size: clamp(28px, 3.1vw, 48px); }
+    h3 { color: var(--cream); font-size: clamp(16px, 1.4vw, 22px); line-height: 1.35; }
+    .lead {
+      max-width: 940px;
+      color: rgba(255, 240, 215, 0.88);
+      font-size: clamp(15px, 1.45vw, 23px);
+      font-weight: 700;
+      line-height: 1.42;
+    }
+    .body-text, li {
+      color: rgba(217, 210, 242, 0.72);
+      font-size: clamp(13px, 1.05vw, 17px);
+      line-height: 1.55;
+      font-weight: 650;
+    }
+    .subtle { color: rgba(217,210,242,.54); font-size: clamp(12px, .95vw, 15px); font-weight: 700; }
+    .grid { display: grid; gap: 14px; width: 100%; min-width: 0; }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      min-height: 118px;
+      min-width: 0;
+      padding: 20px;
+      border: 1px solid rgba(255,210,138,.14);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(62,48,112,.74), rgba(24,28,78,.66));
+      box-shadow: 0 18px 52px rgba(0,0,0,.22);
+      overflow-wrap: anywhere;
+    }
+    .card.gold {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(255,210,138,.22), transparent 38%),
+        linear-gradient(145deg, rgba(62,48,112,.78), rgba(24,28,78,.68));
+    }
+    .card h3 { margin-bottom: 8px; color: var(--cream); font-size: clamp(15px, 1.12vw, 18px); }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 12px; max-width: 980px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 38px;
+      padding: 0 15px;
+      border: 1px solid rgba(255,210,138,.18);
+      border-radius: 999px;
+      background: rgba(13,18,58,.56);
+      color: rgba(255,240,215,.9);
+      font-size: clamp(11px, .9vw, 14px);
+      font-weight: 800;
+      backdrop-filter: blur(12px);
+    }
+    ul { margin: 0; padding-left: 1.2em; }
+    .quote {
+      max-width: 900px;
+      padding: 24px 28px;
+      border-left: 4px solid var(--gold);
+      border-radius: 20px;
+      background: rgba(64,52,116,.48);
+      color: var(--cream);
+      font-family: "Noto Serif SC", "Songti SC", STSong, SimSun, serif;
+      font-size: clamp(20px, 2.05vw, 32px);
+      font-weight: 800;
+      line-height: 1.34;
+    }
+    .timeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; width: 100%; min-width: 0; }
+    .step { min-height: 226px; min-width: 0; padding: 22px; border: 1px solid rgba(255,210,138,.15); border-radius: 22px; background: rgba(64,52,116,.58); overflow-wrap: anywhere; }
+    .step-number {
+      display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 18px;
+      border-radius: 50%; background: var(--peach); color: #fff7ea; font-size: 18px; font-weight: 900;
+      box-shadow: 0 14px 42px rgba(240,168,117,.36);
+    }
+    .controls {
+      position: fixed; z-index: 5; left: 50%; bottom: 20px; display: flex;
+      align-items: center; gap: 14px; transform: translateX(-50%);
+    }
+    .nav-btn {
+      display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid rgba(255,210,138,.22);
+      border-radius: 50%; background: rgba(64,52,116,.72); color: var(--cream); cursor: pointer;
+      font-size: 18px; font-weight: 900;
+    }
+    .nav-btn:hover { background: rgba(245,176,111,.85); }
+    .progress-wrap { width: min(36vw, 420px); height: 8px; overflow: hidden; border-radius: 999px; background: rgba(217,210,242,.16); }
+    .progress { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--peach), var(--gold)); box-shadow: 0 0 18px rgba(255,210,138,.52); transition: width 300ms ease; }
+    .counter { min-width: 58px; color: rgba(255,240,215,.78); font-size: 12px; font-weight: 800; text-align: center; }
+    .hint { position: fixed; right: 26px; bottom: 24px; z-index: 5; color: rgba(217,210,242,.46); font-size: 11px; font-weight: 700; }
+    @keyframes drift { from { transform: translate3d(0,0,0); } to { transform: translate3d(-70px,42px,0); } }
+    @media (max-width: 900px) {
+      .canvas { width: 94vw; aspect-ratio: auto; min-height: 82vh; }
+      .content { padding: 28px; }
+      .cover-copy { max-width: none; }
+      .cols-2, .cols-3, .timeline { grid-template-columns: 1fr; }
+      .slide { padding: 3vh 3vw 8vh; }
+      .body-text, li { font-size: 14px; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="star-field" aria-hidden="true"></div>
+  <main class="deck" aria-live="polite">
+    <section class="slide active cover-slide">
+      <div class="canvas">
+        <div class="content cover-copy">
+          <div class="eyebrow">Product Roadshow</div>
+          <h1>“复活”亲友，让思念有处安放</h1>
+          <p class="lead">帮助用户与逝去亲友记忆对话的数字人格 Agent</p>
+          <div class="pill-row">
+            <span class="pill">多模态记忆</span><span class="pill">人格边界</span><span class="pill">情感疗愈</span><span class="pill">数字陪伴</span>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Market Insight</div><h2>失亲哀伤，需要新的陪伴方式</h2><div class="grid cols-3"><div class="card gold"><h3>安全出口</h3><p class="body-text">失去亲友后的痛苦，常常缺少一个可持续、可表达、不会打扰他人的出口。</p></div><div class="card"><h3>传统方式断点明显</h3><p class="body-text">心理咨询门槛高，纪念相册偏静态，亲友倾诉难以长期承接。</p></div><div class="card"><h3>需求已被验证</h3><p class="body-text">AI 情感陪伴与 griefbot 已有大规模使用，说明用户存在继续连接、表达遗憾、保存记忆的需求。</p></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Competition Gap</div><h2>现有产品，解决得还不够深</h2><div class="grid cols-3"><div class="card"><h3>资料输入门槛高</h3><p class="body-text">用户需要主动整理大量信息，创建成本高，越悲伤越难开始。</p></div><div class="card"><h3>交互方式单一</h3><p class="body-text">大多停留在文字或语音对话，情感层次和陪伴感偏浅。</p></div><div class="card"><h3>缺乏“走出来”的心理治疗</h3><p class="body-text">容易强化“TA 还在”的幻觉，而非帮助用户逐渐修复哀伤。</p></div></div><div class="quote">机会不在“像不像”，而在能不能整理记忆、表达遗憾、修复哀伤。</div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Positioning</div><h2>我们不是简单复刻一个 AI 亲友</h2><p class="lead">我们构建的是一个有边界、有来源、有疗愈路径的数字人格体。</p><div class="grid cols-3"><div class="card gold"><h3>有来源</h3><p class="body-text">用户确认后，记忆才进入人格档案。</p></div><div class="card gold"><h3>有边界</h3><p class="body-text">不虚构关键事实，不替代真实亲友。</p></div><div class="card gold"><h3>有路径</h3><p class="body-text">帮助用户表达遗憾、整理记忆、延续心愿。</p></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Highlight 01</div><h2>低门槛创建数字人格</h2><p class="lead">用户不需要懂 Prompt，也不需要先整理资料，只要上传碎片化回忆。</p><div class="grid cols-2"><div class="card"><h3>输入：自然散落的资料</h3><div class="pill-row"><span class="pill">老照片</span><span class="pill">语音片段</span><span class="pill">家庭视频</span><span class="pill">纪念文字</span><span class="pill">亲友故事</span><span class="pill">聊天记录</span></div></div><div class="card gold"><h3>解析：结构化人格档案</h3><ul><li>基础事实、人物关系、兴趣偏好</li><li>生活习惯、表达习惯、共同经历</li></ul></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Highlight 02</div><h2>多模态互动，更接近真实陪伴</h2><div class="grid cols-3"><div class="card gold"><h3>文字对话</h3><p class="body-text">适合深度表达、长文本倾诉、回忆追问。</p></div><div class="card gold"><h3>语音对话</h3><p class="body-text">让情绪有声音，也让回应更像陪伴。</p></div><div class="card gold"><h3>视频互动</h3><p class="body-text">通过数字人形象、表情和手势建立情绪连接。</p></div></div><p class="subtle">从“能说话”走向“能被看见、听见、陪伴”。</p></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Highlight 03</div><h2>明确的疗愈路径</h2><p class="lead">目标不是让用户沉迷，而是帮助用户告别。</p><div class="timeline"><div class="step"><div class="step-number">1</div><h3>记忆档案馆</h3><p class="body-text">回忆疗法：让 TA 讲述共同经历过的故事，重新整理爱与记忆。</p></div><div class="step"><div class="step-number">2</div><h3>遗憾对话室</h3><p class="body-text">空椅子疗法：说出没来得及说的话，完成情绪表达。</p></div><div class="step"><div class="step-number">3</div><h3>心愿延续系统</h3><p class="body-text">纪念行动疗法：记录并完成 TA 的愿望，把悲伤转化为行动。</p></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Demo Focus</div><h2>三个演示场景</h2><div class="grid cols-3"><div class="card gold"><h3>场景一：记忆档案馆</h3><p class="body-text">“让爷爷讲讲他下南洋的故事。”</p></div><div class="card gold"><h3>场景二：遗憾对话室</h3><p class="body-text">“爷爷，你这一生真的很了不起。”</p></div><div class="card gold"><h3>场景三：心愿延续系统</h3><p class="body-text">生成心愿：好好照顾阿嬷和家里人。</p></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Business Model</div><h2>商业化设计：分层订阅制</h2><div class="grid cols-3"><div class="card"><h3>免费体验</h3><ul><li>创建 1 位人物档案</li><li>基础资料和互动</li></ul></div><div class="card gold"><h3>VIP订阅</h3><ul><li>创建多位人物档案</li><li>长期记忆维护</li><li>多模态互动</li></ul></div><div class="card"><h3>SVIP订阅</h3><ul><li>数字人形象精修</li><li>更专业的心理帮助</li><li>家庭成员共同维护</li></ul></div></div><p class="subtle">订阅制匹配持续对话、资料存储和多模态生成的长期成本。</p></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Risk Control</div><h2>风险把控：授权、隐私、心理安全</h2><div class="grid cols-3"><div class="card"><h3>肖像权与授权</h3><ul><li>上传者确认资料使用权</li><li>声音与视频需授权确认</li><li>明确标识 AI 生成</li></ul></div><div class="card"><h3>隐私与数据安全</h3><ul><li>用户资料加密存储</li><li>敏感内容不用于公开训练</li></ul></div><div class="card gold"><h3>心理安全</h3><ul><li>避免诱导过度依赖</li><li>严重哀伤触发风险提示</li><li>引导现实支持与专业帮助</li></ul></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Roadmap</div><h2>后续迭代方向</h2><div class="grid cols-3"><div class="card gold"><h3>复活宠物</h3><p class="body-text">宠物陪伴同样具有强情感价值，适合拓展为独立场景。</p></div><div class="card gold"><h3>更仿真的数字人</h3><p class="body-text">提升面部表情、声音、手势、语气一致性。</p></div><div class="card gold"><h3>更明确的疗愈路径</h3><p class="body-text">从“回忆、表达、告别、延续”设计阶段化任务。</p></div></div></div></div></section>
+    <section class="slide"><div class="canvas"><div class="content"><div class="eyebrow">Closing</div><h2>真正的告别，不是忘记</h2><p class="lead">而是终于可以带着爱，继续往前走。</p><div class="quote">我们想做的，不是复活逝去的人，而是复活那些还没来得及好好说出口的爱。</div></div></div></section>
+  </main>
+  <div class="controls">
+    <button class="nav-btn" type="button" id="prev" aria-label="上一页">‹</button>
+    <div class="progress-wrap"><div class="progress" id="progress"></div></div>
+    <button class="nav-btn" type="button" id="next" aria-label="下一页">›</button>
+    <div class="counter" id="counter">1 / 13</div>
+  </div>
+  <div class="hint">使用 ← → 或空格翻页</div>
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const progress = document.getElementById("progress");
+    const counter = document.getElementById("counter");
+    let current = 0;
+    function showSlide(index) {
+      current = (index + slides.length) % slides.length;
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === current));
+      progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+      counter.textContent = `${current + 1} / ${slides.length}`;
+      history.replaceState(null, "", `#${current + 1}`);
+    }
+    document.getElementById("prev").addEventListener("click", () => showSlide(current - 1));
+    document.getElementById("next").addEventListener("click", () => showSlide(current + 1));
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowRight" || event.key === " " || event.key === "PageDown") { event.preventDefault(); showSlide(current + 1); }
+      if (event.key === "ArrowLeft" || event.key === "PageUp") { event.preventDefault(); showSlide(current - 1); }
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+    const initial = Number.parseInt(location.hash.replace("#", ""), 10);
+    showSlide(Number.isFinite(initial) ? initial - 1 : 0);
+  </script>
+</body>
+</html>
