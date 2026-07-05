@@ -55,10 +55,18 @@ def test_demo_session_returns_token_and_seeded_persona(client):
 
     assert personas.status_code == 200
     items = personas.json()["items"]
-    assert [item["name"] for item in items] == ["外婆"]
-    assert items[0]["id"] == body["demo_persona_id"]
-    assert items[0]["age"] == 72
-    assert items[0]["user_nickname_by_persona"] == "小铭"
+    names = [item["name"] for item in items]
+    assert names == ["郑木生", "外婆"]
+    assert body["demo_persona_id"] == next(
+        item["id"] for item in items if item["name"] == "外婆"
+    )
+    grandmother = next(item for item in items if item["name"] == "外婆")
+    grandfather = next(item for item in items if item["name"] == "郑木生")
+    assert grandmother["age"] == 72
+    assert grandmother["user_nickname_by_persona"] == "小铭"
+    assert grandfather["age"] == 86
+    assert grandfather["relationship_to_user"] == "爷爷"
+    assert grandfather["user_nickname_by_persona"] == "孙子"
 
 
 def test_demo_persona_has_materials_memories_profile_and_chat_citations(client):

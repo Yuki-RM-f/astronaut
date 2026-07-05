@@ -84,11 +84,17 @@ class MessageCitationListResponse(BaseModel):
 
 class MessageSend(BaseModel):
     content: str = Field(min_length=1)
+    guided_memory_ids: list[str] = Field(default_factory=list, max_length=3)
 
     @field_validator("content")
     @classmethod
     def reject_blank_content(cls, value: str):
         return _reject_blank(value, "content")
+
+    @field_validator("guided_memory_ids")
+    @classmethod
+    def reject_blank_guided_memory_ids(cls, value: list[str]):
+        return [_reject_blank(item, "guided_memory_ids") for item in value]
 
 
 class VoiceMessageSend(BaseModel):

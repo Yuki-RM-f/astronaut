@@ -150,6 +150,70 @@ async def test_openai_next_memory_document_reuses_strict_json_repair():
 
 
 @pytest.mark.asyncio
+async def test_openai_next_guided_memory_extraction_posts_text_completion():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        body = json.loads(request.content)
+        assert body["model"] == "gpt-5"
+        assert body["messages"][0]["role"] == "system"
+        assert "Extract guided regrets or wishes" in body["messages"][0]["content"]
+        context = json.loads(body["messages"][-1]["content"])
+        assert context["kind"] == "regrets"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "items": [
+                                        {
+                                            "memory_card_id": "mem-1",
+                                            "title": "没来得及道别",
+                                            "summary": "外婆遗憾没来得及道别。",
+                                            "suggested_user_message": "我想慢慢说说没来得及道别这件事。",
+                                        }
+                                    ],
+                                    "empty_reason": None,
+                                },
+                                ensure_ascii=False,
+                            )
+                        }
+                    }
+                ],
+                "id": "openai-next-guided-memory",
+            },
+        )
+
+    provider = OpenAINextTextProvider(
+        Settings(
+            app_env="development",
+            openai_next_api_key="openai-next-secret",
+            openai_next_base_url="https://api.openai-next.com/v1",
+            openai_next_model="gpt-5",
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+
+    output = await provider.run(
+        "guided_memory_extraction",
+        {
+            "kind": "regrets",
+            "active_memory_cards": [
+                {"id": "mem-1", "title": "道别", "content": "外婆遗憾没来得及道别。"}
+            ],
+        },
+    )
+
+    assert output["items"][0]["memory_card_id"] == "mem-1"
+    assert output["trace_id"] == "openai-next-guided-memory"
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_openai_next_memory_document_http_failure_does_not_repair():
     requests: list[httpx.Request] = []
 

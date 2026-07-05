@@ -601,6 +601,30 @@
       ],
       "status": "completed",
       "evidence": "backend/app/api/routes/materials.py; backend/app/api/routes/jobs.py; backend/app/api/routes/auth.py; backend/app/services/materials.py; backend/app/services/parsing.py; backend/app/services/profile.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/app/providers/dashscope.py; backend/tests/test_materials.py; backend/tests/test_parsing.py; backend/tests/test_profile.py; backend/tests/test_provider_gateway.py; backend/tests/test_minimax_provider.py; backend/tests/test_dashscope_provider.py; backend/tests/test_auth.py; backend/tests/test_jobs.py; backend/tests/test_memories.py; backend/tests/test_exports.py; frontend/app/personas/[id]/uploads/page.tsx; frontend/tests/materials.test.mjs; docs/README.md; docs/可信人格记忆Agent_mvp_prd.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; python -m json.tool docs/feature-list.json exit 0; python -m pytest backend/tests/test_materials.py backend/tests/test_parsing.py backend/tests/test_profile.py backend/tests/test_provider_gateway.py backend/tests/test_dashscope_provider.py -q 45 passed; python -m pytest backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py -q 30 passed; python -m pytest backend/tests -q 247 passed; npm.cmd --prefix frontend run test 129 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0; docker compose build backend frontend exit 0; docker compose up -d --no-deps --force-recreate backend frontend exit 0; HTTP smoke backend /health 200 and uploads page 200; browser smoke uploads shows structured document, upload tiles, manual material, trust, and hides summary editor plus MiniMax/strict JSON diagnostics"
+    },
+    {
+      "id": "feat-056",
+      "name": "遗憾/心愿页面记忆库候选预提取",
+      "description": "在不新增独立遗憾记录模型、心愿数据模型、CRUD、提醒策略或长期 P1 行动系统的前提下，为 /personas/{id}/regrets 和 /personas/{id}/wishes 增加页面加载时的记忆库候选预提取。后端新增 POST /api/personas/{id}/guided-memory-candidates，kind=regrets/wishes 时只读取当前用户、当前人物、confirmed/corrected 且未删除的 MemoryCard，调用 Provider Gateway guided_memory_extraction；MiniMax/OpenAI-Next 可用时走文本模型，未配置或失败时用确定性关键词兜底，并返回最多三条候选、来源 memory_card_id、摘要、来源位置、建议用户输入和空态原因。前端 GuidedExperiencePage 在空 guided conversation 且有候选时展示候选卡片，点击只填充输入框并记录 guided_memory_ids，不自动发送；用户实际发送后，MessageSend 可携带 guided_memory_ids，后端把这些来源记忆纳入本轮 guided chat 上下文、retrieval metadata 和 citations。无候选时保留原遗憾/心愿引导输入。",
+      "dependencies": [
+        "feat-049",
+        "feat-053",
+        "feat-055"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/api/routes/guided_memory.py; backend/app/services/guided_memory.py; backend/app/schemas/guided_memory.py; backend/app/schemas/chat.py; backend/app/api/routes/chat.py; backend/app/services/chat.py; backend/app/providers/gateway.py; backend/app/providers/minimax.py; backend/app/providers/openai_next.py; backend/tests/test_guided_memory.py; backend/tests/test_chat.py; backend/tests/test_provider_gateway.py; backend/tests/test_minimax_provider.py; backend/tests/test_openai_next_provider.py; frontend/src/lib/api.ts; frontend/src/lib/chat.ts; frontend/src/lib/guided-experiences.ts; frontend/src/components/GuidedExperiencePage.tsx; frontend/tests/guided-experiences.test.mjs; frontend/tests/chat.test.mjs; docs/README.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; TDD red backend endpoint/capability/guided ids 7 failures; TDD red frontend helper/UI/guided ids 3 failures; focused green backend guided/provider tests 39 passed; focused green frontend guided/chat tests 132 passed; python -m json.tool docs/feature-list.json exit 0; python -m pytest backend/tests/test_guided_memory.py backend/tests/test_chat.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_openai_next_provider.py -q 61 passed; npm.cmd --prefix frontend run test 132 passed; npm.cmd --prefix frontend run lint exit 0; npm.cmd --prefix frontend run build exit 0"
+    },
+    {
+      "id": "feat-057",
+      "name": "Dashboard 每用户默认双人物种子",
+      "description": "为所有进入 /dashboard 或请求 GET /api/personas 的用户补齐私有默认人物「外婆」和「郑木生」。后端新增默认人物种子服务，定义 grandmother 与 zheng_musheng 两个 seed，直接创建 Persona、SourceMaterial(parse_status=succeeded)、ParsedChunk、confirmed MemoryCard、PersonaProfile 和 trust；不会在 Dashboard 请求中调用真实 LLM/provider，不产生模型调用成本。GET /api/personas 在查询前调用幂等补齐逻辑：已有 active 同名同关系人物时复用，不重复创建；用户软删除默认人物后，下次请求重新创建新的 active 副本。POST /api/auth/demo 复用同一 seed 服务，demo 用户创建后立即拥有两个人物，响应 schema 保持兼容且 demo_persona_id 继续返回「外婆」的 id。郑木生默认资料使用当前演示长档案中的成功手动资料内容，排除 failed 图片和 failed duplicate materials。",
+      "dependencies": [
+        "feat-004",
+        "feat-005",
+        "feat-055"
+      ],
+      "status": "completed",
+      "evidence": "backend/app/services/default_personas.py; backend/app/api/routes/auth.py; backend/app/api/routes/personas.py; backend/tests/test_auth.py; backend/tests/test_personas.py; backend/tests/test_settings_data.py; docs/README.md; docs/prd-checklist.md; docs/平台说明.md; docs/progress.md; TDD red python -m pytest backend/tests/test_auth.py backend/tests/test_personas.py -q failed with 5 expected default-persona failures; focused green python -m pytest backend/tests/test_auth.py backend/tests/test_personas.py -q 66 passed; python -m pytest backend/tests/test_settings_data.py::test_clear_current_account_data_soft_deletes_owned_domain_records -q 1 passed; python -m pytest backend/tests -q 259 passed; python -m json.tool docs/feature-list.json exit 0; docker compose build backend exit 0; docker compose up -d --no-deps --force-recreate backend exit 0; browser smoke /dashboard after clearing localStorage persona_memory_agent_token shows 郑木生 and 外婆, then creates new demo token"
     }
   ]
 }

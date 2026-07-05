@@ -31,9 +31,11 @@ import {
 } from "@/src/lib/chat";
 import {
   getGuidedExperienceConfig,
+  GuidedMemoryCandidate,
   guidedExperienceContextKind,
   guidedExperienceConversationKind,
-  GuidedExperienceKind
+  GuidedExperienceKind,
+  loadGuidedMemoryCandidates
 } from "@/src/lib/guided-experiences";
 import { getPersona, PersonaRead } from "@/src/lib/persona";
 
@@ -49,6 +51,8 @@ export function GuidedExperiencePage({ kind }: { kind: GuidedExperienceKind }) {
   const [persona, setPersona] = useState<PersonaRead | null>(null);
   const [conversation, setConversation] = useState<ConversationRead | null>(null);
   const [messages, setMessages] = useState<MessageRead[]>([]);
+  const [guidedCandidates, setGuidedCandidates] = useState<GuidedMemoryCandidate[]>([]);
+  const [selectedGuidedMemoryIds, setSelectedGuidedMemoryIds] = useState<string[]>([]);
   const [avatarConfig, setAvatarConfig] = useState<AvatarConfigResponse | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +77,7 @@ export function GuidedExperiencePage({ kind }: { kind: GuidedExperienceKind }) {
         setPersona(loaded.persona);
         setConversation(loaded.conversation);
         setMessages(loaded.messages);
+        setGuidedCandidates(loaded.guidedCandidates);
         setAvatarConfig(loaded.avatarConfig);
         setState("ready");
       })
@@ -98,8 +103,9 @@ export function GuidedExperiencePage({ kind }: { kind: GuidedExperienceKind }) {
     setSending(true);
     setError(null);
     try {
-      await sendMessage(conversation.id, draft);
+      await sendMessage(conversation.id, draft, selectedGuidedMemoryIds);
       setDraft("");
+      setSelectedGuidedMemoryIds([]);
       setMessages(await listMessages(conversation.id));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "无法发送消息。");
@@ -109,6 +115,7 @@ export function GuidedExperiencePage({ kind }: { kind: GuidedExperienceKind }) {
   }
 
   const config = getGuidedExperienceConfig(kind, persona?.name ?? "TA");
+  const showGuidedCandidates = guidedCandidates.length > 0 && messages.length === 0;
 
   return (
     <StarShell>
@@ -163,7 +170,18 @@ export function GuidedExperiencePage({ kind }: { kind: GuidedExperienceKind }) {
                 </p>
               ) : null}
               <div className="grid gap-5">
-                <OpeningBubble personaName={persona.name} text={config.openingMessage} />
+                {showGuidedCandidates ? (
+                  <GuidedCandidatePanel
+                    candidates={guidedCandidates}
+                    kind={kind}
+                    onSelect={(candidate) => {
+                      setDraft(candidate.suggested_user_message);
+                      setSelectedGuidedMemoryIds([candidate.memory_card_id]);
+                    }}
+                  />
+                ) : (
+                  <OpeningBubble personaName={persona.name} text={config.openingMessage} />
+                )}
                 {messages.map((message) => (
                   <GuidedMessageBubble
                     key={message.id}
@@ -260,6 +278,7 @@ async function loadGuidedExperience(
   persona: PersonaRead;
   conversation: ConversationRead;
   messages: MessageRead[];
+  guidedCandidates: GuidedMemoryCandidate[];
   avatarConfig: AvatarConfigResponse | null;
 }> {
   const persona = await getPersona(personaId);
@@ -270,11 +289,58 @@ async function loadGuidedExperience(
   const conversation =
     conversations[0] ??
     (await createConversation(personaId, title, conversationKind, contextKind));
-  const [messages, avatarConfig] = await Promise.all([
+  const [messages, avatarConfig, guidedCandidateResponse] = await Promise.all([
     listMessages(conversation.id),
-    getAvatarConfig(personaId).catch(() => null)
+    getAvatarConfig(personaId).catch(() => null),
+    loadGuidedMemoryCandidates(personaId, kind).catch(() => ({
+      kind,
+      items: [],
+      empty_reason: null
+    }))
   ]);
-  return { persona, conversation, messages, avatarConfig };
+  return { persona, conversation, messages, guidedCandidates: guidedCandidateResponse.items, avatarConfig };
+}
+
+function GuidedCandidatePanel({
+  candidates,
+  kind,
+  onSelect
+}: {
+  candidates: GuidedMemoryCandidate[];
+  kind: GuidedExperienceKind;
+  onSelect: (candidate: GuidedMemoryCandidate) => void;
+}) {
+  const label = kind === "wishes" ? "记忆里的心愿线索" : "记忆里的遗憾线索";
+  return (
+    <section className="rounded-3xl border border-starGold/20 bg-starGold/10 p-4 sm:p-5">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-starGold/80">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-semibold leading-7 text-starMist/76">
+        我先从已审核记忆里找到了这些可能相关的线索。选择一条后，你可以再决定怎么说给 TA 听。
+      </p>
+      <div className="mt-4 grid gap-3">
+        {candidates.map((candidate) => (
+          <button
+            key={candidate.memory_card_id}
+            type="button"
+            onClick={() => onSelect(candidate)}
+            className="rounded-2xl border border-white/10 bg-indigo-950/28 p-4 text-left transition hover:border-starGold/45 hover:bg-starGold/12"
+          >
+            <span className="text-sm font-bold text-starCream">{candidate.title}</span>
+            <span className="mt-2 block text-sm font-semibold leading-7 text-starMist/76">
+              {candidate.summary}
+            </span>
+            {candidate.source_location ? (
+              <span className="mt-3 block text-xs font-bold text-starMist/44">
+                来源：{candidate.source_location}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function OpeningBubble({ personaName, text }: { personaName: string; text: string }) {

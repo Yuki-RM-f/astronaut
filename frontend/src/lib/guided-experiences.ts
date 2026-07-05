@@ -1,3 +1,5 @@
+import { API_PATHS, buildApiUrl, readApiJson } from "./api";
+import { authHeaders } from "./auth";
 import { ROUTES } from "./routes";
 import type {
   ConversationContextKind,
@@ -15,6 +17,21 @@ export type GuidedExperienceConfig = {
   inputPlaceholder: string;
   submitLabel: string;
   persistenceNotice: string;
+};
+
+export type GuidedMemoryCandidate = {
+  memory_card_id: string;
+  title: string;
+  summary: string;
+  suggested_user_message: string;
+  source_quote: string | null;
+  source_location: string | null;
+};
+
+export type GuidedMemoryCandidateResponse = {
+  kind: GuidedExperienceKind;
+  items: GuidedMemoryCandidate[];
+  empty_reason: string | null;
 };
 
 export function getGuidedExperienceConfig(
@@ -60,4 +77,22 @@ export function guidedExperienceContextKind(
   kind: GuidedExperienceKind
 ): ConversationContextKind | undefined {
   return kind === "wishes" ? "wishes" : undefined;
+}
+
+export async function loadGuidedMemoryCandidates(
+  personaId: string,
+  kind: GuidedExperienceKind
+): Promise<GuidedMemoryCandidateResponse> {
+  const response = await fetch(buildApiUrl(API_PATHS.chat.guidedMemoryCandidates(personaId)), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders()
+    },
+    body: JSON.stringify({ kind })
+  });
+  return readApiJson<GuidedMemoryCandidateResponse>(
+    response,
+    "无法提取记忆线索。"
+  );
 }

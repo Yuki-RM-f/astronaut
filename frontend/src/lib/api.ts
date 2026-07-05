@@ -62,6 +62,8 @@ export const API_PATHS = {
   chat: {
     conversations: (personaId: string) =>
       `/api/personas/${encodeURIComponent(personaId)}/conversations`,
+    guidedMemoryCandidates: (personaId: string) =>
+      `/api/personas/${encodeURIComponent(personaId)}/guided-memory-candidates`,
     conversation: (conversationId: string) =>
       `/api/conversations/${encodeURIComponent(conversationId)}`,
     messages: (conversationId: string) =>

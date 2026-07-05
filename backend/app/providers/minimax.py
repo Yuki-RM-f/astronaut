@@ -78,6 +78,8 @@ class MiniMaxProvider:
             return await self._persona_profile_analysis(payload)
         if capability == "memory_document_generation":
             return await self._memory_document_generation(payload)
+        if capability == "guided_memory_extraction":
+            return await self._guided_memory_extraction(payload)
         raise MiniMaxProviderError(f"MiniMax does not support capability: {capability}")
 
     async def _chat_llm(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -167,6 +169,15 @@ class MiniMaxProvider:
             "MiniMax memory document response must be strict JSON after "
             f"{MEMORY_DOCUMENT_REPAIR_ATTEMPTS} repair attempts: {last_error}"
         )
+
+    async def _guided_memory_extraction(self, payload: dict[str, Any]) -> dict[str, Any]:
+        content, raw = await self._chat_completion(
+            _guided_memory_extraction_messages(payload),
+            response_format={"type": "json_object"},
+        )
+        output = _parse_guided_memory_output(content, payload)
+        output["trace_id"] = raw.get("id")
+        return output
 
     async def _tts(self, payload: dict[str, Any]) -> dict[str, Any]:
         text = _clean_text(str(payload.get("text") or ""))
@@ -461,6 +472,33 @@ def _memory_context_compression_messages(payload: dict[str, Any]) -> list[dict[s
     ]
 
 
+def _guided_memory_extraction_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
+    system = "\n".join(
+        [
+            "Extract guided regrets or wishes from reviewed persona memories.",
+            "Use only active_memory_cards provided by the user message.",
+            "Return one strict JSON object with items and empty_reason.",
+            "Each item must copy memory_card_id from an input memory id.",
+            "Each item must include title, summary, and suggested_user_message.",
+            "Return at most max_candidates items.",
+        ]
+    )
+    return [
+        {"role": "system", "content": system},
+        {
+            "role": "user",
+            "content": _json_context(
+                {
+                    "kind": payload.get("kind"),
+                    "persona_card": payload.get("persona_card") or {},
+                    "active_memory_cards": payload.get("active_memory_cards") or [],
+                    "max_candidates": payload.get("max_candidates") or 3,
+                }
+            ),
+        },
+    ]
+
+
 def _persona_profile_analysis_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
     return [
         {"role": "system", "content": PERSONA_ENGINE_SYSTEM_PROMPT},
@@ -522,6 +560,45 @@ def _parse_memory_document_json(content: str) -> dict[str, Any]:
         "trust_rationale": trust_rationale,
         "suggestions": normalized_suggestions,
     }
+
+
+def _parse_guided_memory_output(content: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        data = json.loads(_first_json_object(_strip_json_fence(_strip_model_thinking(content))))
+    except json.JSONDecodeError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    items: list[dict[str, Any]] = []
+    for raw_item in data.get("items") or []:
+        if not isinstance(raw_item, dict):
+            continue
+        memory_id = _clean_text(
+            str(raw_item.get("memory_card_id") or raw_item.get("source_memory_id") or "")
+        )
+        summary = _clean_text(str(raw_item.get("summary") or ""))
+        suggested = _clean_text(str(raw_item.get("suggested_user_message") or ""))
+        if not memory_id or not summary or not suggested:
+            continue
+        items.append(
+            {
+                "memory_card_id": memory_id,
+                "title": _clean_text(str(raw_item.get("title") or "记忆线索")),
+                "summary": summary,
+                "suggested_user_message": suggested,
+                "source_quote": raw_item.get("source_quote"),
+                "source_location": raw_item.get("source_location"),
+            }
+        )
+        if len(items) >= int(payload.get("max_candidates") or 3):
+            break
+    empty_reason = None if items else str(data.get("empty_reason") or _guided_empty_reason(payload))
+    return {"items": items, "empty_reason": empty_reason}
+
+
+def _guided_empty_reason(payload: dict[str, Any]) -> str:
+    label = "心愿" if payload.get("kind") == "wishes" else "遗憾"
+    return f"没有在已审核记忆中找到可直接提取的{label}线索。"
 
 
 def _normalize_memory_document_json(value: object) -> dict[str, Any]:

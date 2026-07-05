@@ -161,7 +161,13 @@ def send_message(
 ):
     conversation = get_conversation_or_404(db, current_user, conversation_id)
     persona = get_persona_or_404(conversation.persona_id, current_user, db)
-    reply = send_text_message(db, conversation, persona, payload.content)
+    reply = send_text_message(
+        db,
+        conversation,
+        persona,
+        payload.content,
+        guided_memory_ids=payload.guided_memory_ids,
+    )
     return message_response(db, reply)
 
 

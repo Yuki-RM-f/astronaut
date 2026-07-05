@@ -68,6 +68,11 @@ export type VoiceMessagePayload = {
   source_material_id: string;
 };
 
+type MessageSendPayload = {
+  content: string;
+  guided_memory_ids?: string[];
+};
+
 export function messageRoleLabel(role: MessageRole): string {
   if (role === "user") {
     return "你";
@@ -243,18 +248,34 @@ export async function listMessages(conversationId: string): Promise<MessageRead[
 
 export async function sendMessage(
   conversationId: string,
-  content: string
+  content: string,
+  guidedMemoryIds?: string[]
 ): Promise<MessageRead> {
   const trimmedContent = content.trim();
+  const rawPayload: MessageSendPayload = {
+    content: trimmedContent,
+    guided_memory_ids: guidedMemoryIds
+  };
   const response = await fetch(buildApiUrl(API_PATHS.chat.messages(conversationId)), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...authHeaders()
     },
-    body: JSON.stringify({ content: trimmedContent })
+    body: JSON.stringify(trimMessagePayload(rawPayload))
   });
   return readApiJson<MessageRead>(response, "无法发送消息。");
+}
+
+function trimMessagePayload(payload: MessageSendPayload): MessageSendPayload {
+  const guidedMemoryIds = (payload.guided_memory_ids ?? [])
+    .map((memoryId) => memoryId.trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  return {
+    content: payload.content.trim(),
+    ...(guidedMemoryIds.length > 0 ? { guided_memory_ids: guidedMemoryIds } : {})
+  };
 }
 
 export async function sendVoiceMessage(

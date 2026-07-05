@@ -14,6 +14,8 @@ from app.providers.minimax import (
     _memory_document_generation_messages,
     _memory_document_repair_messages,
     _parse_memory_document_json,
+    _guided_memory_extraction_messages,
+    _parse_guided_memory_output,
     _parse_story_output,
     _persona_profile_analysis_messages,
     _story_messages,
@@ -31,6 +33,7 @@ TEXT_CAPABILITIES = {
     "memory_context_compression",
     "persona_profile_analysis",
     "memory_document_generation",
+    "guided_memory_extraction",
 }
 
 
@@ -72,6 +75,8 @@ class OpenAINextTextProvider:
             return await self._persona_profile_analysis(payload)
         if capability == "memory_document_generation":
             return await self._memory_document_generation(payload)
+        if capability == "guided_memory_extraction":
+            return await self._guided_memory_extraction(payload)
         raise OpenAINextTextProviderError(f"Unsupported capability: {capability}")
 
     async def _chat_llm(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -165,6 +170,15 @@ class OpenAINextTextProvider:
             "OpenAI-Next memory document response must be strict JSON after "
             f"{MEMORY_DOCUMENT_REPAIR_ATTEMPTS} repair attempts: {last_error}"
         )
+
+    async def _guided_memory_extraction(self, payload: dict[str, Any]) -> dict[str, Any]:
+        content, raw = await self._chat_completion(
+            _guided_memory_extraction_messages(payload),
+            response_format={"type": "json_object"},
+        )
+        output = _parse_guided_memory_output(content, payload)
+        output["trace_id"] = raw.get("id")
+        return output
 
     async def _chat_completion(
         self,

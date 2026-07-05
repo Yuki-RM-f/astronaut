@@ -6,6 +6,32 @@
 - 当前阶段：以当前工作区为基础完成 yawen 星空前端交互迁移、长期/短期记忆 Markdown 上下文、Memory Audit v2 星空集成和页面路径与入口重编排。当前前端不展示登录/注册、登录态差异、数据设置页、模型设置页或独立 `/personas/{id}/stories` 页面；无 token 时透明调用现有 `POST /api/auth/demo` 获取 demo token。
 - 当前活跃功能：星空首页、Dashboard、创建星星页、人物详情、资料解析与审核、任务、记忆档案馆、对话、遗憾对话室、心愿延续引导、声音（含可选 MiniMax 中文默认 TTS）和 3D 形象页面；顶部导航固定为产品级入口 `首页 / 产品介绍 / 创建档案 / 我的星空`，人物详情页下方资料、记忆和互动功能卡片作为人物内功能入口，各人物内功能页不再展示人物工作台块。`/personas/{id}/uploads` 承接资料上传、结构化记忆 Markdown、分类记忆卡片审核/星标、唯一“记忆可信度”和“完成审核，点亮星星”，不再提供档案摘要手动保存或重生成；`profile.profile_summary` 由上传解析后的 `memory_document_generation` 自动生成并在人物详情页展示；`/personas/{id}/memories` 只承接回忆讲述和语义搜索，进入页面会幂等补足最多三段锚定真实已审核记忆的默认回忆，用户点击“让TA讲一段回忆”会按关键词追加新故事；`/personas/{id}/profile` 仅作为兼容深链重定向到 uploads。对话页收口为三模式对话和共享 `AvatarStage` 数字人舞台，视频手势模式已接入浏览器本地摄像头识别和 GLB 动作反馈；形象页上传 GLB 模型后可替换星空空态，chat/regrets/wishes 共享同一 GLB 展示；创建星星页保留后端必需 `age` 字段，提交 `language=zh-CN`、默认说话风格、情绪边界和禁用表达，创建成功后通过现有资料上传 API 上传已选文件并进入 uploads。后端注册/登录、profile API、Memory Audit v2 审计 API、Persona Engine 显式画像分析、导出/删除、provider settings、stories API 和长期/短期记忆 Markdown 上下文仍保留；遗憾对话室和心愿延续引导复用现有 messages endpoint，但通过 conversation kind/context_kind 隔离普通聊天、遗憾对话和心愿引导上下文，不新增独立遗憾记录模型、心愿数据模型、提醒策略或长期 P1 心愿系统。
 - 当前 UX 打磨补充：旧大块人物工作台导航仍不恢复；人物总览和人物子页不再展示统一人物工具栏，“当前星星”和子页快速切换栏已移除，人物子页保留单一“返回人物总览”入口，人物详情页下方功能卡片作为内部入口。`StarNav` 支持当前路由高亮和移动端紧凑菜单；创建页移动端保存操作固定在底部；uploads 已有资料超过 2 条时默认折叠为 2 条并提供展开/收起；主对话、遗憾和心愿页面使用共享对话工作区，消息只在内部滚动，输入栏保持可操作；数字人舞台始终可见，窄屏上下堆叠、`xl` 宽屏左右等高展示；旧 `/personas/{id}/stories` 深链重定向到 `/personas/{id}/memories`。
+- 当前默认人物补充：`GET /api/personas` 会为当前用户幂等补齐私有 active「外婆」和「郑木生」，demo 用户、注册用户和既有用户都适用；软删除默认人物后再次进入 Dashboard 会重建新的 active 副本。该 seed 直接写入 succeeded 资料、ParsedChunk、confirmed MemoryCard、PersonaProfile 和 trust，不在 Dashboard 请求中调用真实 LLM/provider。
+
+## Latest Session Update - 2026-07-05 Dashboard 默认双人物种子
+
+- 根据用户计划，本次为 `/dashboard` 和 `GET /api/personas` 增加每用户私有默认人物 seed：默认 active「外婆」（关系外婆）和「郑木生」（关系爷爷）都由后端确定性写入，覆盖 demo 用户、正式注册用户和既有用户。
+- 后端新增 `backend/app/services/default_personas.py`，定义 grandmother 与 zheng_musheng 两个 seed，直接创建 `Persona`、`SourceMaterial(parse_status=succeeded)`、`ParsedChunk`、`MemoryCard(status=confirmed)`、`PersonaProfile` 和 trust；记忆卡片保留 `source_material_id`、`parsed_chunk_id`、`source_quote` 和 `source_location`，保证 uploads/memories/chat 仍可追溯。
+- `GET /api/personas` 在查询前调用 `ensure_default_personas_for_user()` 并提交事务；已有同名同关系 active 默认人物时复用，不重复创建；用户软删除默认人物后，下次请求会创建新的 active 副本。
+- `POST /api/auth/demo` 改为复用同一默认 seed 服务，不再走 `create_manual_material()` 或 `run_material_parse_job()`；响应 schema 保持兼容，`demo_persona_id` 继续返回「外婆」id，demo 用户创建后立即拥有「外婆」和「郑木生」两个人物。
+- TDD RED：`python -m pytest backend/tests/test_auth.py backend/tests/test_personas.py -q` 先 5 failed，命中 demo 只返回「外婆」、注册用户没有默认人物、重复 list/删除补回/郑木生 seed 内容都缺失。
+- 聚焦 GREEN：`python -m pytest backend/tests/test_auth.py backend/tests/test_personas.py -q` 66 passed。
+- 全量回归先发现 1 个旧断言需要同步新语义：清空当前账号数据后再请求 `/api/personas` 会补回默认「外婆」和「郑木生」，不再返回空列表；已更新 `backend/tests/test_settings_data.py`，同时确认其他用户已有数据不受影响。
+- 收尾验证：`python -m pytest backend/tests/test_settings_data.py::test_clear_current_account_data_soft_deletes_owned_domain_records -q` 1 passed；`python -m pytest backend/tests -q` 259 passed；`python -m json.tool docs/feature-list.json` 退出码 0。
+- 服务与浏览器 smoke：`docker compose build backend` 退出码 0；`docker compose up -d --no-deps --force-recreate backend` 退出码 0；`http://localhost:8000/health` 返回 `{"status":"ok"}`；应用内浏览器清空 `localStorage["persona_memory_agent_token"]` 后刷新 `http://localhost:3000/dashboard`，页面自动创建新 demo token，并显示「郑木生」和「外婆」两张人物卡。
+- 已同步 `docs/README.md`、`docs/feature-list.json`、`docs/prd-checklist.md`、`docs/平台说明.md` 和本进度账本；本次仍遵守仓库规则，未运行 `docs/init.sh`。
+
+## Latest Session Update - 2026-07-05 遗憾/心愿记忆库候选预提取
+
+- 根据用户计划，本次为 `/personas/{id}/regrets` 和 `/personas/{id}/wishes` 增加空对话开场候选预提取，不新增独立遗憾记录模型、心愿数据模型、CRUD、提醒策略或长期 P1 行动系统。
+- 后端新增 `POST /api/personas/{id}/guided-memory-candidates` 和 `guided_memory_extraction` 文本能力；候选只从当前用户当前人物 `confirmed/corrected` 且未删除的 `MemoryCard` 提取，MiniMax/OpenAI-Next 可用时走文本模型，未配置或失败时使用确定性关键词兜底。拒绝、停用、删除、跨用户或待审核记忆不会进入候选。
+- `MessageSend` 新增可选 `guided_memory_ids`。用户点选候选并发送后，后端只把这些来源记忆纳入本轮 regrets/wishes guided chat 上下文、`metadata.memory_context.selected_memory_ids` 和 citations；未点选候选时保持原有上下文隔离。
+- 前端 `GuidedExperiencePage` 在当前 guided conversation 还没有消息且候选非空时展示候选卡片；点击候选只填充输入框并记录来源记忆 id，不自动发送；空候选时继续展示原 opening message。
+- TDD RED：`python -m pytest backend/tests/test_guided_memory.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_openai_next_provider.py -q` 先 7 failed，命中 endpoint 404、`guided_memory_ids` 未生效和 provider capability 缺失；`npm.cmd --prefix frontend run test -- guided-experiences.test.mjs chat.test.mjs` 先 3 failed，命中 API helper、页面候选和发送参数缺失。
+- 聚焦 GREEN：同一后端 guided/provider 命令 39 passed；同一前端 guided/chat 命令实际执行当前全量脚本，结果 132 passed。
+- 已同步 `docs/README.md`、`docs/feature-list.json`、`docs/prd-checklist.md`、`docs/平台说明.md` 和本进度账本。
+- 收尾验证：`python -m json.tool docs/feature-list.json` 退出码 0；`python -m pytest backend/tests/test_guided_memory.py backend/tests/test_chat.py backend/tests/test_provider_gateway.py backend/tests/test_minimax_provider.py backend/tests/test_openai_next_provider.py -q` 61 passed；`npm.cmd --prefix frontend run test` 132 passed；`npm.cmd --prefix frontend run lint` 退出码 0；`npm.cmd --prefix frontend run build` 退出码 0。
+- 本次仍遵守仓库规则，未运行 `docs/init.sh`。
 
 ## Latest Session Update - 2026-07-05 记忆档案馆默认三段回忆
 

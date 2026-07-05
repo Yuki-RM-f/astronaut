@@ -19,6 +19,7 @@ from app.schemas.persona import (
 )
 from app.services.data_management import soft_delete_persona_tree, utcnow_naive
 from app.services.avatar import remove_local_avatar_model_files_for_persona
+from app.services.default_personas import ensure_default_personas_for_user
 from app.services.material_storage import remove_local_material_files
 from app.services.memory_markdown import remove_memory_context_files
 from app.services.persona_prompt import build_persona_prompt_context
@@ -106,6 +107,8 @@ def list_personas(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    ensure_default_personas_for_user(db, current_user)
+    db.commit()
     personas = db.scalars(
         select(Persona)
         .where(Persona.user_id == current_user.id, Persona.deleted_at.is_(None))

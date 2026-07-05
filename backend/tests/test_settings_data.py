@@ -261,9 +261,13 @@ def test_clear_current_account_data_soft_deletes_owned_domain_records(
     assert not owned_context_dir.exists()
     assert other_context_dir.exists()
     assert client.get("/api/auth/me", headers=auth(owner_token)).status_code == 200
-    assert client.get("/api/personas", headers=auth(owner_token)).json()["items"] == []
+    owner_items = client.get("/api/personas", headers=auth(owner_token)).json()["items"]
+    assert [item["name"] for item in owner_items] == ["郑木生", "外婆"]
+    assert owned_persona["id"] not in [item["id"] for item in owner_items]
     assert client.get(f"/api/jobs/{owned_job_id}", headers=auth(owner_token)).status_code == 404
-    assert client.get("/api/personas", headers=auth(other_token)).json()["items"][0]["id"] == other_persona["id"]
+    other_items = client.get("/api/personas", headers=auth(other_token)).json()["items"]
+    assert other_persona["id"] in [item["id"] for item in other_items]
+    assert {"外婆", "郑木生", "奶奶"}.issubset({item["name"] for item in other_items})
     assert client.get(f"/api/jobs/{other_job_id}", headers=auth(other_token)).status_code == 200
 
     db_session.expire_all()

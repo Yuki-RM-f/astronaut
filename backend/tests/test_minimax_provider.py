@@ -519,6 +519,71 @@ async def test_minimax_memory_context_compression_uses_openai_compatible_chat_co
 
 
 @pytest.mark.asyncio
+async def test_minimax_guided_memory_extraction_uses_openai_compatible_chat_completion():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        body = json.loads(request.content)
+        assert body["model"] == "MiniMax-M3"
+        assert body["messages"][0]["role"] == "system"
+        assert "Extract guided regrets or wishes" in body["messages"][0]["content"]
+        context = json.loads(body["messages"][-1]["content"])
+        assert context["kind"] == "wishes"
+        assert context["active_memory_cards"][0]["id"] == "mem-1"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(
+                                {
+                                    "items": [
+                                        {
+                                            "memory_card_id": "mem-1",
+                                            "title": "继续花园",
+                                            "summary": "外婆希望小铭继续照顾花园。",
+                                            "suggested_user_message": "我想继续照顾花园。",
+                                        }
+                                    ],
+                                    "empty_reason": None,
+                                },
+                                ensure_ascii=False,
+                            )
+                        }
+                    }
+                ],
+                "id": "chatcmpl-guided-memory",
+            },
+        )
+
+    provider = MiniMaxProvider(
+        Settings(
+            app_env="development",
+            minimax_api_key="minimax-secret",
+            minimax_base_url="https://api.minimaxi.com/v1",
+            openai_compatible_model="MiniMax-M3",
+        ),
+        transport=httpx.MockTransport(handler),
+    )
+
+    output = await provider.run(
+        "guided_memory_extraction",
+        {
+            "kind": "wishes",
+            "active_memory_cards": [
+                {"id": "mem-1", "title": "花园", "content": "外婆希望小铭继续照顾花园。"}
+            ],
+        },
+    )
+
+    assert output["items"][0]["memory_card_id"] == "mem-1"
+    assert output["trace_id"] == "chatcmpl-guided-memory"
+    assert len(requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_minimax_persona_profile_analysis_uses_persona_engine_prompt():
     requests: list[httpx.Request] = []
 

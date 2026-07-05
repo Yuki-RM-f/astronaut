@@ -44,3 +44,29 @@ test("guided experience page loads a conversation scoped to the guided kind", ()
   assert.match(loadSource, /createConversation\(personaId, title, conversationKind, contextKind\)/);
   assert.doesNotMatch(loadSource, /listConversations\(personaId\)/);
 });
+
+test("guided experience helper exposes memory candidate loading", () => {
+  const source = readFileSync(
+    new URL("../src/lib/guided-experiences.ts", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(source, /loadGuidedMemoryCandidates/);
+  assert.match(source, /guidedMemoryCandidates/);
+  assert.match(source, /kind: GuidedExperienceKind/);
+  assert.match(source, /GuidedMemoryCandidate/);
+});
+
+test("guided experience page shows selectable memory candidates before the first message", () => {
+  const source = readFileSync(
+    new URL("../src/components/GuidedExperiencePage.tsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(source, /guidedCandidates/);
+  assert.match(source, /messages\.length === 0/);
+  assert.match(source, /candidate\.suggested_user_message/);
+  assert.match(source, /setDraft\(candidate\.suggested_user_message\)/);
+  assert.match(source, /setSelectedGuidedMemoryIds\(\[candidate\.memory_card_id\]\)/);
+  assert.match(source, /sendMessage\(conversation\.id, draft, selectedGuidedMemoryIds\)/);
+});

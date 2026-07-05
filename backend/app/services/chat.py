@@ -32,6 +32,7 @@ from app.services.memory_markdown import (
     build_chat_memory_context,
     refresh_long_term_memory_md,
     refresh_short_term_memory_md,
+    render_long_term_memory_md,
 )
 from app.services.profile import get_or_create_profile, refresh_profile_and_trust
 from app.services.audit import snapshot_entity, write_audit_event
@@ -127,6 +128,7 @@ def send_text_message(
     conversation: Conversation,
     persona: Persona,
     content: str,
+    guided_memory_ids: list[str] | None = None,
 ) -> Message:
     profile = get_or_create_profile(db, persona)
     conversation_kind = _conversation_kind(conversation)
@@ -138,11 +140,22 @@ def send_text_message(
         conversation_kind=conversation_kind,
     )
     history = build_conversation_history(db, conversation)
-    selected_memories = _selected_memory_cards(
-        db,
-        persona,
-        memory_context.selected_memory_ids,
-    )
+    guided_ids = _guided_memory_ids_for_context(conversation_kind, guided_memory_ids)
+    if guided_ids:
+        selected_memories = _selected_memory_cards(db, persona, guided_ids)
+        memory_context = _memory_context_with_guided_memories(
+            memory_context,
+            persona,
+            selected_memories,
+        )
+        retrieval_source = "guided_candidate"
+    else:
+        selected_memories = _selected_memory_cards(
+            db,
+            persona,
+            memory_context.selected_memory_ids,
+        )
+        retrieval_source = "memory_markdown"
     user_message_time = _utcnow()
     persona_message_time = user_message_time + timedelta(microseconds=1)
 
@@ -204,7 +217,7 @@ def send_text_message(
             "retrieval": [
                 {
                     "memory_card_id": memory.id,
-                    "source": "memory_markdown",
+                    "source": retrieval_source,
                 }
                 for memory in selected_memories
             ],
@@ -525,6 +538,44 @@ def _selected_memory_cards(
     ).all()
     by_id = {memory.id: memory for memory in rows}
     return [by_id[memory_id] for memory_id in memory_ids if memory_id in by_id]
+
+
+def _guided_memory_ids_for_context(
+    conversation_kind: str,
+    guided_memory_ids: list[str] | None,
+) -> list[str]:
+    if conversation_kind not in {CONVERSATION_KIND_REGRETS, CONVERSATION_KIND_WISHES}:
+        return []
+    seen: set[str] = set()
+    ids: list[str] = []
+    for raw_id in guided_memory_ids or []:
+        memory_id = str(raw_id).strip()
+        if memory_id and memory_id not in seen:
+            ids.append(memory_id)
+            seen.add(memory_id)
+        if len(ids) >= 3:
+            break
+    return ids
+
+
+def _memory_context_with_guided_memories(
+    memory_context: MemoryMarkdownContext,
+    persona: Persona,
+    selected_memories: list[MemoryCard],
+) -> MemoryMarkdownContext:
+    if not selected_memories:
+        return memory_context
+    return MemoryMarkdownContext(
+        long_term_memory_md=render_long_term_memory_md(persona, selected_memories),
+        short_term_memory_md=memory_context.short_term_memory_md,
+        selected_memory_ids=[memory.id for memory in selected_memories],
+        long_term_path=memory_context.long_term_path or "guided_memory_candidates",
+        short_term_path=memory_context.short_term_path,
+        long_term_compressed=memory_context.long_term_compressed,
+        short_term_compressed=memory_context.short_term_compressed,
+        compression_failed=memory_context.compression_failed,
+        compression_provider=memory_context.compression_provider,
+    )
 
 
 def _get_audio_source_or_404(

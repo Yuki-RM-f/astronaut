@@ -113,6 +113,18 @@ class FakeMiniMaxProvider:
                 "trust_rationale": "third-party memory document generation",
                 "suggestions": ["add more materials"],
             }
+        if capability == "guided_memory_extraction":
+            return {
+                "items": [
+                    {
+                        "memory_card_id": "mem-1",
+                        "title": "Continue the garden",
+                        "summary": "Grandma hoped the garden would continue.",
+                        "suggested_user_message": "I want to continue the garden.",
+                    }
+                ],
+                "empty_reason": None,
+            }
         return {
             "clone_status": "succeeded",
             "model_artifact_url": "minimax://voice/PMV12345678",
@@ -174,6 +186,18 @@ class FakeOpenAINextTextProvider:
                 "trust_level": "trusted",
                 "trust_rationale": "openai-next fallback",
                 "suggestions": ["add more materials"],
+            }
+        if capability == "guided_memory_extraction":
+            return {
+                "items": [
+                    {
+                        "memory_card_id": "fallback-mem-1",
+                        "title": "Fallback wish",
+                        "summary": "OpenAI-Next found a wish.",
+                        "suggested_user_message": "I want to continue this wish.",
+                    }
+                ],
+                "empty_reason": None,
             }
         raise AssertionError(f"unexpected capability: {capability}")
 
@@ -255,6 +279,15 @@ async def test_minimax_gateway_routes_text_llm_capabilities_when_configured():
             "source_metadata": [{"id": "src-1", "file_type": "manual"}],
         },
     )
+    guided = await ProviderGateway(settings=settings, minimax_client=minimax).run(
+        "guided_memory_extraction",
+        {
+            "kind": "wishes",
+            "active_memory_cards": [
+                {"id": "mem-1", "content": "Grandma hoped the garden would continue."}
+            ],
+        },
+    )
 
     assert chat["provider_name"] == "minimax"
     assert chat["provider_type"] == "third_party"
@@ -267,11 +300,15 @@ async def test_minimax_gateway_routes_text_llm_capabilities_when_configured():
     assert memory_document["provider_name"] == "minimax"
     assert memory_document["capability"] == "memory_document_generation"
     assert memory_document["output"]["profile_summary"]
+    assert guided["provider_name"] == "minimax"
+    assert guided["capability"] == "guided_memory_extraction"
+    assert guided["output"]["items"][0]["memory_card_id"] == "mem-1"
     assert [call[0] for call in minimax.calls] == [
         "chat_llm",
         "story_generation",
         "memory_context_compression",
         "memory_document_generation",
+        "guided_memory_extraction",
     ]
 
 
@@ -429,8 +466,12 @@ async def test_minimax_text_failure_falls_back_to_openai_next_for_all_text_capab
         "memory_document_generation",
         {"persona_card": {"name": "Grandma"}},
     )
+    guided = await gateway.run(
+        "guided_memory_extraction",
+        {"kind": "wishes", "active_memory_cards": [{"id": "fallback-mem-1"}]},
+    )
 
-    for result in [chat, story, compression, profile, document]:
+    for result in [chat, story, compression, profile, document, guided]:
         assert result["provider_name"] == "openai_next"
         assert result["provider_type"] == "third_party"
         assert result["fallback_from_provider"] == "minimax"
@@ -442,6 +483,7 @@ async def test_minimax_text_failure_falls_back_to_openai_next_for_all_text_capab
         "memory_context_compression",
         "persona_profile_analysis",
         "memory_document_generation",
+        "guided_memory_extraction",
     ]
     assert [call[0] for call in openai_next.calls] == [
         "chat_llm",
@@ -449,12 +491,14 @@ async def test_minimax_text_failure_falls_back_to_openai_next_for_all_text_capab
         "memory_context_compression",
         "persona_profile_analysis",
         "memory_document_generation",
+        "guided_memory_extraction",
     ]
     assert chat["output"]["reply_text"] == "openai-next chat reply"
     assert compression["output"]["selected_memory_ids"] == ["fallback-mem-1"]
     assert profile["output"]["persona_version"] == "persona_engine_v2_openai_next"
     assert document["output"]["profile_summary"]
     assert document["output"]["trust_score"] == 72
+    assert guided["output"]["items"][0]["memory_card_id"] == "fallback-mem-1"
 
 
 @pytest.mark.asyncio

@@ -25,6 +25,7 @@ REAL_TEXT_LLM_CAPABILITIES = {
     "memory_context_compression",
     "persona_profile_analysis",
     "memory_document_generation",
+    "guided_memory_extraction",
 }
 
 
@@ -151,6 +152,8 @@ class ProviderGateway:
             output = _persona_profile_analysis_output(payload)
         elif capability == "memory_document_generation":
             output = _memory_document_generation_output(payload)
+        elif capability == "guided_memory_extraction":
+            output = _guided_memory_extraction_output(payload)
         elif capability == "tts":
             output = _tts_output(payload)
         elif capability == "extract_voice_sample":
@@ -781,6 +784,101 @@ def _trust_level_for_score(score: int) -> str:
     if score <= 80:
         return "trusted"
     return "high_trust"
+
+
+GUIDED_MEMORY_KEYWORDS = {
+    "regrets": (
+        "遗憾",
+        "没来得及",
+        "来不及",
+        "道歉",
+        "对不起",
+        "感谢",
+        "想念",
+        "告别",
+        "心结",
+        "后悔",
+        "亏欠",
+        "没说",
+    ),
+    "wishes": (
+        "心愿",
+        "愿望",
+        "希望",
+        "想完成",
+        "未完成",
+        "没完成",
+        "想要",
+        "想做",
+        "继续",
+        "替我",
+        "盼",
+        "花园",
+    ),
+}
+
+
+def _guided_memory_extraction_output(payload: dict[str, Any]) -> dict[str, Any]:
+    kind = "wishes" if payload.get("kind") == "wishes" else "regrets"
+    keywords = GUIDED_MEMORY_KEYWORDS[kind]
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for memory in payload.get("active_memory_cards") or []:
+        if not isinstance(memory, dict):
+            continue
+        text = _clean_text(
+            " ".join(
+                str(memory.get(key) or "")
+                for key in ("title", "content", "source_quote")
+            )
+        )
+        score = sum(1 for keyword in keywords if keyword in text)
+        if score <= 0:
+            continue
+        if memory.get("is_important"):
+            score += 2
+        scored.append((score, memory))
+    scored.sort(
+        key=lambda item: (
+            -item[0],
+            -int(item[1].get("confidence_score") or 0),
+            str(item[1].get("id") or ""),
+        )
+    )
+    items: list[dict[str, Any]] = []
+    for _, memory in scored[: int(payload.get("max_candidates") or 3)]:
+        summary = _clean_text(str(memory.get("content") or memory.get("source_quote") or ""))[:160]
+        memory_id = str(memory.get("id") or "").strip()
+        if not summary or not memory_id:
+            continue
+        items.append(
+            {
+                "memory_card_id": memory_id,
+                "title": _clean_text(str(memory.get("title") or _guided_candidate_title(kind))),
+                "summary": summary,
+                "suggested_user_message": _guided_suggested_user_message(kind, summary),
+                "source_quote": memory.get("source_quote"),
+                "source_location": memory.get("source_location"),
+            }
+        )
+    return {
+        "items": items,
+        "empty_reason": None if items else _guided_empty_reason(kind),
+    }
+
+
+def _guided_suggested_user_message(kind: str, summary: str) -> str:
+    if kind == "wishes":
+        return f"我想继续完成这件事：{summary}"
+    return f"我想慢慢说说这段记忆：{summary}"
+
+
+def _guided_candidate_title(kind: str) -> str:
+    return "记忆里的心愿" if kind == "wishes" else "记忆里的遗憾"
+
+
+def _guided_empty_reason(kind: str) -> str:
+    label = "心愿" if kind == "wishes" else "遗憾"
+    return f"没有在已审核记忆中找到可直接提取的{label}线索。"
 
 
 def _tts_output(payload: dict[str, Any]) -> dict[str, Any]:

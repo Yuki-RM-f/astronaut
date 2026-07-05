@@ -223,7 +223,9 @@ test("chat API helpers support conversation kind without changing message send s
   const sendStart = source.indexOf("export async function sendMessage");
   const sendEnd = source.indexOf("export async function sendVoiceMessage", sendStart);
   const sendSource = source.slice(sendStart, sendEnd);
-  assert.match(sendSource, /body: JSON\.stringify\(\{ content: trimmedContent \}\)/);
+  assert.match(sendSource, /guidedMemoryIds\?: string\[\]/);
+  assert.match(sendSource, /guided_memory_ids: guidedMemoryIds/);
+  assert.match(sendSource, /body: JSON\.stringify\(trimMessagePayload/);
   assert.doesNotMatch(sendSource, /kind/);
 });
 

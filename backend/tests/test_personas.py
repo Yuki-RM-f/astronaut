@@ -72,6 +72,12 @@ def create_persona(client, token: str, persona_type: str = "deceased_relative"):
     return response.json()
 
 
+def default_seed_by_name(items: list[dict], name: str) -> dict:
+    matches = [item for item in items if item["name"] == name]
+    assert len(matches) == 1
+    return matches[0]
+
+
 def assert_required_fields_unchanged(client, token: str, persona: dict):
     response = client.get(f"/api/personas/{persona['id']}", headers=auth(token))
     assert response.status_code == 200
@@ -254,7 +260,9 @@ def test_create_list_detail_update_and_delete_persona(client):
 
     listed = client.get("/api/personas", headers=auth(token))
     assert listed.status_code == 200
-    assert [item["id"] for item in listed.json()["items"]] == [created["id"]]
+    listed_items = listed.json()["items"]
+    assert [item["name"] for item in listed_items] == ["郑木生", "外婆"]
+    assert created["id"] in [item["id"] for item in listed_items]
 
     detail = client.get(f"/api/personas/{created['id']}", headers=auth(token))
     assert detail.status_code == 200
@@ -277,7 +285,94 @@ def test_create_list_detail_update_and_delete_persona(client):
     deleted = client.delete(f"/api/personas/{created['id']}", headers=auth(token))
     assert deleted.status_code == 204
     assert client.get(f"/api/personas/{created['id']}", headers=auth(token)).status_code == 404
-    assert client.get("/api/personas", headers=auth(token)).json()["items"] == []
+    after_delete = client.get("/api/personas", headers=auth(token)).json()["items"]
+    assert [item["name"] for item in after_delete] == ["外婆", "郑木生"]
+    assert created["id"] not in [item["id"] for item in after_delete]
+
+
+def test_persona_list_seeds_default_people_for_registered_user(client):
+    token = register_user(client, "default-seed@example.com")
+
+    response = client.get("/api/personas", headers=auth(token))
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [item["name"] for item in items] == ["郑木生", "外婆"]
+    grandmother = default_seed_by_name(items, "外婆")
+    grandfather = default_seed_by_name(items, "郑木生")
+    assert grandmother["relationship_to_user"] == "外婆"
+    assert grandfather["relationship_to_user"] == "爷爷"
+    assert grandfather["user_nickname_by_persona"] == "孙子"
+
+
+def test_persona_list_default_seed_is_idempotent(client):
+    token = register_user(client, "default-seed-idempotent@example.com")
+
+    first = client.get("/api/personas", headers=auth(token))
+    second = client.get("/api/personas", headers=auth(token))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_items = first.json()["items"]
+    second_items = second.json()["items"]
+    assert [item["id"] for item in second_items] == [item["id"] for item in first_items]
+    assert [item["name"] for item in second_items] == ["郑木生", "外婆"]
+
+
+def test_deleted_default_persona_is_reseeded_on_persona_list(client):
+    token = register_user(client, "default-seed-recreate@example.com")
+    seeded = client.get("/api/personas", headers=auth(token)).json()["items"]
+    grandmother = default_seed_by_name(seeded, "外婆")
+
+    deleted = client.delete(f"/api/personas/{grandmother['id']}", headers=auth(token))
+    reseeded = client.get("/api/personas", headers=auth(token))
+
+    assert deleted.status_code == 204
+    assert reseeded.status_code == 200
+    items = reseeded.json()["items"]
+    new_grandmother = default_seed_by_name(items, "外婆")
+    assert new_grandmother["id"] != grandmother["id"]
+    assert [item["name"] for item in items] == ["外婆", "郑木生"]
+
+
+def test_zheng_musheng_default_seed_has_source_backed_memory_and_profile(
+    client, db_session
+):
+    token = register_user(client, "zheng-default-seed@example.com")
+    items = client.get("/api/personas", headers=auth(token)).json()["items"]
+    grandfather = default_seed_by_name(items, "郑木生")
+
+    materials = client.get(
+        f"/api/personas/{grandfather['id']}/materials",
+        headers=auth(token),
+    )
+    memories = client.get(
+        f"/api/personas/{grandfather['id']}/memories",
+        headers=auth(token),
+    )
+    profile = client.get(
+        f"/api/personas/{grandfather['id']}/profile",
+        headers=auth(token),
+    )
+
+    assert materials.status_code == 200
+    assert memories.status_code == 200
+    assert profile.status_code == 200
+    material_items = materials.json()["items"]
+    memory_items = memories.json()["items"]
+    assert len(material_items) >= 6
+    assert all(item["parse_status"] == "succeeded" for item in material_items)
+    assert memory_items
+    assert {item["status"] for item in memory_items} == {"confirmed"}
+    assert all(item["source_material_id"] for item in memory_items)
+    assert all(item["source_quote"] for item in memory_items)
+    assert profile.json()["profile_summary"]
+    assert profile.json()["trust_score"] >= 60
+
+    db_memories = db_session.scalars(
+        select(MemoryCard).where(MemoryCard.persona_id == grandfather["id"])
+    ).all()
+    assert all(memory.parsed_chunk_id for memory in db_memories)
 
 
 def test_delete_persona_soft_deletes_prd_related_records(
